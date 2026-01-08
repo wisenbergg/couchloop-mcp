@@ -1,0 +1,245 @@
+import { createSession, resumeSession } from './session.js';
+import { saveCheckpoint, getCheckpoints } from './checkpoint.js';
+import { listJourneys, getJourneyStatus } from './journey.js';
+import { saveInsight, getInsights, getUserContext } from './insight.js';
+import { sendMessage } from './sendMessage.js';
+import { logger } from '../utils/logger.js';
+
+export async function setupTools() {
+  const tools = [
+    {
+      definition: {
+        name: 'create_session',
+        description: 'Start a new guided session. Optionally specify a journey to follow.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            journey_slug: {
+              type: 'string',
+              description: 'Optional journey to follow (e.g., "daily-reflection")',
+            },
+            context: {
+              type: 'string',
+              description: 'Brief context for this session',
+            },
+          },
+          required: [],
+        },
+      },
+      handler: createSession
+    },
+    {
+      definition: {
+        name: 'send_message',
+        description: 'Send a message through the therapeutic AI stack with crisis detection and emotional support.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            session_id: {
+              type: 'string',
+              description: 'Active session ID',
+            },
+            message: {
+              type: 'string',
+              description: 'The message to send',
+            },
+            save_checkpoint: {
+              type: 'boolean',
+              description: 'Whether to save this exchange as a checkpoint (default: false)',
+            },
+            checkpoint_key: {
+              type: 'string',
+              description: 'Custom key for the checkpoint if saving',
+            },
+            advance_step: {
+              type: 'boolean',
+              description: 'Whether to advance to next journey step after response (default: false)',
+            },
+            include_memory: {
+              type: 'boolean',
+              description: 'Include session memory context (default: true)',
+            },
+            system_prompt: {
+              type: 'string',
+              description: 'Optional custom system prompt',
+            },
+            conversation_type: {
+              type: 'string',
+              description: 'Type of conversation (e.g., "therapeutic", "crisis", "casual")',
+            },
+          },
+          required: ['session_id', 'message'],
+        },
+      },
+      handler: sendMessage
+    },
+    {
+      definition: {
+        name: 'resume_session',
+        description: 'Resume a previously paused session. Returns current state and next step.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            session_id: {
+              type: 'string',
+              description: 'Session ID to resume (omit to resume most recent)',
+            },
+          },
+          required: [],
+        },
+      },
+      handler: resumeSession
+    },
+    {
+      definition: {
+        name: 'save_checkpoint',
+        description: 'Save progress or capture a key moment in the current session.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            session_id: {
+              type: 'string',
+              description: 'Active session ID',
+            },
+            key: {
+              type: 'string',
+              description: 'What is being captured (e.g., "mood", "reflection", "gratitude")',
+            },
+            value: {
+              type: 'any',
+              description: 'The captured content',
+            },
+            advance_step: {
+              type: 'boolean',
+              description: 'Whether to advance to next journey step (default: true)',
+            },
+          },
+          required: ['session_id', 'key', 'value'],
+        },
+      },
+      handler: saveCheckpoint
+    },
+    {
+      definition: {
+        name: 'get_checkpoints',
+        description: 'Get all checkpoints for a session.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            session_id: {
+              type: 'string',
+              description: 'Session ID to get checkpoints for',
+            },
+          },
+          required: ['session_id'],
+        },
+      },
+      handler: getCheckpoints
+    },
+    {
+      definition: {
+        name: 'list_journeys',
+        description: 'List available guided journeys/experiences.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            tag: {
+              type: 'string',
+              description: 'Filter by tag (e.g., "reflection", "gratitude")',
+            },
+          },
+          required: [],
+        },
+      },
+      handler: listJourneys
+    },
+    {
+      definition: {
+        name: 'get_journey_status',
+        description: 'Get current progress in a session/journey.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            session_id: {
+              type: 'string',
+              description: 'Session ID to check',
+            },
+          },
+          required: ['session_id'],
+        },
+      },
+      handler: getJourneyStatus
+    },
+    {
+      definition: {
+        name: 'save_insight',
+        description: 'Capture a meaningful insight or realization from the conversation.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            content: {
+              type: 'string',
+              description: 'The insight to save',
+            },
+            session_id: {
+              type: 'string',
+              description: 'Optional session to link this insight to',
+            },
+            tags: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Optional tags for categorization',
+            },
+          },
+          required: ['content'],
+        },
+      },
+      handler: saveInsight
+    },
+    {
+      definition: {
+        name: 'get_insights',
+        description: 'Get user insights, optionally filtered by session.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            session_id: {
+              type: 'string',
+              description: 'Optional session ID to filter insights',
+            },
+            limit: {
+              type: 'number',
+              description: 'Maximum number of insights to return (default: 10)',
+            },
+          },
+          required: [],
+        },
+      },
+      handler: getInsights
+    },
+    {
+      definition: {
+        name: 'get_user_context',
+        description: 'Get relevant context about this user for personalization.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            include_recent_insights: {
+              type: 'boolean',
+              description: 'Include recent insights (default: true)',
+            },
+            include_session_history: {
+              type: 'boolean',
+              description: 'Include recent session summaries (default: true)',
+            },
+          },
+          required: [],
+        },
+      },
+      handler: getUserContext
+    }
+  ];
+
+  logger.info(`Prepared ${tools.length} MCP tools`);
+  return tools;
+}

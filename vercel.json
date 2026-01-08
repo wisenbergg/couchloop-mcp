@@ -1,0 +1,27 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "installCommand": "npm install",
+  "framework": null,
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  },
+  "build": {
+    "env": {
+      "DATABASE_URL": "@database_url",
+      "SUPABASE_URL": "@supabase_url",
+      "SUPABASE_ANON_KEY": "@supabase_anon_key",
+      "SUPABASE_SERVICE_ROLE_KEY": "@supabase_service_role_key",
+      "OAUTH_CLIENT_ID": "@oauth_client_id",
+      "OAUTH_CLIENT_SECRET": "@oauth_client_secret",
+      "OAUTH_REDIRECT_URI": "@oauth_redirect_uri",
+      "JWT_SECRET": "@jwt_secret"
+    }
+  }
+}
