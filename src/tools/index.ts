@@ -211,6 +211,24 @@ export async function setupTools() {
               type: 'number',
               description: 'Maximum number of insights to return (default: 10)',
             },
+            auth: {
+              type: 'object',
+              description: 'Authentication context for user identification',
+              properties: {
+                token: {
+                  type: 'string',
+                  description: 'OAuth access token or session identifier',
+                },
+                user_id: {
+                  type: 'string',
+                  description: 'External user identifier from OAuth provider',
+                },
+                client_id: {
+                  type: 'string',
+                  description: 'Client application identifier',
+                },
+              },
+            },
           },
           required: [],
         },

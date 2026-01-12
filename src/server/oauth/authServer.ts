@@ -10,15 +10,6 @@ import { users, oauthClients, oauthTokens, authorizationCodes } from '../../db/s
 import { eq, and } from 'drizzle-orm';
 import { logger } from '../../utils/logger.js';
 
-interface AuthCode {
-  code: string;
-  clientId: string;
-  userId: string;
-  redirectUri: string;
-  scope: string;
-  expiresAt: Date;
-}
-
 interface TokenPayload {
   sub: string;  // User ID
   client_id: string;
@@ -218,7 +209,7 @@ export class OAuthServer {
     };
 
     return jwt.sign(payload, this.jwtSecret, {
-      expiresIn: this.jwtExpiresIn,
+      expiresIn: this.jwtExpiresIn as any,
     });
   }
 
@@ -233,7 +224,7 @@ export class OAuthServer {
     };
 
     return jwt.sign(payload, this.jwtSecret, {
-      expiresIn: '30d', // Refresh tokens last longer
+      expiresIn: '30d' as any, // Refresh tokens last longer
     });
   }
 
@@ -364,6 +355,10 @@ export class OAuthServer {
           externalId,
         })
         .returning();
+
+      if (!newUser) {
+        throw new Error('Failed to create user');
+      }
 
       logger.info(`Created new user with external ID: ${externalId}`);
       return newUser.id;

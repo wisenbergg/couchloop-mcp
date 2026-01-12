@@ -206,6 +206,3 @@ export async function withRetry<T>(
 ): Promise<T> {
   return retryStrategy.execute(fn, options);
 }
-
-// Export types
-export type { RetryOptions };

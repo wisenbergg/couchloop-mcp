@@ -180,8 +180,9 @@ export class PerformanceMonitor extends EventEmitter {
     }
 
     const totalTime = durations.reduce((sum, d) => sum + d, 0);
-    const timeRange = Date.now() - metrics[0].timestamp.getTime();
-    const throughput = (metrics.length / timeRange) * 60000; // per minute
+    const firstMetric = metrics[0];
+    const timeRange = firstMetric ? Date.now() - firstMetric.timestamp.getTime() : 0;
+    const throughput = timeRange > 0 ? (metrics.length / timeRange) * 60000 : 0; // per minute
 
     return {
       count: metrics.length,
@@ -189,8 +190,8 @@ export class PerformanceMonitor extends EventEmitter {
       errorCount: errorMetrics.length,
       totalTime,
       avgTime: totalTime / durations.length,
-      minTime: durations[0],
-      maxTime: durations[durations.length - 1],
+      minTime: durations[0] ?? 0,
+      maxTime: durations[durations.length - 1] ?? 0,
       p50: this.percentile(durations, 0.5),
       p95: this.percentile(durations, 0.95),
       p99: this.percentile(durations, 0.99),
@@ -287,8 +288,9 @@ export class PerformanceMonitor extends EventEmitter {
    * Calculate percentile
    */
   private percentile(sortedArray: number[], percentile: number): number {
+    if (sortedArray.length === 0) return 0;
     const index = Math.floor(sortedArray.length * percentile);
-    return sortedArray[Math.min(index, sortedArray.length - 1)];
+    return sortedArray[Math.min(index, sortedArray.length - 1)] ?? 0;
   }
 
   /**

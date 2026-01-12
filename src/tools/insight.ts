@@ -2,21 +2,21 @@ import { getDb } from '../db/client.js';
 import { insights, users, sessions } from '../db/schema.js';
 import { eq, desc, and } from 'drizzle-orm';
 import { SaveInsightSchema, GetUserContextSchema } from '../types/insight.js';
+import { extractUserFromContext } from '../types/auth.js';
 import { handleError, NotFoundError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
-import { nanoid } from 'nanoid';
 
 export async function saveInsight(args: any) {
   try {
     const input = SaveInsightSchema.parse(args);
     const db = getDb();
 
-    // TODO: Get actual user from OAuth context
-    const mockUserId = 'usr_' + nanoid();
+    // Extract user ID from auth context or generate anonymous user
+    const externalUserId = await extractUserFromContext(input.auth);
     const userResult = await db
       .insert(users)
       .values({
-        externalId: mockUserId,
+        externalId: externalUserId,
         preferences: {},
       })
       .onConflictDoUpdate({
@@ -70,19 +70,34 @@ export async function saveInsight(args: any) {
 
 export async function getInsights(args: any) {
   try {
-    const { session_id, limit = 10 } = args;
+    const { session_id, limit = 10, auth } = args;
     const db = getDb();
 
-    // TODO: Get actual user from OAuth context
-    const mockUserId = 'usr_' + nanoid();
+    // Extract user ID from auth context or generate anonymous user
+    const externalUserId = await extractUserFromContext(auth);
     const [user] = await db
       .select()
       .from(users)
-      .where(eq(users.externalId, mockUserId))
+      .where(eq(users.externalId, externalUserId))
       .limit(1);
 
     if (!user) {
-      throw new NotFoundError('User');
+      // Create user if doesn't exist
+      const [newUser] = await db
+        .insert(users)
+        .values({
+          externalId: externalUserId,
+          preferences: {},
+        })
+        .returning();
+
+      if (!newUser) {
+        throw new NotFoundError('User');
+      }
+      return {
+        insights: [],
+        count: 0,
+      };
     }
 
     let userInsights;
@@ -121,12 +136,12 @@ export async function getUserContext(args: any) {
     const input = GetUserContextSchema.parse(args);
     const db = getDb();
 
-    // TODO: Get actual user from OAuth context
-    const mockUserId = 'usr_' + nanoid();
+    // Extract user ID from auth context or generate anonymous user
+    const externalUserId = await extractUserFromContext(input.auth);
     const [user] = await db
       .select()
       .from(users)
-      .where(eq(users.externalId, mockUserId))
+      .where(eq(users.externalId, externalUserId))
       .limit(1);
 
     if (!user) {
@@ -134,7 +149,7 @@ export async function getUserContext(args: any) {
       const [newUser] = await db
         .insert(users)
         .values({
-          externalId: mockUserId,
+          externalId: externalUserId,
           preferences: {},
         })
         .returning();

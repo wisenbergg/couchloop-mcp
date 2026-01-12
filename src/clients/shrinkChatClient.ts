@@ -278,7 +278,7 @@ export class ShrinkChatClient {
     logger.debug(`Parsed response - content: "${validated.content || '(empty)'}", length: ${validated.content?.length || 0}`);
 
     // Log crisis detection
-    if (validated.crisisLevel && validated.crisisLevel > 7) {
+    if (validated.crisisLevel && Number(validated.crisisLevel) > 7) {
       logger.warn(`Crisis detected in thread ${threadId}: Level ${validated.crisisLevel}`);
     }
 

@@ -8,7 +8,9 @@ export async function getUserContextResource() {
   try {
     const db = getDb();
 
-    // TODO: Get actual user from OAuth context
+    // NOTE: Resources in MCP don't receive parameters, so we can't pass auth context.
+    // Using a mock user ID for now. This will be addressed when we implement
+    // a proper session store or modify the MCP server to maintain user context.
     const mockUserId = 'usr_' + nanoid();
     const [user] = await db
       .select()

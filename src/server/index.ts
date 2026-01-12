@@ -231,7 +231,7 @@ app.post('/api/mcp/message', validateToken, requireScope('write'), rateLimit(60,
  * GET /health
  * Health check endpoint
  */
-app.get('/health', (req: Request, res: Response) => {
+app.get('/health', (_req: Request, res: Response) => {
   res.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),

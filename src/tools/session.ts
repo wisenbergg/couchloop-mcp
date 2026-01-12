@@ -1,8 +1,8 @@
-import { nanoid } from 'nanoid';
 import { getDb } from '../db/client.js';
 import { sessions, journeys, users, checkpoints } from '../db/schema.js';
 import { eq, desc, and } from 'drizzle-orm';
 import { CreateSessionSchema, ResumeSessionSchema } from '../types/session.js';
+import { extractUserFromContext } from '../types/auth.js';
 import { handleError, NotFoundError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 
@@ -11,13 +11,13 @@ export async function createSession(args: any) {
     const input = CreateSessionSchema.parse(args);
     const db = getDb();
 
-    // Get or create user (using a mock user for now - will be replaced with OAuth)
-    // TODO: Replace with actual user from OAuth context
-    const mockUserId = 'usr_' + nanoid();
+    // Extract user ID from auth context or generate anonymous user
+    const externalUserId = await extractUserFromContext(input.auth);
+
     const userResult = await db
       .insert(users)
       .values({
-        externalId: mockUserId,
+        externalId: externalUserId,
         preferences: {},
       })
       .onConflictDoUpdate({
@@ -84,16 +84,31 @@ export async function resumeSession(args: any) {
     const input = ResumeSessionSchema.parse(args);
     const db = getDb();
 
-    // TODO: Get actual user from OAuth context
-    const mockUserId = 'usr_' + nanoid();
+    // Extract user ID from auth context or generate anonymous user
+    const externalUserId = await extractUserFromContext(input.auth);
     const [user] = await db
       .select()
       .from(users)
-      .where(eq(users.externalId, mockUserId))
+      .where(eq(users.externalId, externalUserId))
       .limit(1);
 
     if (!user) {
-      throw new NotFoundError('User');
+      // Create user if doesn't exist
+      const [newUser] = await db
+        .insert(users)
+        .values({
+          externalId: externalUserId,
+          preferences: {},
+        })
+        .returning();
+
+      if (!newUser) {
+        throw new NotFoundError('User');
+      }
+      return {
+        message: 'No previous sessions found for this user. Please create a new session.',
+        session: null,
+      };
     }
 
     // Find session to resume

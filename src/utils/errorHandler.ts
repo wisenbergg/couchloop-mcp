@@ -134,7 +134,7 @@ export class ErrorHandler {
   /**
    * Determine error severity
    */
-  determineSeverity(type: ErrorType, error: Error): ErrorSeverity {
+  determineSeverity(type: ErrorType, _error: Error): ErrorSeverity {
     // Critical errors that need immediate attention
     if (type === ErrorType.CRISIS) {
       return ErrorSeverity.CRITICAL;
@@ -229,7 +229,7 @@ export class ErrorHandler {
   /**
    * Get user-friendly error message
    */
-  private getUserMessage(type: ErrorType, error: Error): string {
+  private getUserMessage(type: ErrorType, _error: Error): string {
     switch (type) {
       case ErrorType.NETWORK:
         return 'Connection issue. Please check your internet and try again.';

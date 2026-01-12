@@ -106,7 +106,7 @@ export function requireScope(...requiredScopes: string[]) {
  */
 export async function optionalAuth(
   req: Request,
-  res: Response,
+  _res: Response,
   next: NextFunction
 ): Promise<void> {
   try {

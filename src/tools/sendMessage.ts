@@ -53,7 +53,7 @@ export async function sendMessage(args: unknown) {
 
     // 2. Get or generate thread ID
     // Threads in shrink-chat are created lazily on first message
-    threadId = session.threadId;
+    threadId = session.threadId || undefined;
 
     if (!threadId) {
       // Generate a new thread ID for this session
@@ -126,7 +126,7 @@ export async function sendMessage(args: unknown) {
 
     // 6. Handle crisis detection if present
     let crisisHandled = false;
-    if (response.crisisLevel && response.crisisLevel > 7) {
+    if (response.crisisLevel && Number(response.crisisLevel) > 7) {
       logger.warn(`Crisis detected: Level ${response.crisisLevel} for session ${session.id}`);
       crisisHandled = await handleCrisisDetection(session.id, threadId, response);
     }
@@ -173,7 +173,7 @@ export async function sendMessage(args: unknown) {
       content: response.content || '',
       messageId: response.messageId,
       metadata: {
-        crisisDetected: response.crisisDetected || (response.crisisLevel && response.crisisLevel > 7),
+        crisisDetected: response.crisisDetected || (response.crisisLevel && Number(response.crisisLevel) > 7),
         crisisLevel: response.crisisLevel,
         crisisHandled,
         crisisConfidence: response.crisis_confidence, // Add crisis confidence
