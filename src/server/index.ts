@@ -3,6 +3,8 @@ import { config } from 'dotenv';
 config({ path: '.env.local' });
 
 import express, { Request, Response } from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import cookieParser from 'cookie-parser';
 import { oauthServer } from './oauth/authServer.js';
 import { validateToken, requireScope, oauthCors, rateLimit } from './middleware/auth.js';
@@ -10,8 +12,6 @@ import { logger } from '../utils/logger.js';
 import { sendMessage } from '../tools/sendMessage.js';
 import { createSession } from '../tools/session.js';
 import { initDatabase } from '../db/client.js';
-import path from 'path';
-import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -35,7 +35,7 @@ app.use(oauthCors);
  */
 app.get('/oauth/authorize', async (req: Request, res: Response) => {
   try {
-    const { client_id, redirect_uri, response_type, scope, state } = req.query;
+    const { client_id, redirect_uri, response_type, scope, state, consent } = req.query;
 
     // Validate required parameters
     if (!client_id || !redirect_uri) {
@@ -64,9 +64,21 @@ app.get('/oauth/authorize', async (req: Request, res: Response) => {
       return;
     }
 
-    // For now, auto-approve and generate code (in production, show consent screen)
-    // In production, you'd redirect to a login/consent page here
-    const userId = await oauthServer.getOrCreateUser('demo-user'); // TODO: Real auth
+    // If consent is not approved, show consent screen
+    if (consent !== 'approved') {
+      // Serve the consent page
+      const consentPath = path.join(__dirname, 'views', 'consent.html');
+      res.sendFile(consentPath);
+      return;
+    }
+
+    // Generate anonymous but persistent user ID based on client and state
+    // This creates a unique user per ChatGPT/Claude session but maintains anonymity
+    const anonymousId = `${client_id}_${state || 'default'}_${Date.now()}`;
+    const hashedId = Buffer.from(anonymousId).toString('base64').replace(/[^a-zA-Z0-9]/g, '').substring(0, 16);
+    const externalId = `anon_${hashedId}`;
+
+    const userId = await oauthServer.getOrCreateUser(externalId);
     const code = await oauthServer.generateAuthCode(
       client_id as string,
       userId,

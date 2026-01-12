@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CouchLoop - Consent & Authorization</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(180deg, #F8F9FB 0%, #FFFFFF 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 480px;
+            margin-top: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .logo {
+            width: 72px;
+            height: 72px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 20px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 16px;
+            font-size: 32px;
+            color: white;
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        h1 {
+            font-size: 24px;
+            font-weight: 700;
+            color: #1A1A1A;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            font-size: 15px;
+            color: #6B7280;
+            margin-bottom: 4px;
+        }
+
+        .client-name {
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        /* Critical Disclaimer Section */
+        .disclaimer-card {
+            background: #FEF2F2;
+            border: 2px solid #FCA5A5;
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .disclaimer-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .disclaimer-icon {
+            font-size: 24px;
+            margin-right: 10px;
+        }
+
+        .disclaimer-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #DC2626;
+        }
+
+        .disclaimer-content {
+            color: #7F1D1D;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .disclaimer-list {
+            margin: 12px 0;
+            padding-left: 20px;
+        }
+
+        .disclaimer-list li {
+            margin-bottom: 8px;
+        }
+
+        /* Permissions Section */
+        .permissions-card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            margin-bottom: 20px;
+        }
+
+        .section-header {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1A1A1A;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+        }
+
+        .section-header::before {
+            content: '🔐';
+            margin-right: 8px;
+        }
+
+        .permission-item {
+            display: flex;
+            align-items: flex-start;
+            padding: 12px;
+            margin-bottom: 8px;
+            background: #F9FAFB;
+            border-radius: 10px;
+            border: 1px solid #E5E7EB;
+        }
+
+        .permission-check {
+            color: #10B981;
+            margin-right: 12px;
+            font-size: 18px;
+            margin-top: 2px;
+        }
+
+        .permission-text {
+            flex: 1;
+            font-size: 14px;
+            color: #4B5563;
+            line-height: 1.5;
+        }
+
+        /* Privacy Notice */
+        .privacy-card {
+            background: #EFF6FF;
+            border: 1px solid #BFDBFE;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+
+        .privacy-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .privacy-icon {
+            margin-right: 8px;
+        }
+
+        .privacy-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1E40AF;
+        }
+
+        .privacy-content {
+            font-size: 13px;
+            color: #1E3A8A;
+            line-height: 1.5;
+        }
+
+        /* Agreement Checkbox */
+        .agreement-section {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 2px solid #E5E7EB;
+        }
+
+        .checkbox-container {
+            display: flex;
+            align-items: flex-start;
+        }
+
+        .checkbox-input {
+            width: 20px;
+            height: 20px;
+            margin-right: 12px;
+            margin-top: 2px;
+            cursor: pointer;
+        }
+
+        .checkbox-label {
+            flex: 1;
+            font-size: 14px;
+            color: #374151;
+            line-height: 1.6;
+            cursor: pointer;
+        }
+
+        .checkbox-label a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        .checkbox-label a:hover {
+            text-decoration: underline;
+        }
+
+        /* Action Buttons */
+        .action-buttons {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 16px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+
+        .btn-deny {
+            background: white;
+            border: 2px solid #E5E7EB;
+            color: #6B7280;
+        }
+
+        .btn-deny:hover {
+            background: #F9FAFB;
+            border-color: #D1D5DB;
+        }
+
+        .btn-approve {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-approve.enabled {
+            opacity: 1;
+            cursor: pointer;
+        }
+
+        .btn-approve.enabled:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 20px -5px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-approve:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Emergency Resources */
+        .emergency-footer {
+            margin-top: 24px;
+            padding: 16px;
+            background: #FEF3C7;
+            border-radius: 12px;
+            border: 1px solid #FCD34D;
+        }
+
+        .emergency-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #92400E;
+            margin-bottom: 8px;
+        }
+
+        .emergency-text {
+            font-size: 12px;
+            color: #78350F;
+            line-height: 1.5;
+        }
+
+        .emergency-number {
+            font-weight: 700;
+            color: #DC2626;
+        }
+
+        /* Loading state */
+        .btn.loading {
+            position: relative;
+            color: transparent;
+        }
+
+        .btn.loading::after {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            top: 50%;
+            left: 50%;
+            margin-left: -10px;
+            margin-top: -10px;
+            border: 2px solid #667eea;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spinner 0.6s linear infinite;
+        }
+
+        .btn-approve.loading::after {
+            border-color: #ffffff;
+            border-top-color: transparent;
+        }
+
+        @keyframes spinner {
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                max-width: 100%;
+            }
+
+            h1 {
+                font-size: 22px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">🛋️</div>
+            <h1>Authorization Request</h1>
+            <p class="subtitle">
+                <span class="client-name" id="clientName">ChatGPT</span> wants to access CouchLoop
+            </p>
+        </div>
+
+        <!-- Critical Disclaimer -->
+        <div class="disclaimer-card">
+            <div class="disclaimer-header">
+                <span class="disclaimer-icon">⚠️</span>
+                <h2 class="disclaimer-title">Important Notice</h2>
+            </div>
+            <div class="disclaimer-content">
+                <strong>CouchLoop is NOT a replacement for professional mental health care.</strong>
+                <ul class="disclaimer-list">
+                    <li>This is an AI-powered wellness companion, not a therapist</li>
+                    <li>Not intended to diagnose, treat, or cure any condition</li>
+                    <li>If you're in crisis, immediately contact emergency services</li>
+                    <li>Always consult qualified healthcare providers for medical advice</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Permissions -->
+        <div class="permissions-card">
+            <h3 class="section-header">This will allow the app to:</h3>
+            <div class="permission-item">
+                <span class="permission-check">✓</span>
+                <div class="permission-text">Create and manage wellness conversations</div>
+            </div>
+            <div class="permission-item">
+                <span class="permission-check">✓</span>
+                <div class="permission-text">Send messages to our AI wellness assistant</div>
+            </div>
+            <div class="permission-item">
+                <span class="permission-check">✓</span>
+                <div class="permission-text">Access your conversation history for continuity</div>
+            </div>
+            <div class="permission-item">
+                <span class="permission-check">✓</span>
+                <div class="permission-text">Monitor for crisis indicators to provide appropriate resources</div>
+            </div>
+        </div>
+
+        <!-- Privacy Notice -->
+        <div class="privacy-card">
+            <div class="privacy-header">
+                <span class="privacy-icon">🔒</span>
+                <h3 class="privacy-title">Your Privacy Matters</h3>
+            </div>
+            <div class="privacy-content">
+                • No email or personal information required<br>
+                • Anonymous user ID generated automatically<br>
+                • Conversations are pseudonymous<br>
+                • You can revoke access anytime<br>
+                • We never share data with third parties
+            </div>
+        </div>
+
+        <!-- Agreement Checkbox -->
+        <div class="agreement-section">
+            <div class="checkbox-container">
+                <input type="checkbox" id="agreeTerms" class="checkbox-input">
+                <label for="agreeTerms" class="checkbox-label">
+                    I understand that CouchLoop is not a substitute for professional mental health care.
+                    I acknowledge the <a href="/disclaimer" target="_blank">full disclaimer</a> and
+                    agree to the <a href="/terms" target="_blank">Terms of Service</a> and
+                    <a href="/privacy" target="_blank">Privacy Policy</a>.
+                </label>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <form id="consentForm" method="POST" action="/oauth/authorize/consent">
+            <input type="hidden" name="client_id" id="clientId" value="">
+            <input type="hidden" name="redirect_uri" id="redirectUri" value="">
+            <input type="hidden" name="scope" id="scope" value="">
+            <input type="hidden" name="state" id="state" value="">
+
+            <div class="action-buttons">
+                <button type="button" class="btn btn-deny" id="denyBtn" onclick="denyAccess()">
+                    Cancel
+                </button>
+                <button type="submit" class="btn btn-approve" id="approveBtn" disabled>
+                    Authorize Access
+                </button>
+            </div>
+        </form>
+
+        <!-- Emergency Resources -->
+        <div class="emergency-footer">
+            <div class="emergency-title">If you need immediate help:</div>
+            <div class="emergency-text">
+                • US: Call or text <span class="emergency-number">988</span> for the Suicide & Crisis Lifeline<br>
+                • UK: Call <span class="emergency-number">116 123</span> (Samaritans)<br>
+                • Emergency: Call <span class="emergency-number">911</span> (US) or <span class="emergency-number">999</span> (UK)<br>
+                • International: Visit <a href="https://findahelpline.com" target="_blank">findahelpline.com</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Parse OAuth parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        document.getElementById('clientId').value = urlParams.get('client_id') || '';
+        document.getElementById('redirectUri').value = urlParams.get('redirect_uri') || '';
+        document.getElementById('scope').value = urlParams.get('scope') || '';
+        document.getElementById('state').value = urlParams.get('state') || '';
+
+        // Customize based on client
+        const clientConfigs = {
+            'couchloop_chatgpt': { name: 'ChatGPT', icon: '🤖' },
+            'couchloop_claude': { name: 'Claude', icon: '🎭' },
+        };
+        const clientId = urlParams.get('client_id');
+        const config = clientConfigs[clientId] || { name: 'This App' };
+        document.getElementById('clientName').textContent = config.name;
+
+        // Enable/disable authorize button based on checkbox
+        const checkbox = document.getElementById('agreeTerms');
+        const approveBtn = document.getElementById('approveBtn');
+
+        checkbox.addEventListener('change', function() {
+            if (this.checked) {
+                approveBtn.disabled = false;
+                approveBtn.classList.add('enabled');
+            } else {
+                approveBtn.disabled = true;
+                approveBtn.classList.remove('enabled');
+            }
+        });
+
+        // Handle form submission
+        document.getElementById('consentForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            if (!checkbox.checked) {
+                alert('Please acknowledge the disclaimer and agree to the terms to continue.');
+                return;
+            }
+            approveBtn.classList.add('loading');
+
+            // Auto-approve since we don't have a backend consent handler yet
+            const redirectUri = document.getElementById('redirectUri').value;
+            const state = document.getElementById('state').value;
+            const clientId = document.getElementById('clientId').value;
+
+            // Redirect to authorize endpoint to generate code
+            window.location.href = `/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&state=${state}&scope=read write&consent=approved`;
+        });
+
+        function denyAccess() {
+            const redirectUri = document.getElementById('redirectUri').value;
+            const state = document.getElementById('state').value;
+            const deniedUrl = new URL(redirectUri);
+            deniedUrl.searchParams.set('error', 'access_denied');
+            deniedUrl.searchParams.set('error_description', 'User denied access');
+            if (state) deniedUrl.searchParams.set('state', state);
+            window.location.href = deniedUrl.toString();
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                denyAccess();
+            }
+        });
+    </script>
+</body>
+</html>
