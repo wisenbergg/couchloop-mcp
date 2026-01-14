@@ -283,29 +283,106 @@ const newTokens = await refreshTokenManager.rotateRefreshToken(
    - Action: Block request, investigate
    - Log: Full request details
 
+### Phase 3: Advanced Security (Complete) ✅
+
+#### 5. DPoP (Demonstration of Proof of Possession)
+- **File**: `src/server/oauth/dpop.ts`
+- **Features**:
+  - RFC draft-ietf-oauth-dpop compliant
+  - Sender-constrained access tokens
+  - JWK thumbprint binding
+  - Replay attack prevention with JTI tracking
+  - Nonce support for enhanced security
+  - Express middleware integration
+  - Proof validation with time window checks
+
+#### 6. Anomaly Detection System
+- **File**: `src/server/oauth/anomalyDetection.ts`
+- **Features**:
+  - IP reputation checking with threat intelligence
+  - Geolocation anomaly detection
+  - Impossible travel detection (900 km/h threshold)
+  - Device fingerprinting and tracking
+  - Behavioral pattern analysis
+  - Brute force detection
+  - Risk scoring with action recommendations
+  - User profile baseline tracking
+  - Automatic security event logging
+
+### Phase 4: GDPR Compliance (Complete) ✅
+
+#### 7. Consent Management
+- **File**: `src/server/oauth/gdpr/consent.ts`
+- **Features**:
+  - GDPR Articles 6, 7, 8 compliance
+  - Lawful basis determination
+  - Granular consent tracking
+  - Parental consent for minors (16 EU / 13 US)
+  - Consent versioning and expiry
+  - Special category data handling
+  - Withdrawal mechanisms
+  - Audit trail maintenance
+
+#### 8. Data Portability
+- **File**: `src/server/oauth/gdpr/dataPortability.ts`
+- **Features**:
+  - GDPR Article 20 compliance
+  - Multiple export formats (JSON, CSV, XML, PDF, Archive)
+  - Encrypted exports with AES-256
+  - Category-based data selection
+  - Automated export processing
+  - 72-hour expiry with cleanup
+  - Import/export functionality
+  - Checksum verification
+
+#### 9. Right to Erasure
+- **File**: `src/server/oauth/gdpr/rightToErasure.ts`
+- **Features**:
+  - GDPR Article 17 compliance
+  - Multiple deletion scopes (Full, Partial, Anonymize, Pseudonymize)
+  - Retention requirement checking
+  - Legal hold detection
+  - 30-day grace period
+  - Email verification
+  - Third-party notification
+  - Completion certificates
+  - Backup before deletion option
+
+#### 10. GDPR Compliance Manager
+- **File**: `src/server/oauth/gdpr/index.ts`
+- **Features**:
+  - Central GDPR interface
+  - Data breach handling (72-hour notification)
+  - Cross-border transfer authorization
+  - Age verification system
+  - Privacy report generation
+  - Automated compliance tasks
+  - Supervisory authority notification
+
 ## 🔄 Next Steps
 
 ### Remaining Security Enhancements
 
-1. **DPoP (Demonstration of Proof of Possession)**
-   - Sender-constrained tokens
-   - Prevents token theft
+1. **Security Monitoring & Alerting**
+   - Real-time threat detection
+   - Security incident response
+   - SIEM integration
+   - Webhook notifications
 
 2. **WebAuthn/Passkeys**
    - Passwordless authentication
    - Phishing-resistant
+   - Biometric support
 
-3. **Anomaly Detection**
-   - Machine learning-based detection
-   - Behavioral analysis
-
-4. **Rate Limiting**
+3. **Rate Limiting**
    - Per-endpoint limits
    - Exponential backoff
+   - Distributed rate limiting
 
-5. **Security Headers**
+4. **Security Headers**
    - HSTS, CSP, X-Frame-Options
    - Referrer-Policy
+   - Permissions-Policy
 
 ## 🧪 Testing
 

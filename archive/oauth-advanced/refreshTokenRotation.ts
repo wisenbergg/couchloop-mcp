@@ -2,7 +2,7 @@ import { randomBytes } from 'crypto';
 import { logger } from '../../utils/logger.js';
 import { getDb } from '../../db/client.js';
 import { oauthTokens } from '../../db/schema.js';
-import { eq, and, or, desc } from 'drizzle-orm';
+import { eq, and, isNull } from 'drizzle-orm';
 import { tokenEncryption } from './tokenEncryption.js';
 import jwt from 'jsonwebtoken';
 
@@ -275,7 +275,7 @@ export class RefreshTokenManager {
       .where(
         and(
           eq(oauthTokens.refreshTokenHash, tokenHash),
-          eq(oauthTokens.revokedAt, null)
+          isNull(oauthTokens.revokedAt)
         )
       )
       .limit(1);
@@ -286,9 +286,15 @@ export class RefreshTokenManager {
 
     // Reconstruct family from database
     const token = result[0];
+
+    // Handle nullable fields
+    if (!token || !token.tokenFamilyId || !token.refreshTokenHash || !token.clientId) {
+      return null;
+    }
+
     const family: TokenFamily = {
       familyId: token.tokenFamilyId,
-      currentTokenHash: token.refreshTokenHash!,
+      currentTokenHash: token.refreshTokenHash,
       previousTokenHashes: [], // Would need separate table for full history
       userId: token.userId,
       clientId: token.clientId,

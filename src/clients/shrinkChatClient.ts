@@ -7,7 +7,8 @@ import { performanceMonitor } from '../utils/performanceMonitor.js';
 import { v4 as uuidv4 } from 'uuid';
 
 // Configuration with differentiated timeouts
-const config = {
+// Made as a function to allow dynamic reading of environment variables
+const getConfig = () => ({
   baseUrl: process.env.SHRINK_CHAT_API_URL || 'http://localhost:3000',
   timeout: {
     default: parseInt(process.env.SHRINK_CHAT_TIMEOUT || '30000'),
@@ -15,7 +16,7 @@ const config = {
     crisis: parseInt(process.env.SHRINK_CHAT_TIMEOUT_CRISIS || '45000'),
     stream: parseInt(process.env.SHRINK_CHAT_TIMEOUT_STREAM || '60000'),
   },
-};
+});
 
 // Response Schema based on actual shrink-chat API
 export const ShrinkResponseSchema = z.object({
@@ -67,11 +68,11 @@ export class ShrinkChatClient {
   private retryStrategy: RetryStrategy;
 
   constructor() {
-    this.circuitBreaker = new CircuitBreaker(
-      parseInt(process.env.CIRCUIT_BREAKER_THRESHOLD || '5'),
-      parseInt(process.env.CIRCUIT_BREAKER_TIMEOUT || '60000'),
-      parseInt(process.env.CIRCUIT_BREAKER_RESET || '30000')
-    );
+    this.circuitBreaker = new CircuitBreaker({
+      failureThreshold: parseInt(process.env.CIRCUIT_BREAKER_THRESHOLD || '5'),
+      resetTimeout: parseInt(process.env.CIRCUIT_BREAKER_RESET || '30000'),
+      halfOpenMaxAttempts: 3,
+    });
 
     this.retryStrategy = new RetryStrategy();
   }
@@ -101,6 +102,7 @@ export class ShrinkChatClient {
     options: RequestInit = {},
     timeoutMs?: number
   ): Promise<T> {
+    const config = getConfig();
     const controller = new AbortController();
     const timeout = setTimeout(
       () => controller.abort(),
@@ -108,32 +110,35 @@ export class ShrinkChatClient {
     );
 
     try {
-      const response = await this.circuitBreaker.execute(async () => {
-        const res = await fetch(`${config.baseUrl}${endpoint}`, {
-          ...options,
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Source': 'mcp-server',
-            ...options.headers,
-          },
-          signal: controller.signal,
-        });
+      const response = await this.circuitBreaker.execute(
+        `shrink-chat-${endpoint}`,
+        async () => {
+          const res = await fetch(`${config.baseUrl}${endpoint}`, {
+            ...options,
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Source': 'mcp-server',
+              ...options.headers,
+            },
+            signal: controller.signal,
+          });
 
-        if (!res.ok) {
-          const errorData = await res.json().catch(() => ({
-            error: res.statusText,
-            error_type: 'http_error'
-          })) as any;
+          if (!res.ok) {
+            const errorData = await res.json().catch(() => ({
+              error: res.statusText,
+              error_type: 'http_error'
+            })) as any;
 
-          throw new Error(
-            errorData.message ||
-            errorData.error ||
-            `Shrink-Chat API error: ${res.statusText}`
-          );
+            throw new Error(
+              errorData.message ||
+              errorData.error ||
+              `Shrink-Chat API error: ${res.statusText}`
+            );
+          }
+
+          return res.json();
         }
-
-        return res.json();
-      });
+      );
 
       clearTimeout(timeout);
       return response as T;
@@ -153,8 +158,8 @@ export class ShrinkChatClient {
    * Note: Threads are created lazily - no need for separate thread creation
    */
   async sendMessage(
-    prompt: string,
     threadId: string,
+    prompt: string,
     options?: {
       memoryContext?: string;
       enhancedContext?: any;
@@ -166,6 +171,7 @@ export class ShrinkChatClient {
   ): Promise<ShrinkResponse> {
     logger.debug(`Sending message to thread ${threadId}`);
 
+    const config = getConfig();
     // Detect crisis content to determine timeout
     const isCrisis = this.detectCrisisContent(prompt);
     const timeout = isCrisis ? config.timeout.crisis : config.timeout.regular;
@@ -225,7 +231,7 @@ export class ShrinkChatClient {
             timeout
           ),
           {
-            maxRetries: isCrisis ? 3 : 2,
+            maxAttempts: isCrisis ? 3 : 2,
             initialDelay: 2000,
             maxDelay: 10000,
             shouldRetry: (error) => {
@@ -241,8 +247,8 @@ export class ShrinkChatClient {
               // Default retry logic
               return true;
             },
-            onRetry: (error, attempt, delay) => {
-              logger.warn(`Retrying message (attempt ${attempt}), waiting ${Math.round(delay)}ms: ${error.message}`);
+            onRetry: (attempt: number, error: Error) => {
+              logger.warn(`Retrying message (attempt ${attempt}): ${error.message}`);
             },
           }
         )
@@ -313,6 +319,7 @@ export class ShrinkChatClient {
       signal?: AbortSignal;
     }
   ): AsyncGenerator<any> {
+    const config = getConfig();
     const url = `${config.baseUrl}/api/shrink?stream=true`;
 
     const response = await fetch(url, {
@@ -420,6 +427,13 @@ export class ShrinkChatClient {
    */
   generateThreadId(): string {
     return uuidv4();
+  }
+
+  /**
+   * Get circuit breaker status
+   */
+  getCircuitBreakerStatus() {
+    return this.circuitBreaker.getStatistics();
   }
 }
 

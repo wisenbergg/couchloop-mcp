@@ -1,0 +1,324 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      skip_tests:
+        description: 'Skip tests before deployment'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # Job 1: Pre-deployment Tests
+  pre-deploy-tests:
+    name: Pre-deployment Tests
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.skip_tests != 'true' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+        env:
+          NODE_ENV: test
+          DATABASE_URL: ${{ secrets.TEST_DATABASE_URL }}
+
+      - name: Build project
+        run: npm run build
+
+  # Job 2: Deploy to Staging
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [pre-deploy-tests]
+    if: |
+      always() &&
+      (needs.pre-deploy-tests.result == 'success' || needs.pre-deploy-tests.result == 'skipped') &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event.inputs.environment == 'staging')
+    environment:
+      name: staging
+      url: https://staging-mcp.couchloop.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel Environment Information
+        run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build Project
+        run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          REDIS_URL: ${{ secrets.STAGING_REDIS_URL }}
+          JWT_SECRET: ${{ secrets.STAGING_JWT_SECRET }}
+          ENCRYPTION_KEY: ${{ secrets.STAGING_ENCRYPTION_KEY }}
+          STATE_SECRET: ${{ secrets.STAGING_STATE_SECRET }}
+          GOOGLE_CLIENT_ID: ${{ secrets.STAGING_GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.STAGING_GOOGLE_CLIENT_SECRET }}
+          GITHUB_CLIENT_ID: ${{ secrets.STAGING_GITHUB_CLIENT_ID }}
+          GITHUB_CLIENT_SECRET: ${{ secrets.STAGING_GITHUB_CLIENT_SECRET }}
+
+      - name: Deploy to Vercel Staging
+        id: deploy-staging
+        run: |
+          deployment_url=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
+          echo "deployment_url=$deployment_url" >> $GITHUB_OUTPUT
+          vercel alias set $deployment_url staging-mcp.couchloop.com --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Run Database Migrations
+        run: npm run db:push
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+
+      - name: Smoke Tests
+        run: |
+          sleep 30
+          response=$(curl -s -o /dev/null -w "%{http_code}" https://staging-mcp.couchloop.com/health)
+          if [ $response -ne 200 ]; then
+            echo "Health check failed with status $response"
+            exit 1
+          fi
+          echo "Health check passed"
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '🚀 Deployed to staging: ${{ steps.deploy-staging.outputs.deployment_url }}'
+            })
+
+  # Job 3: Deploy to Production
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [deploy-staging]
+    if: |
+      github.ref == 'refs/heads/main' ||
+      github.ref == 'refs/heads/master' ||
+      github.event.inputs.environment == 'production'
+    environment:
+      name: production
+      url: https://mcp.couchloop.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel Environment Information
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build Project
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          REDIS_URL: ${{ secrets.PRODUCTION_REDIS_URL }}
+          JWT_SECRET: ${{ secrets.PRODUCTION_JWT_SECRET }}
+          ENCRYPTION_KEY: ${{ secrets.PRODUCTION_ENCRYPTION_KEY }}
+          STATE_SECRET: ${{ secrets.PRODUCTION_STATE_SECRET }}
+          GOOGLE_CLIENT_ID: ${{ secrets.PRODUCTION_GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.PRODUCTION_GOOGLE_CLIENT_SECRET }}
+          GITHUB_CLIENT_ID: ${{ secrets.PRODUCTION_GITHUB_CLIENT_ID }}
+          GITHUB_CLIENT_SECRET: ${{ secrets.PRODUCTION_GITHUB_CLIENT_SECRET }}
+
+      - name: Create Database Backup
+        run: |
+          echo "Creating database backup before deployment..."
+          # This would use pg_dump or similar in real implementation
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+
+      - name: Deploy to Vercel Production
+        id: deploy-production
+        run: |
+          deployment_url=$(vercel deploy --prod --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
+          echo "deployment_url=$deployment_url" >> $GITHUB_OUTPUT
+
+      - name: Run Database Migrations
+        run: npm run db:push
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+
+      - name: Smoke Tests
+        run: |
+          sleep 30
+          response=$(curl -s -o /dev/null -w "%{http_code}" https://mcp.couchloop.com/health)
+          if [ $response -ne 200 ]; then
+            echo "Health check failed with status $response"
+            exit 1
+          fi
+          echo "Health check passed"
+
+      - name: Performance Test
+        run: |
+          npm install -g autocannon
+          autocannon -c 10 -d 10 -p 5 https://mcp.couchloop.com/health
+
+      - name: Create GitHub Release
+        if: success()
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ github.run_number }}
+          release_name: Release v${{ github.run_number }}
+          body: |
+            ## Production Deployment
+            - Commit: ${{ github.sha }}
+            - Author: ${{ github.actor }}
+            - Deployment URL: ${{ steps.deploy-production.outputs.deployment_url }}
+          draft: false
+          prerelease: false
+
+  # Job 4: Rollback (Manual Trigger)
+  rollback:
+    name: Rollback Deployment
+    runs-on: ubuntu-latest
+    if: failure()
+    needs: [deploy-production]
+    environment:
+      name: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Rollback to Previous Deployment
+        run: |
+          echo "Rolling back to previous deployment..."
+          vercel rollback --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Restore Database Backup
+        run: |
+          echo "Restoring database from backup..."
+          # This would restore the database backup
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+
+      - name: Send Rollback Notification
+        uses: 8398a7/action-slack@v3
+        with:
+          status: custom
+          custom_payload: |
+            {
+              text: "⚠️ Production deployment rolled back",
+              attachments: [{
+                color: 'warning',
+                fields: [{
+                  title: 'Rollback Triggered',
+                  value: 'Production deployment failed and was rolled back',
+                  short: false
+                }]
+              }]
+            }
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+
+  # Job 5: Post-deployment Monitoring
+  post-deploy-monitoring:
+    name: Post-deployment Monitoring
+    runs-on: ubuntu-latest
+    needs: [deploy-production]
+    if: success()
+    steps:
+      - name: Monitor Application Health
+        run: |
+          for i in {1..10}; do
+            echo "Health check attempt $i"
+            response=$(curl -s -o /dev/null -w "%{http_code}" https://mcp.couchloop.com/health)
+            if [ $response -ne 200 ]; then
+              echo "Health check failed with status $response"
+              exit 1
+            fi
+            sleep 30
+          done
+          echo "Post-deployment monitoring completed successfully"
+
+      - name: Check Error Rates
+        run: |
+          echo "Checking error rates in monitoring system..."
+          # This would integrate with your monitoring system (DataDog, New Relic, etc.)
+
+      - name: Send Success Notification
+        uses: 8398a7/action-slack@v3
+        with:
+          status: custom
+          custom_payload: |
+            {
+              text: "✅ Production deployment successful",
+              attachments: [{
+                color: 'good',
+                fields: [
+                  {
+                    title: 'Environment',
+                    value: 'Production',
+                    short: true
+                  },
+                  {
+                    title: 'Version',
+                    value: '${{ github.sha }}',
+                    short: true
+                  },
+                  {
+                    title: 'Deployed By',
+                    value: '${{ github.actor }}',
+                    short: true
+                  },
+                  {
+                    title: 'Status',
+                    value: 'Healthy',
+                    short: true
+                  }
+                ]
+              }]
+            }
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}

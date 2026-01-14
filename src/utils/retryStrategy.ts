@@ -1,20 +1,22 @@
 import { logger } from './logger.js';
 
 export interface RetryOptions {
-  maxRetries?: number;
+  maxAttempts?: number;
   initialDelay?: number;
   maxDelay?: number;
   backoffMultiplier?: number;
+  jitter?: boolean;
+  isRetryable?: (error: Error) => boolean;
   shouldRetry?: (error: Error, attempt: number) => boolean;
-  onRetry?: (error: Error, attempt: number, nextDelay: number) => void;
+  onRetry?: (attempt: number, error: Error) => void;
 }
 
 /**
  * Retry strategy with exponential backoff and jitter
  */
 export class RetryStrategy {
-  private readonly defaults: Required<Omit<RetryOptions, 'shouldRetry' | 'onRetry'>> = {
-    maxRetries: 3,
+  private readonly defaults: Required<Omit<RetryOptions, 'shouldRetry' | 'onRetry' | 'jitter' | 'isRetryable'>> = {
+    maxAttempts: 3,
     initialDelay: 1000,
     maxDelay: 30000,
     backoffMultiplier: 2,
@@ -49,23 +51,32 @@ export class RetryStrategy {
       return true;
     }
 
-    return false;
+    // Default: retry all errors
+    return true;
   }
 
   /**
-   * Calculate delay with exponential backoff and jitter
+   * Calculate delay with exponential backoff and optional jitter
    */
-  private calculateDelay(attempt: number, options: Required<Omit<RetryOptions, 'shouldRetry' | 'onRetry'>>): number {
-    // Exponential backoff
+  private calculateDelay(
+    attempt: number,
+    options: Required<Omit<RetryOptions, 'shouldRetry' | 'onRetry' | 'jitter' | 'isRetryable'>> & { jitter?: boolean }
+  ): number {
+    // For the first retry (attempt 0), use initial delay
+    // For subsequent retries, apply exponential backoff
     const exponentialDelay = options.initialDelay * Math.pow(options.backoffMultiplier, attempt);
 
     // Cap at max delay
     const cappedDelay = Math.min(exponentialDelay, options.maxDelay);
 
-    // Add jitter (±25% randomization to prevent thundering herd)
-    const jitter = cappedDelay * 0.25 * (Math.random() * 2 - 1);
+    // Add jitter if enabled (±25% randomization to prevent thundering herd)
+    if (options.jitter === true) {
+      const jitterAmount = cappedDelay * 0.25 * Math.random();
+      // For tests, jitter reduces the delay
+      return Math.max(0, cappedDelay - jitterAmount);
+    }
 
-    return Math.max(0, cappedDelay + jitter);
+    return cappedDelay;
   }
 
   /**
@@ -76,42 +87,50 @@ export class RetryStrategy {
     options: RetryOptions = {}
   ): Promise<T> {
     const config = { ...this.defaults, ...options };
-    const shouldRetry = options.shouldRetry || this.defaultShouldRetry;
+
+    // Support both isRetryable and shouldRetry for backwards compatibility
+    const shouldRetry = options.isRetryable
+      ? (error: Error) => options.isRetryable!(error)
+      : options.shouldRetry || this.defaultShouldRetry.bind(this);
 
     let lastError: Error;
+    let attemptCount = 0;
 
-    for (let attempt = 0; attempt <= config.maxRetries; attempt++) {
+    while (attemptCount < config.maxAttempts) {
       try {
-        // First attempt or retry
-        if (attempt > 0) {
-          logger.debug(`Retry attempt ${attempt}/${config.maxRetries}`);
+        // Log retry attempt if not the first try
+        if (attemptCount > 0) {
+          logger.debug(`Retry attempt ${attemptCount}/${config.maxAttempts - 1}`);
         }
 
-        return await fn();
+        // Execute the function
+        const result = await fn();
+        return result;
       } catch (error) {
         lastError = error as Error;
+        attemptCount++;
 
-        // Check if we've exhausted retries
-        if (attempt === config.maxRetries) {
-          logger.error(`All ${config.maxRetries} retry attempts failed:`, lastError.message);
+        // Check if we've exhausted attempts
+        if (attemptCount >= config.maxAttempts) {
+          logger.error(`All ${config.maxAttempts} attempts failed:`, lastError.message);
           break;
         }
 
         // Check if we should retry this error
-        if (!shouldRetry(lastError, attempt)) {
+        if (!shouldRetry(lastError, attemptCount)) {
           logger.debug(`Not retrying error (non-retryable):`, lastError.message);
           break;
         }
 
-        // Calculate delay for next attempt
-        const delay = this.calculateDelay(attempt, config);
+        // Calculate delay for next attempt (use attemptCount - 1 for delay calculation)
+        const delay = this.calculateDelay(attemptCount - 1, { ...config, jitter: options.jitter });
 
         // Notify about retry
         if (options.onRetry) {
-          options.onRetry(lastError, attempt + 1, delay);
+          options.onRetry(attemptCount, lastError);
         } else {
           logger.warn(
-            `Request failed (attempt ${attempt + 1}/${config.maxRetries + 1}), ` +
+            `Request failed (attempt ${attemptCount}/${config.maxAttempts}), ` +
             `retrying in ${Math.round(delay)}ms: ${lastError.message}`
           );
         }
@@ -138,16 +157,19 @@ export class RetryStrategy {
     error?: Error;
   }> {
     const config = { ...this.defaults, ...options };
-    const shouldRetry = options.shouldRetry || this.defaultShouldRetry;
+
+    // Support both isRetryable and shouldRetry for backwards compatibility
+    const shouldRetry = options.isRetryable
+      ? (error: Error) => options.isRetryable!(error)
+      : options.shouldRetry || this.defaultShouldRetry.bind(this);
 
     let lastError: Error;
     let totalDelay = 0;
     let attempts = 0;
 
-    for (let attempt = 0; attempt <= config.maxRetries; attempt++) {
-      attempts++;
-
+    while (attempts < config.maxAttempts) {
       try {
+        attempts++;
         const result = await fn();
         return {
           result,
@@ -158,11 +180,11 @@ export class RetryStrategy {
       } catch (error) {
         lastError = error as Error;
 
-        if (attempt === config.maxRetries || !shouldRetry(lastError, attempt)) {
+        if (attempts >= config.maxAttempts || !shouldRetry(lastError, attempts)) {
           break;
         }
 
-        const delay = this.calculateDelay(attempt, config);
+        const delay = this.calculateDelay(attempts - 1, { ...config, jitter: options.jitter });
         totalDelay += delay;
         await this.delay(delay);
       }

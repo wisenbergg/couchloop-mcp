@@ -1,0 +1,405 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 1.2.3)'
+        required: true
+        type: string
+      prerelease:
+        description: 'Is this a pre-release?'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  packages: write
+  issues: write
+
+jobs:
+  # Job 1: Create Release
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Need full history for changelog
+
+      - name: Determine version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="v${{ github.event.inputs.version }}"
+          else
+            VERSION="${{ github.ref_name }}"
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "version_number=${VERSION#v}" >> $GITHUB_OUTPUT
+
+      - name: Generate Changelog
+        id: changelog
+        run: |
+          # Generate changelog from commits
+          if [[ -z "$(git tag -l)" ]]; then
+            PREVIOUS_TAG=$(git rev-list --max-parents=0 HEAD)
+          else
+            PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || git rev-list --max-parents=0 HEAD)
+          fi
+
+          echo "## What's Changed" > CHANGELOG.md
+          echo "" >> CHANGELOG.md
+
+          # Features
+          echo "### 🚀 Features" >> CHANGELOG.md
+          git log ${PREVIOUS_TAG}..HEAD --grep="^feat" --pretty=format:"- %s (%h)" >> CHANGELOG.md || echo "- No new features" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+
+          # Bug Fixes
+          echo "### 🐛 Bug Fixes" >> CHANGELOG.md
+          git log ${PREVIOUS_TAG}..HEAD --grep="^fix" --pretty=format:"- %s (%h)" >> CHANGELOG.md || echo "- No bug fixes" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+
+          # Security
+          echo "### 🔒 Security" >> CHANGELOG.md
+          git log ${PREVIOUS_TAG}..HEAD --grep="^security" --pretty=format:"- %s (%h)" >> CHANGELOG.md || echo "- No security updates" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+
+          # Other Changes
+          echo "### 📝 Other Changes" >> CHANGELOG.md
+          git log ${PREVIOUS_TAG}..HEAD --grep="^(chore|docs|style|refactor|test|build|ci)" --pretty=format:"- %s (%h)" >> CHANGELOG.md || echo "- No other changes" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+
+          # Contributors
+          echo "### 👥 Contributors" >> CHANGELOG.md
+          git log ${PREVIOUS_TAG}..HEAD --format="%aN" | sort -u | sed 's/^/- @/' >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+
+          # Statistics
+          echo "### 📊 Statistics" >> CHANGELOG.md
+          echo "- Commits: $(git rev-list --count ${PREVIOUS_TAG}..HEAD)" >> CHANGELOG.md
+          echo "- Changed files: $(git diff --name-only ${PREVIOUS_TAG}..HEAD | wc -l)" >> CHANGELOG.md
+          echo "" >> CHANGELOG.md
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          release_name: Release ${{ steps.version.outputs.version }}
+          body_path: CHANGELOG.md
+          draft: false
+          prerelease: ${{ github.event.inputs.prerelease || false }}
+
+  # Job 2: Build and Upload Artifacts
+  build-artifacts:
+    name: Build Artifacts
+    runs-on: ubuntu-latest
+    needs: [create-release]
+    strategy:
+      matrix:
+        include:
+          - os: linux
+            arch: x64
+          - os: linux
+            arch: arm64
+          - os: darwin
+            arch: x64
+          - os: darwin
+            arch: arm64
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Package artifact
+        run: |
+          mkdir -p release
+          tar -czf release/mcp-server-${{ needs.create-release.outputs.version }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz \
+            dist/ \
+            package.json \
+            package-lock.json \
+            README.md \
+            LICENSE
+
+      - name: Upload artifact to release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./release/mcp-server-${{ needs.create-release.outputs.version }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
+          asset_name: mcp-server-${{ needs.create-release.outputs.version }}-${{ matrix.os }}-${{ matrix.arch }}.tar.gz
+          asset_content_type: application/gzip
+
+  # Job 3: Publish Docker Image
+  docker-release:
+    name: Publish Docker Image
+    runs-on: ubuntu-latest
+    needs: [create-release]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            couchloop/mcp-server
+            ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}},value=${{ needs.create-release.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.create-release.outputs.version }}
+            type=semver,pattern={{major}},value=${{ needs.create-release.outputs.version }}
+            type=raw,value=latest,enable=${{ github.event.inputs.prerelease != 'true' }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.oauth
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ needs.create-release.outputs.version }}
+            BUILD_DATE=${{ github.event.repository.updated_at }}
+            VCS_REF=${{ github.sha }}
+
+  # Job 4: Publish to NPM
+  npm-release:
+    name: Publish to NPM
+    runs-on: ubuntu-latest
+    needs: [create-release]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Update package version
+        run: npm version ${{ needs.create-release.outputs.version }} --no-git-tag-version
+
+      - name: Publish to NPM
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # Job 5: Deploy to Production
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [create-release, docker-release]
+    environment:
+      name: production
+      url: https://mcp.couchloop.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Kubernetes
+        run: |
+          echo "Deploying version ${{ needs.create-release.outputs.version }} to production..."
+          # kubectl set image deployment/mcp-server mcp-server=ghcr.io/${{ github.repository }}:${{ needs.create-release.outputs.version }}
+          # kubectl rollout status deployment/mcp-server
+
+      - name: Verify deployment
+        run: |
+          sleep 30
+          response=$(curl -s https://mcp.couchloop.com/health | jq -r '.version')
+          if [[ "$response" != "${{ needs.create-release.outputs.version }}" ]]; then
+            echo "Version mismatch: expected ${{ needs.create-release.outputs.version }}, got $response"
+            exit 1
+          fi
+          echo "Deployment verified successfully"
+
+  # Job 6: Update Documentation
+  update-docs:
+    name: Update Documentation
+    runs-on: ubuntu-latest
+    needs: [create-release]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Update version in docs
+        run: |
+          # Update version references in documentation
+          find . -type f -name "*.md" -exec sed -i "s/v[0-9]\+\.[0-9]\+\.[0-9]\+/${{ needs.create-release.outputs.version }}/g" {} +
+
+      - name: Generate API documentation
+        run: |
+          npm ci
+          npm run docs:generate || echo "No docs script"
+
+      - name: Create PR for documentation updates
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'docs: update for ${{ needs.create-release.outputs.version }}'
+          title: '📚 Update documentation for ${{ needs.create-release.outputs.version }}'
+          body: |
+            ## Documentation Update
+
+            This PR updates the documentation for release ${{ needs.create-release.outputs.version }}.
+
+            ### Changes
+            - Updated version references
+            - Generated API documentation
+            - Updated examples
+
+            ---
+            *This PR was automatically created by the release workflow.*
+          branch: docs/release-${{ needs.create-release.outputs.version }}
+          delete-branch: true
+          labels: |
+            documentation
+            automated
+
+  # Job 7: Notifications
+  notifications:
+    name: Send Notifications
+    runs-on: ubuntu-latest
+    needs: [create-release, docker-release, npm-release, deploy-production]
+    if: always()
+    steps:
+      - name: Send Slack notification
+        uses: 8398a7/action-slack@v3
+        with:
+          status: custom
+          custom_payload: |
+            {
+              text: "🎉 New Release: ${{ needs.create-release.outputs.version }}",
+              attachments: [{
+                color: "${{ job.status == 'success' && 'good' || 'danger' }}",
+                fields: [
+                  {
+                    title: "Version",
+                    value: "${{ needs.create-release.outputs.version }}",
+                    short: true
+                  },
+                  {
+                    title: "Status",
+                    value: "${{ job.status }}",
+                    short: true
+                  },
+                  {
+                    title: "Docker",
+                    value: "${{ needs.docker-release.result }}",
+                    short: true
+                  },
+                  {
+                    title: "NPM",
+                    value: "${{ needs.npm-release.result }}",
+                    short: true
+                  },
+                  {
+                    title: "Production",
+                    value: "${{ needs.deploy-production.result }}",
+                    short: true
+                  },
+                  {
+                    title: "Release URL",
+                    value: "https://github.com/${{ github.repository }}/releases/tag/${{ needs.create-release.outputs.version }}",
+                    short: false
+                  }
+                ]
+              }]
+            }
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        continue-on-error: true
+
+      - name: Create announcement issue
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const body = `# 🎉 Release ${{ needs.create-release.outputs.version }} is now available!
+
+            ## Release Notes
+            View the full release notes [here](https://github.com/${{ github.repository }}/releases/tag/${{ needs.create-release.outputs.version }}).
+
+            ## Installation
+
+            ### Docker
+            \`\`\`bash
+            docker pull ghcr.io/${{ github.repository }}:${{ needs.create-release.outputs.version }}
+            \`\`\`
+
+            ### NPM
+            \`\`\`bash
+            npm install @couchloop/mcp-server@${{ needs.create-release.outputs.version }}
+            \`\`\`
+
+            ## Deployment Status
+            - ✅ GitHub Release created
+            - ${{ needs.docker-release.result == 'success' && '✅' || '❌' }} Docker images published
+            - ${{ needs.npm-release.result == 'success' && '✅' || '❌' }} NPM package published
+            - ${{ needs.deploy-production.result == 'success' && '✅' || '❌' }} Production deployment
+
+            ---
+            *This issue was automatically created by the release workflow.*`;
+
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🎉 Release ${{ needs.create-release.outputs.version }} Published`,
+              body: body,
+              labels: ['announcement', 'release']
+            });

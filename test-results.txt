@@ -1,0 +1,312 @@
+
+> couchloop-mcp@1.0.0 test
+> vitest
+
+
+ DEV  v1.6.1 /Users/hipdev/dev/mcp
+
+(node:32586) PromiseRejectionHandledWarning: Promise rejection was handled asynchronously (rejection id: 6)
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:32586) PromiseRejectionHandledWarning: Promise rejection was handled asynchronously (rejection id: 10)
+ ✓ tests/utils/circuitBreaker.test.ts  (17 tests) 18ms
+(node:32586) PromiseRejectionHandledWarning: Promise rejection was handled asynchronously (rejection id: 20)
+ ✓ tests/utils/retryStrategy.test.ts  (20 tests) 48ms
+ ✓ tests/clients/shrinkChatClient.test.ts  (30 tests) 63ms
+ ↓ tests/integration/sendMessage.test.ts  (12 tests | 12 skipped)
+stderr | tests/tools/insight.test.ts > Insight Tools > saveInsight > should handle validation errors
+Unexpected error: ZodError: [
+  {
+    "code": "invalid_type",
+    "expected": "string",
+    "received": "undefined",
+    "path": [
+      "content"
+    ],
+    "message": "Required"
+  }
+]
+    at Object.get error [as error] (file:///Users/hipdev/dev/mcp/node_modules/zod/v3/types.js:39:31)
+    at ZodObject.parse (file:///Users/hipdev/dev/mcp/node_modules/zod/v3/types.js:114:22)
+    at Module.saveInsight (/Users/hipdev/dev/mcp/src/tools/insight.ts:11:37)
+    at /Users/hipdev/dev/mcp/tests/tools/insight.test.ts:179:28
+    at file:///Users/hipdev/dev/mcp/node_modules/@vitest/runner/dist/index.js:135:14
+    at file:///Users/hipdev/dev/mcp/node_modules/@vitest/runner/dist/index.js:60:26
+    at runTest (file:///Users/hipdev/dev/mcp/node_modules/@vitest/runner/dist/index.js:781:17)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at runSuite (file:///Users/hipdev/dev/mcp/node_modules/@vitest/runner/dist/index.js:909:15)
+    at runSuite (file:///Users/hipdev/dev/mcp/node_modules/@vitest/runner/dist/index.js:909:15) {
+  issues: [
+    {
+      code: 'invalid_type',
+      expected: 'string',
+      received: 'undefined',
+      path: [Array],
+      message: 'Required'
+    }
+  ],
+  addIssue: [Function (anonymous)],
+  addIssues: [Function (anonymous)],
+  errors: [
+    {
+      code: 'invalid_type',
+      expected: 'string',
+      received: 'undefined',
+      path: [Array],
+      message: 'Required'
+    }
+  ]
+}
+
+stderr | tests/tools/insight.test.ts > Insight Tools > getInsights > should respect limit parameter
+Unexpected error: AssertionError: expected 1 to be 5 // Object.is equality
+    at Object.<anonymous> (/Users/hipdev/dev/mcp/tests/tools/insight.test.ts:238:28)
+    at Object.mockCall (file:///Users/hipdev/dev/mcp/node_modules/@vitest/spy/dist/index.js:50:17)
+    at Object.spy [as limit] (file:///Users/hipdev/dev/mcp/node_modules/tinyspy/dist/index.js:42:80)
+    at Module.getInsights (/Users/hipdev/dev/mcp/src/tools/insight.ts:82:8)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at /Users/hipdev/dev/mcp/tests/tools/insight.test.ts:243:7
+    at runTest (file:///Users/hipdev/dev/mcp/node_modules/@vitest/runner/dist/index.js:781:11)
+    at runSuite (file:///Users/hipdev/dev/mcp/node_modules/@vitest/runner/dist/index.js:909:15)
+    at runSuite (file:///Users/hipdev/dev/mcp/node_modules/@vitest/runner/dist/index.js:909:15)
+    at runSuite (file:///Users/hipdev/dev/mcp/node_modules/@vitest/runner/dist/index.js:909:15) {
+  showDiff: true,
+  actual: 1,
+  expected: 5,
+  operator: 'strictEqual'
+}
+
+ ✓ tests/tools/insight.test.ts  (13 tests) 42ms
+stderr | tests/tools/session.test.ts > Session Tools > createSession > should handle validation errors
+Unexpected error: ZodError: [
+  {
+    "code": "invalid_type",
+    "expected": "string",
+    "received": "number",
+    "path": [
+      "journey_slug"
+    ],
+    "message": "Expected string, received number"
+  }
+]
+    at Object.get error [as error] (file:///Users/hipdev/dev/mcp/node_modules/zod/v3/types.js:39:31)
+    at ZodObject.parse (file:///Users/hipdev/dev/mcp/node_modules/zod/v3/types.js:114:22)
+    at Module.createSession (/Users/hipdev/dev/mcp/src/tools/session.ts:11:39)
+    at /Users/hipdev/dev/mcp/tests/tools/session.test.ts:197:28
+    at file:///Users/hipdev/dev/mcp/node_modules/@vitest/runner/dist/index.js:135:14
+    at file:///Users/hipdev/dev/mcp/node_modules/@vitest/runner/dist/index.js:60:26
+    at runTest (file:///Users/hipdev/dev/mcp/node_modules/@vitest/runner/dist/index.js:781:17)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at runSuite (file:///Users/hipdev/dev/mcp/node_modules/@vitest/runner/dist/index.js:909:15)
+    at runSuite (file:///Users/hipdev/dev/mcp/node_modules/@vitest/runner/dist/index.js:909:15) {
+  issues: [
+    {
+      code: 'invalid_type',
+      expected: 'string',
+      received: 'number',
+      path: [Array],
+      message: 'Expected string, received number'
+    }
+  ],
+  addIssue: [Function (anonymous)],
+  addIssues: [Function (anonymous)],
+  errors: [
+    {
+      code: 'invalid_type',
+      expected: 'string',
+      received: 'number',
+      path: [Array],
+      message: 'Expected string, received number'
+    }
+  ]
+}
+
+stderr | tests/tools/session.test.ts > Session Tools > resumeSession > should resume most recent session when no ID provided
+Unexpected error: TypeError: db.select(...).from(...).where(...).limit is not a function
+    at Module.resumeSession (/Users/hipdev/dev/mcp/src/tools/session.ts:93:8)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at /Users/hipdev/dev/mcp/tests/tools/session.test.ts:245:22
+    at runTest (file:///Users/hipdev/dev/mcp/node_modules/@vitest/runner/dist/index.js:781:11)
+    at runSuite (file:///Users/hipdev/dev/mcp/node_modules/@vitest/runner/dist/index.js:909:15)
+    at runSuite (file:///Users/hipdev/dev/mcp/node_modules/@vitest/runner/dist/index.js:909:15)
+    at runSuite (file:///Users/hipdev/dev/mcp/node_modules/@vitest/runner/dist/index.js:909:15)
+    at runFiles (file:///Users/hipdev/dev/mcp/node_modules/@vitest/runner/dist/index.js:958:5)
+    at startTests (file:///Users/hipdev/dev/mcp/node_modules/@vitest/runner/dist/index.js:967:3)
+    at file:///Users/hipdev/dev/mcp/node_modules/vitest/dist/chunks/runtime-runBaseTests.oAvMKtQC.js:116:7
+
+stderr | tests/tools/session.test.ts > Session Tools > resumeSession > should resume specific session by ID
+Unexpected error: TypeError: db.select(...).from(...).where(...).limit is not a function
+    at Module.resumeSession (/Users/hipdev/dev/mcp/src/tools/session.ts:93:8)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at /Users/hipdev/dev/mcp/tests/tools/session.test.ts:290:22
+    at runTest (file:///Users/hipdev/dev/mcp/node_modules/@vitest/runner/dist/index.js:781:11)
+    at runSuite (file:///Users/hipdev/dev/mcp/node_modules/@vitest/runner/dist/index.js:909:15)
+    at runSuite (file:///Users/hipdev/dev/mcp/node_modules/@vitest/runner/dist/index.js:909:15)
+    at runSuite (file:///Users/hipdev/dev/mcp/node_modules/@vitest/runner/dist/index.js:909:15)
+    at runFiles (file:///Users/hipdev/dev/mcp/node_modules/@vitest/runner/dist/index.js:958:5)
+    at startTests (file:///Users/hipdev/dev/mcp/node_modules/@vitest/runner/dist/index.js:967:3)
+    at file:///Users/hipdev/dev/mcp/node_modules/vitest/dist/chunks/runtime-runBaseTests.oAvMKtQC.js:116:7
+
+ ❯ tests/tools/session.test.ts  (10 tests | 3 failed) 51ms
+   ❯ tests/tools/session.test.ts > Session Tools > resumeSession > should resume most recent session when no ID provided
+     → expected { …(2) } to match object { session: ObjectContaining{…}, …(3) }
+(2 matching properties omitted from actual)
+   ❯ tests/tools/session.test.ts > Session Tools > resumeSession > should resume specific session by ID
+     → Cannot read properties of undefined (reading 'id')
+   ❯ tests/tools/session.test.ts > Session Tools > resumeSession > should handle no sessions to resume
+     → expected 'Session to resume not found' to match /No paused sessions found|No previous …/
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/tools/session.test.ts > Session Tools > resumeSession > should resume most recent session when no ID provided
+AssertionError: expected { …(2) } to match object { session: ObjectContaining{…}, …(3) }
+(2 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  Object {
+-   "checkpoints": Array [
+-     Object {
+-       "key": "checkpoint1",
+-       "value": Object {
+-         "data": "test",
+-       },
+-     },
+-   ],
+-   "journey": null,
+-   "message": StringContaining "Resumed session",
+-   "session": ObjectContaining {
+-     "status": "active",
+-   },
++   "details": undefined,
++   "error": "An unexpected error occurred",
+  }
+
+ ❯ tests/tools/session.test.ts:247:22
+    245|       const result = await resumeSession({});
+    246| 
+    247|       expect(result).toMatchObject({
+       |                      ^
+    248|         session: expect.objectContaining({ status: 'active' }),
+    249|         journey: null,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  tests/tools/session.test.ts > Session Tools > resumeSession > should resume specific session by ID
+TypeError: Cannot read properties of undefined (reading 'id')
+ ❯ tests/tools/session.test.ts:294:29
+    292|       });
+    293| 
+    294|       expect(result.session.id).toBe(sessionSpecificId);
+       |                             ^
+    295|     });
+    296| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  tests/tools/session.test.ts > Session Tools > resumeSession > should handle no sessions to resume
+AssertionError: expected 'Session to resume not found' to match /No paused sessions found|No previous …/
+
+- Expected: 
+/No paused sessions found|No previous sessions found/
+
++ Received: 
+"Session to resume not found"
+
+ ❯ tests/tools/session.test.ts:320:30
+    318|         expect(result.message).toMatch(/No paused sessions found|No pr…
+    319|       } else if (result.error) {
+    320|         expect(result.error).toMatch(/No paused sessions found|No prev…
+       |                              ^
+    321|       }
+    322|     });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+⎯⎯⎯⎯⎯⎯ Unhandled Errors ⎯⎯⎯⎯⎯⎯
+
+Vitest caught 3 unhandled errors during the test run.
+This might cause false positive tests. Resolve unhandled errors to make sure your tests are not affected.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+Error: persistent failure
+ ❯ tests/utils/retryStrategy.test.ts:43:44
+     41| 
+     42|     it('should fail after max attempts', async () => {
+     43|       const fn = vi.fn().mockRejectedValue(new Error('persistent failu…
+       |                                            ^
+     44| 
+     45|       const resultPromise = strategy.execute(fn, { maxAttempts: 3 });
+ ❯ node_modules/@vitest/runner/dist/index.js:135:14
+ ❯ node_modules/@vitest/runner/dist/index.js:60:26
+ ❯ runTest node_modules/@vitest/runner/dist/index.js:781:17
+ ❯ runSuite node_modules/@vitest/runner/dist/index.js:909:15
+ ❯ runSuite node_modules/@vitest/runner/dist/index.js:909:15
+ ❯ runSuite node_modules/@vitest/runner/dist/index.js:909:15
+ ❯ runFiles node_modules/@vitest/runner/dist/index.js:958:5
+ ❯ startTests node_modules/@vitest/runner/dist/index.js:967:3
+ ❯ node_modules/vitest/dist/chunks/runtime-runBaseTests.oAvMKtQC.js:116:7
+
+This error originated in "tests/utils/retryStrategy.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "should fail after max attempts". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+Error: fail
+ ❯ tests/utils/retryStrategy.test.ts:54:44
+     52| 
+     53|     it('should use default options when none provided', async () => {
+     54|       const fn = vi.fn().mockRejectedValue(new Error('fail'));
+       |                                            ^
+     55| 
+     56|       const resultPromise = strategy.execute(fn);
+ ❯ node_modules/@vitest/runner/dist/index.js:135:14
+ ❯ node_modules/@vitest/runner/dist/index.js:60:26
+ ❯ runTest node_modules/@vitest/runner/dist/index.js:781:17
+ ❯ runSuite node_modules/@vitest/runner/dist/index.js:909:15
+ ❯ runSuite node_modules/@vitest/runner/dist/index.js:909:15
+ ❯ runSuite node_modules/@vitest/runner/dist/index.js:909:15
+ ❯ runFiles node_modules/@vitest/runner/dist/index.js:958:5
+ ❯ startTests node_modules/@vitest/runner/dist/index.js:967:3
+ ❯ node_modules/vitest/dist/chunks/runtime-runBaseTests.oAvMKtQC.js:116:7
+
+This error originated in "tests/utils/retryStrategy.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "should use default options when none provided". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+
+⎯⎯⎯⎯ Unhandled Rejection ⎯⎯⎯⎯⎯
+Error: Invalid input
+ ❯ tests/utils/retryStrategy.test.ts:168:33
+    166| 
+    167|     it('should not retry on non-retryable errors', async () => {
+    168|       const nonRetryableError = new Error('Invalid input');
+       |                                 ^
+    169|       const fn = vi.fn().mockRejectedValue(nonRetryableError);
+    170| 
+ ❯ node_modules/@vitest/runner/dist/index.js:135:14
+ ❯ node_modules/@vitest/runner/dist/index.js:60:26
+ ❯ runTest node_modules/@vitest/runner/dist/index.js:781:17
+ ❯ runSuite node_modules/@vitest/runner/dist/index.js:909:15
+ ❯ runSuite node_modules/@vitest/runner/dist/index.js:909:15
+ ❯ runSuite node_modules/@vitest/runner/dist/index.js:909:15
+ ❯ runFiles node_modules/@vitest/runner/dist/index.js:958:5
+ ❯ startTests node_modules/@vitest/runner/dist/index.js:967:3
+ ❯ node_modules/vitest/dist/chunks/runtime-runBaseTests.oAvMKtQC.js:116:7
+
+This error originated in "tests/utils/retryStrategy.test.ts" test file. It doesn't mean the error was thrown inside the file itself, but while it was running.
+The latest test that might've caused the error is "should not retry on non-retryable errors". It might mean one of the following:
+- The error was thrown, while Vitest was running this test.
+- If the error occurred after the test had been completed, this was the last documented test before it was thrown.
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+
+ Test Files  1 failed | 4 passed | 1 skipped (6)
+      Tests  3 failed | 87 passed | 12 skipped (102)
+     Errors  3 errors
+   Start at  06:06:59
+   Duration  1.11s (transform 686ms, setup 282ms, collect 1.95s, tests 222ms, environment 1ms, prepare 999ms)
+
+
+ FAIL  Tests failed. Watching for file changes...
+       press h to show help, press q to quit

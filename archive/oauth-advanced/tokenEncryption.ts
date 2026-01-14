@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes, scrypt, createHash } from 'crypto';
+import { createCipheriv, createDecipheriv, randomBytes, scrypt, createHash, timingSafeEqual } from 'crypto';
 import { promisify } from 'util';
 import { logger } from '../../utils/logger.js';
 
@@ -144,7 +144,7 @@ export class TokenEncryption {
     const bufferB = Buffer.from(hash);
 
     try {
-      return crypto.timingSafeEqual(bufferA, bufferB);
+      return timingSafeEqual(bufferA, bufferB);
     } catch {
       return false;
     }

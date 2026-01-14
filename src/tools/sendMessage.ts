@@ -112,8 +112,8 @@ export async function sendMessage(args: unknown) {
 
     // 5. Send message through shrink-chat
     const response = await client.sendMessage(
-      input.message, // This is 'prompt' in the API
       threadId,
+      input.message, // This is 'prompt' in the API
       {
         memoryContext,
         enhancedContext,

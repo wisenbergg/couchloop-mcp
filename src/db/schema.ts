@@ -107,19 +107,48 @@ export const oauthClients = pgTable('oauth_clients', {
 });
 
 // OAuth tokens table for authentication
+// Note: Advanced fields kept for database compatibility but not used
 export const oauthTokens = pgTable('oauth_tokens', {
   id: uuid('id').defaultRandom().primaryKey(),
   userId: uuid('user_id').notNull().references(() => users.id),
-  accessToken: text('access_token').notNull(),
+
+  // Token family tracking (unused - for advanced OAuth)
+  tokenFamilyId: varchar('token_family_id', { length: 255 }),
+
+  // Hash fields (unused - for advanced OAuth)
+  accessTokenHash: text('access_token_hash'),
+  refreshTokenHash: text('refresh_token_hash'),
+
+  // Encrypted fields (unused - for advanced OAuth)
+  accessTokenEncrypted: text('access_token_encrypted'),
+  refreshTokenEncrypted: text('refresh_token_encrypted'),
+
+  // Basic OAuth fields (actively used)
+  accessToken: text('access_token'),
   refreshToken: text('refresh_token'),
+
   expiresAt: timestamp('expires_at').notNull(),
   scope: text('scope'),
   tokenType: varchar('token_type', { length: 50 }).notNull().default('Bearer'),
+
+  // Revocation tracking (unused - for advanced OAuth)
+  revokedAt: timestamp('revoked_at'),
+  revocationReason: varchar('revocation_reason', { length: 100 }),
+
+  // Security metadata
+  clientId: varchar('client_id', { length: 255 }),
+  ipAddress: varchar('ip_address', { length: 45 }),
+  userAgent: text('user_agent'),
+
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => ({
   userIdIdx: index('idx_oauth_tokens_user_id').on(table.userId),
   accessTokenIdx: index('idx_oauth_tokens_access_token').on(table.accessToken),
+  accessTokenHashIdx: index('idx_oauth_tokens_access_hash').on(table.accessTokenHash),
+  refreshTokenHashIdx: index('idx_oauth_tokens_refresh_hash').on(table.refreshTokenHash),
+  tokenFamilyIdIdx: index('idx_oauth_tokens_family_id').on(table.tokenFamilyId),
+  revokedAtIdx: index('idx_oauth_tokens_revoked_at').on(table.revokedAt),
 }));
 
 // Authorization codes for OAuth flow

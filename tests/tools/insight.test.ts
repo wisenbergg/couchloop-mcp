@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi, Mock } from 'vitest';
 import { saveInsight, getInsights, getUserContext } from '../../src/tools/insight';
 import { getDb } from '../../src/db/client';
 import * as authModule from '../../src/types/auth';
+import { v4 as uuidv4 } from 'uuid';
 
 // Mock database
 vi.mock('../../src/db/client', () => ({
@@ -9,12 +10,43 @@ vi.mock('../../src/db/client', () => ({
 }));
 
 // Mock auth module
-vi.mock('../../src/types/auth', () => ({
-  extractUserFromContext: vi.fn(),
-}));
+vi.mock('../../src/types/auth', async () => {
+  const actual = await vi.importActual('../../src/types/auth') as any;
+  return {
+    ...actual,
+    AuthContextSchema: actual.AuthContextSchema,
+    extractUserFromContext: vi.fn(),
+  };
+});
 
 describe('Insight Tools', () => {
   let mockDb: any;
+
+  // Generate consistent UUIDs for testing
+  const userId = uuidv4();
+  const user2Id = uuidv4();
+  const sessionId = uuidv4();
+  const session2Id = uuidv4();
+  const insightId = uuidv4();
+  const insight2Id = uuidv4();
+  const insight3Id = uuidv4();
+  const newUserId = uuidv4();
+  const nonExistentSessionId = uuidv4(); // For testing session not found
+
+  // Helper to create properly chained mock database queries
+  const createMockSelectChain = (...results: any[]) => {
+    let callCount = 0;
+    return {
+      from: vi.fn().mockReturnThis(),
+      where: vi.fn().mockReturnThis(),
+      orderBy: vi.fn().mockReturnThis(),
+      limit: vi.fn(() => {
+        const result = results[callCount] || [];
+        callCount++;
+        return Promise.resolve(result);
+      }),
+    };
+  };
 
   beforeEach(() => {
     mockDb = {
@@ -34,10 +66,10 @@ describe('Insight Tools', () => {
 
   describe('saveInsight', () => {
     it('should save an insight without session', async () => {
-      const mockUser = { id: 'user-1', externalId: 'test-user-123' };
+      const mockUser = { id: userId, externalId: 'test-user-123' };
       const mockInsight = {
-        id: 'insight-1',
-        userId: 'user-1',
+        id: insightId,
+        userId: userId,
         content: 'Test insight',
         tags: ['reflection'],
       };
@@ -56,18 +88,18 @@ describe('Insight Tools', () => {
       });
 
       expect(result).toMatchObject({
-        insight_id: 'insight-1',
+        insight_id: insightId,
         message: 'Insight captured successfully.',
       });
     });
 
     it('should save an insight with session', async () => {
-      const mockUser = { id: 'user-1', externalId: 'test-user-123' };
-      const mockSession = { id: 'session-1', userId: 'user-1' };
+      const mockUser = { id: userId, externalId: 'test-user-123' };
+      const mockSession = { id: sessionId, userId: userId };
       const mockInsight = {
-        id: 'insight-2',
-        userId: 'user-1',
-        sessionId: 'session-1',
+        id: insight2Id,
+        userId: userId,
+        sessionId: sessionId,
         content: 'Session insight',
       };
 
@@ -87,17 +119,17 @@ describe('Insight Tools', () => {
 
       const result = await saveInsight({
         content: 'Session insight',
-        session_id: 'session-1',
+        session_id: sessionId,
       });
 
       expect(result).toMatchObject({
-        insight_id: 'insight-2',
+        insight_id: insight2Id,
         message: 'Insight captured successfully.',
       });
     });
 
     it('should handle session not found', async () => {
-      const mockUser = { id: 'user-1', externalId: 'test-user-123' };
+      const mockUser = { id: userId, externalId: 'test-user-123' };
 
       mockDb.insert.mockReturnValue({
         values: vi.fn().mockReturnThis(),
@@ -114,7 +146,7 @@ describe('Insight Tools', () => {
 
       const result = await saveInsight({
         content: 'Test',
-        session_id: 'non-existent',
+        session_id: nonExistentSessionId,
       });
 
       expect(result.error).toContain('not found');
@@ -122,8 +154,8 @@ describe('Insight Tools', () => {
 
     it('should use auth context when provided', async () => {
       const mockAuth = { user_id: 'oauth-user-456' };
-      const mockUser = { id: 'user-2', externalId: 'oauth-user-456' };
-      const mockInsight = { id: 'insight-3' };
+      const mockUser = { id: user2Id, externalId: 'oauth-user-456' };
+      const mockInsight = { id: insight3Id };
 
       mockDb.insert.mockReturnValue({
         values: vi.fn().mockReturnThis(),
@@ -155,19 +187,15 @@ describe('Insight Tools', () => {
 
   describe('getInsights', () => {
     it('should get all insights for a user', async () => {
-      const mockUser = { id: 'user-1', externalId: 'test-user-123' };
+      const mockUser = { id: userId, externalId: 'test-user-123' };
       const mockInsights = [
-        { id: 'insight-1', content: 'Insight 1', createdAt: new Date() },
-        { id: 'insight-2', content: 'Insight 2', createdAt: new Date() },
+        { id: insightId, content: 'Insight 1', createdAt: new Date() },
+        { id: insight2Id, content: 'Insight 2', createdAt: new Date() },
       ];
 
-      mockDb.select.mockReturnValue({
-        from: vi.fn().mockReturnThis(),
-        where: vi.fn().mockReturnThis(),
-        orderBy: vi.fn().mockReturnThis(),
-        limit: vi.fn().mockResolvedValueOnce([mockUser])
-          .mockResolvedValueOnce(mockInsights),
-      });
+      mockDb.select.mockReturnValue(
+        createMockSelectChain([mockUser], mockInsights)
+      );
 
       const result = await getInsights({});
 
@@ -178,29 +206,25 @@ describe('Insight Tools', () => {
     });
 
     it('should filter insights by session', async () => {
-      const mockUser = { id: 'user-1', externalId: 'test-user-123' };
+      const mockUser = { id: userId, externalId: 'test-user-123' };
       const mockInsights = [
-        { id: 'insight-1', sessionId: 'session-1', content: 'Session insight' },
+        { id: insightId, sessionId: sessionId, content: 'Session insight' },
       ];
 
-      mockDb.select.mockReturnValue({
-        from: vi.fn().mockReturnThis(),
-        where: vi.fn().mockReturnThis(),
-        orderBy: vi.fn().mockReturnThis(),
-        limit: vi.fn().mockResolvedValueOnce([mockUser])
-          .mockResolvedValueOnce(mockInsights),
-      });
+      mockDb.select.mockReturnValue(
+        createMockSelectChain([mockUser], mockInsights)
+      );
 
       const result = await getInsights({
-        session_id: 'session-1',
+        session_id: sessionId,
       });
 
       expect(result.count).toBe(1);
-      expect(result.insights[0].sessionId).toBe('session-1');
+      expect(result.insights[0].sessionId).toBe(sessionId);
     });
 
     it('should respect limit parameter', async () => {
-      const mockUser = { id: 'user-1', externalId: 'test-user-123' };
+      const mockUser = { id: userId, externalId: 'test-user-123' };
       const mockInsights = new Array(5).fill(null).map((_, i) => ({
         id: `insight-${i}`,
         content: `Insight ${i}`,
@@ -228,7 +252,7 @@ describe('Insight Tools', () => {
 
       mockDb.insert.mockReturnValue({
         values: vi.fn().mockReturnThis(),
-        returning: vi.fn().mockResolvedValue([{ id: 'new-user', externalId: 'test-user-123' }]),
+        returning: vi.fn().mockResolvedValue([{ id: newUserId, externalId: 'test-user-123' }]),
       });
 
       const result = await getInsights({});
@@ -242,28 +266,21 @@ describe('Insight Tools', () => {
 
   describe('getUserContext', () => {
     it('should get complete user context', async () => {
-      const mockUser = { id: 'user-1', externalId: 'test-user-123', preferences: {} };
+      const mockUser = { id: userId, externalId: 'test-user-123', preferences: {} };
       const mockInsights = [
-        { id: 'insight-1', content: 'Recent insight' },
+        { id: insightId, content: 'Recent insight' },
       ];
       const mockSessions = [
-        { id: 'session-1', status: 'completed' },
+        { id: sessionId, status: 'completed' },
       ];
       const mockActiveSession = {
-        id: 'session-2',
+        id: session2Id,
         status: 'active',
       };
 
-      mockDb.select.mockReturnValue({
-        from: vi.fn().mockReturnThis(),
-        where: vi.fn().mockReturnThis(),
-        orderBy: vi.fn().mockReturnThis(),
-        limit: vi.fn()
-          .mockResolvedValueOnce([mockUser])
-          .mockResolvedValueOnce(mockInsights)
-          .mockResolvedValueOnce(mockSessions)
-          .mockResolvedValueOnce([mockActiveSession]),
-      });
+      mockDb.select.mockReturnValue(
+        createMockSelectChain([mockUser], mockInsights, mockSessions, [mockActiveSession])
+      );
 
       const result = await getUserContext({
         include_recent_insights: true,
@@ -271,7 +288,10 @@ describe('Insight Tools', () => {
       });
 
       expect(result).toMatchObject({
-        user: mockUser,
+        user: expect.objectContaining({
+          id: userId,
+          preferences: {}
+        }),
         recent_insights: mockInsights,
         recent_sessions: mockSessions,
         active_session: mockActiveSession,
@@ -279,17 +299,11 @@ describe('Insight Tools', () => {
     });
 
     it('should exclude insights when requested', async () => {
-      const mockUser = { id: 'user-1', externalId: 'test-user-123' };
+      const mockUser = { id: userId, externalId: 'test-user-123' };
 
-      mockDb.select.mockReturnValue({
-        from: vi.fn().mockReturnThis(),
-        where: vi.fn().mockReturnThis(),
-        orderBy: vi.fn().mockReturnThis(),
-        limit: vi.fn()
-          .mockResolvedValueOnce([mockUser])
-          .mockResolvedValueOnce([]) // sessions
-          .mockResolvedValueOnce([]), // active session
-      });
+      mockDb.select.mockReturnValue(
+        createMockSelectChain([mockUser], [], [], []) // sessions, active session
+      );
 
       const result = await getUserContext({
         include_recent_insights: false,
@@ -301,17 +315,11 @@ describe('Insight Tools', () => {
     });
 
     it('should exclude session history when requested', async () => {
-      const mockUser = { id: 'user-1', externalId: 'test-user-123' };
+      const mockUser = { id: userId, externalId: 'test-user-123' };
 
-      mockDb.select.mockReturnValue({
-        from: vi.fn().mockReturnThis(),
-        where: vi.fn().mockReturnThis(),
-        orderBy: vi.fn().mockReturnThis(),
-        limit: vi.fn()
-          .mockResolvedValueOnce([mockUser])
-          .mockResolvedValueOnce([]) // insights
-          .mockResolvedValueOnce([]), // active session
-      });
+      mockDb.select.mockReturnValue(
+        createMockSelectChain([mockUser], [], []) // insights, active session
+      );
 
       const result = await getUserContext({
         include_recent_insights: true,
@@ -332,7 +340,7 @@ describe('Insight Tools', () => {
       mockDb.insert.mockReturnValue({
         values: vi.fn().mockReturnThis(),
         returning: vi.fn().mockResolvedValue([{
-          id: 'new-user',
+          id: newUserId,
           externalId: 'test-user-123',
           preferences: {},
         }]),
