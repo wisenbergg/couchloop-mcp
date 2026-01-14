@@ -1,0 +1,71 @@
+# Environment files
+.env*
+!.env.example
+
+# Git
+.git/
+.gitignore
+
+# Development and testing
+tests/
+*.test.ts
+*.test.js
+test-*.js
+test-*.ts
+test-*.cjs
+vitest.config.ts
+coverage/
+
+# Source files (we ship compiled JS)
+src/
+*.ts
+!*.d.ts
+
+# Development tools
+.vscode/
+.idea/
+.DS_Store
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# CI/CD
+.github/
+
+# Documentation source files
+docs/
+archive/
+scripts/
+CODEBASE_EXPLORATION.md
+CLAUDE.md
+CONTRIBUTING.md
+
+# Database configs
+drizzle.config.ts
+k8s/
+
+# Build configs
+tsconfig.json
+.eslintrc*
+.prettierrc*
+
+# Deployment configs
+Dockerfile*
+vercel.json
+docker-compose.yml
+
+# Editor files
+*.swp
+*.swo
+*~
+
+# OS files
+Thumbs.db
+
+# Keep these files (handled by "files" in package.json)
+!dist/
+!README.md
+!LICENSE
+!run-mcp-server.sh
+!assets/

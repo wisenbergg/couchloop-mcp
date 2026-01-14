@@ -39,7 +39,7 @@ CouchLoop MCP Server provides stateful, resumable conversation experiences for A
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/couchloop-mcp.git
+git clone https://github.com/wisenbergg/couchloop-mcp.git
 cd couchloop-mcp
 ```
 
@@ -346,7 +346,7 @@ MIT License - see LICENSE file for details
 
 ## Support
 
-- GitHub Issues: [Report bugs or request features](https://github.com/yourusername/couchloop-mcp/issues)
+- GitHub Issues: [Report bugs or request features](https://github.com/wisenbergg/couchloop-mcp/issues)
 - Documentation: [Full API documentation](./docs/API.md)
 
 ## Acknowledgments

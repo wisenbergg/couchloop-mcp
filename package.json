@@ -1,9 +1,22 @@
 {
-  "name": "couchloop-mcp",
+  "name": "couchloop-eq-mcp",
   "version": "1.0.0",
   "description": "Turn conversations into guided journeys that remember where you left off - MCP server for stateful AI experiences",
   "main": "dist/index.js",
   "type": "module",
+  "bin": {
+    "couchloop-eq-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE",
+    "run-mcp-server.sh",
+    "assets/"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
@@ -34,8 +47,16 @@
     "conversation",
     "state-management"
   ],
-  "author": "",
+  "author": "Greg Wisenberg <greg@couchloop.com>",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wisenbergg/couchloop-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/wisenbergg/couchloop-mcp/issues"
+  },
+  "homepage": "https://github.com/wisenbergg/couchloop-mcp#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.25.2",
     "@supabase/supabase-js": "^2.39.0",

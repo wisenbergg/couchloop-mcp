@@ -19,9 +19,12 @@ export async function initDatabase() {
       throw new Error('DATABASE_URL is not configured');
     }
 
-    if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceKey) {
-      throw new Error('Supabase configuration is incomplete');
-    }
+    // Make Supabase optional - MCP server can work with just database
+    const hasSupabase = supabaseUrl && supabaseAnonKey &&
+                       supabaseServiceKey &&
+                       !supabaseUrl.includes('xxx') &&
+                       !supabaseAnonKey.includes('your-') &&
+                       !supabaseServiceKey.includes('your-');
 
     // Initialize Postgres connection for Drizzle
     sql = postgres(databaseUrl, {
@@ -33,13 +36,18 @@ export async function initDatabase() {
     // Initialize Drizzle ORM
     db = drizzle(sql, { schema });
 
-    // Initialize Supabase client
-    supabase = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    });
+    // Initialize Supabase client only if configuration is valid
+    if (hasSupabase) {
+      supabase = createClient(supabaseUrl, supabaseServiceKey, {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      });
+      logger.info('Supabase client initialized');
+    } else {
+      logger.info('Supabase configuration incomplete or uses placeholders - running without Supabase client');
+    }
 
     // Test the connection
     await sql`SELECT 1`;
@@ -61,7 +69,8 @@ export function getDb() {
 
 export function getSupabase() {
   if (!supabase) {
-    throw new Error('Supabase client not initialized. Call initDatabase() first.');
+    logger.warn('Supabase client not initialized - check environment configuration');
+    return null;
   }
   return supabase;
 }

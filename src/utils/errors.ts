@@ -1,3 +1,5 @@
+import { logger } from './logger.js';
+
 export class CouchLoopError extends Error {
   constructor(
     message: string,
@@ -75,7 +77,7 @@ export function handleError(error: any): { error: string; details?: any } {
   }
 
   // Log unexpected errors
-  console.error('Unexpected error:', error);
+  logger.error('Unexpected error:', error);
 
   return {
     error: 'An unexpected error occurred',

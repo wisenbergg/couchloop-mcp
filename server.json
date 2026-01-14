@@ -1,0 +1,175 @@
+{
+  "name": "couchloop_eq-mcp",
+  "namespace": "io.github.wisenbergg",
+  "version": "1.0.0",
+  "description": "Turn conversations into guided journeys that remember where you left off - MCP server for stateful AI experiences with ChatGPT and Claude",
+  "author": {
+    "name": "Greg Wisenberg",
+    "email": "greg@couchloop.com",
+    "url": "https://github.com/wisenbergg"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wisenbergg/couchloop-mcp"
+  },
+  "homepage": "https://github.com/wisenbergg/couchloop-mcp",
+  "logo": "https://raw.githubusercontent.com/wisenbergg/couchloop-mcp/main/assets/logo/couchloop_EQ-IconLogo.png",
+  "installation": {
+    "npm": {
+      "package": "couchloop_eq-mcp",
+      "global": true
+    },
+    "github": {
+      "repository": "wisenbergg/couchloop-mcp",
+      "branch": "main"
+    }
+  },
+  "capabilities": {
+    "tools": [
+      {
+        "name": "start_session",
+        "description": "Begin a new conversation session with optional journey guidance",
+        "parameters": {
+          "userId": "string",
+          "journeyId": "string (optional)",
+          "metadata": "object (optional)"
+        }
+      },
+      {
+        "name": "pause_session",
+        "description": "Temporarily pause the current session to resume later",
+        "parameters": {
+          "sessionId": "string",
+          "reason": "string (optional)"
+        }
+      },
+      {
+        "name": "resume_session",
+        "description": "Continue a previously paused session",
+        "parameters": {
+          "sessionId": "string"
+        }
+      },
+      {
+        "name": "end_session",
+        "description": "Complete or abandon a session",
+        "parameters": {
+          "sessionId": "string",
+          "reason": "string",
+          "summary": "string (optional)"
+        }
+      },
+      {
+        "name": "save_checkpoint",
+        "description": "Save progress checkpoint within a session",
+        "parameters": {
+          "sessionId": "string",
+          "title": "string",
+          "data": "object",
+          "metadata": "object (optional)"
+        }
+      },
+      {
+        "name": "save_insight",
+        "description": "Capture user reflections and insights",
+        "parameters": {
+          "userId": "string",
+          "sessionId": "string (optional)",
+          "type": "string",
+          "content": "string",
+          "tags": "string[] (optional)",
+          "metadata": "object (optional)"
+        }
+      },
+      {
+        "name": "send_message",
+        "description": "Send messages with Shrink-Chat therapeutic AI integration",
+        "parameters": {
+          "sessionId": "string",
+          "message": "string"
+        }
+      }
+    ],
+    "resources": [
+      {
+        "name": "session",
+        "description": "Current session state and information",
+        "uri": "session://current"
+      },
+      {
+        "name": "journey",
+        "description": "Available journey definitions and templates",
+        "uri": "journey://list"
+      },
+      {
+        "name": "user_context",
+        "description": "User context and preferences",
+        "uri": "context://user"
+      },
+      {
+        "name": "session_history",
+        "description": "Historical session data",
+        "uri": "session://history"
+      },
+      {
+        "name": "checkpoints",
+        "description": "Session checkpoint data",
+        "uri": "checkpoint://list"
+      }
+    ]
+  },
+  "configuration": {
+    "required": [
+      {
+        "name": "DATABASE_URL",
+        "description": "PostgreSQL connection string for session storage",
+        "type": "string",
+        "format": "postgresql://..."
+      }
+    ],
+    "optional": [
+      {
+        "name": "SUPABASE_URL",
+        "description": "Supabase project URL for enhanced features",
+        "type": "string"
+      },
+      {
+        "name": "SUPABASE_ANON_KEY",
+        "description": "Supabase anonymous key",
+        "type": "string"
+      },
+      {
+        "name": "SHRINK_CHAT_API_URL",
+        "description": "Shrink-Chat API endpoint for therapeutic features",
+        "type": "string",
+        "default": "https://api.shrink.chat"
+      },
+      {
+        "name": "SHRINK_CHAT_API_KEY",
+        "description": "API key for Shrink-Chat integration",
+        "type": "string"
+      },
+      {
+        "name": "OPENAI_API_KEY",
+        "description": "OpenAI API key for enhanced AI features",
+        "type": "string"
+      }
+    ]
+  },
+  "requirements": {
+    "node": ">=18.0.0",
+    "mcp": "2024-11-05"
+  },
+  "tags": [
+    "conversation",
+    "session-management",
+    "therapy",
+    "mental-health",
+    "journaling",
+    "ai-assistant",
+    "stateful",
+    "postgresql",
+    "supabase"
+  ]
+}

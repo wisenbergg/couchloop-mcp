@@ -1,7 +1,23 @@
 import { jwtVerify } from 'jose';
 import { AuthenticationError } from '../utils/errors.js';
 
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'default-secret-min-32-characters-long');
+// Only validate JWT_SECRET when running as web server (not in MCP mode)
+const isMCPMode = process.env.MCP_MODE === 'true';
+
+let JWT_SECRET: Uint8Array;
+if (!isMCPMode) {
+  // Ensure JWT_SECRET is properly set for web server mode
+  if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET environment variable must be set when not in MCP mode');
+  }
+  if (process.env.JWT_SECRET.length < 32) {
+    throw new Error('JWT_SECRET must be at least 32 characters long');
+  }
+  JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
+} else {
+  // Use a placeholder for MCP mode (JWT not used in MCP)
+  JWT_SECRET = new TextEncoder().encode('mcp-mode-placeholder-not-used-for-auth');
+}
 
 export interface AuthContext {
   userId: string;
