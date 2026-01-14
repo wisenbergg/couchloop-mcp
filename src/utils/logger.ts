@@ -9,13 +9,21 @@ type LogLevel = keyof typeof LOG_LEVELS;
 
 class Logger {
   private level: number;
+  private isMCP: boolean;
 
   constructor() {
     const envLevel = (process.env.LOG_LEVEL?.toUpperCase() || 'INFO') as LogLevel;
     this.level = LOG_LEVELS[envLevel] ?? LOG_LEVELS.INFO;
+    // Disable console logging when running as MCP server
+    this.isMCP = process.env.MCP_MODE === 'true' || process.argv.includes('--mcp');
   }
 
   private log(level: LogLevel, ...args: any[]) {
+    // Skip all console output when running as MCP server
+    if (this.isMCP) {
+      return;
+    }
+
     if (LOG_LEVELS[level] <= this.level) {
       const timestamp = new Date().toISOString();
       const prefix = `[${timestamp}] [${level}]`;
