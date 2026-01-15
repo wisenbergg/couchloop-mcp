@@ -12,7 +12,8 @@ import { logger } from '../utils/logger.js';
 import { sendMessage } from '../tools/sendMessage.js';
 import { createSession } from '../tools/session.js';
 import { initDatabase } from '../db/client.js';
-import { handleSSE, cleanupSessions } from './sse.js';
+import { handleSSE, handleMCPLenient, cleanupSessions } from './sse.js';
+import { handleChatGPTMCP } from './chatgpt-mcp.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -200,6 +201,62 @@ app.options('/sse', (_req: Request, res: Response) => {
  */
 app.get('/sse', handleSSE);
 app.post('/sse', express.json(), handleSSE);
+
+/**
+ * OPTIONS /mcp
+ * CORS preflight for lenient MCP endpoint
+ */
+app.options('/mcp', (_req: Request, res: Response) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Session-Id, Accept');
+  res.sendStatus(200);
+});
+
+/**
+ * Middleware to show MCP info page for browser requests
+ */
+function showMCPInfo(req: Request, res: Response, next: Function) {
+  const originalAccept = req.headers.accept || '';
+
+  // For browser GET requests, return info page
+  if (req.method === 'GET' && originalAccept.includes('text/html')) {
+    res.send(`
+      <html>
+        <head><title>CouchLoop MCP Server</title></head>
+        <body style="font-family: sans-serif; max-width: 600px; margin: 50px auto; padding: 20px;">
+          <h1>✅ CouchLoop MCP Server is Running!</h1>
+          <p>This endpoint is designed for ChatGPT Developer Mode.</p>
+          <h2>Configuration for ChatGPT:</h2>
+          <ul>
+            <li><strong>MCP Server URL:</strong> <code>${req.protocol}://${req.get('host')}/mcp</code></li>
+            <li><strong>Authentication:</strong> None required</li>
+          </ul>
+          <p style="color: #666; margin-top: 40px;">
+            <small>Server Status: Active | Protocol: MCP 1.0 | Transport: Streamable HTTP</small>
+          </p>
+        </body>
+      </html>
+    `);
+    return;
+  }
+
+  next();
+}
+
+/**
+ * GET/POST /mcp
+ * MCP endpoint for ChatGPT Developer Mode
+ * Uses custom handler that directly implements MCP protocol
+ */
+app.get('/mcp', showMCPInfo, (req: Request, res: Response) => {
+  // If we get here, it wasn't a browser request
+  res.json({
+    error: 'GET not supported for MCP. Use POST with JSON-RPC payload.'
+  });
+});
+
+app.post('/mcp', handleChatGPTMCP);
 
 // ====================
 // Protected MCP API Endpoints

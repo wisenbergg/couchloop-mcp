@@ -33,6 +33,7 @@ async function createMCPServer(): Promise<Server> {
       capabilities: {
         tools: {},
         resources: {},
+        experimental: {} // Support experimental features for ChatGPT
       },
     }
   );
@@ -116,12 +117,107 @@ export async function handleSSE(req: Request, res: Response) {
 
   } catch (error) {
     logger.error('SSE/HTTP handler error:', error);
+    logger.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
+    logger.error('Request body was:', req.body);
 
     // Send appropriate error response if not already sent
     if (!res.headersSent) {
       res.status(500).json({
         error: 'Failed to handle MCP request',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        details: error instanceof Error ? error.message : 'Unknown error',
+        stack: process.env.NODE_ENV !== 'production' ? (error instanceof Error ? error.stack : undefined) : undefined
+      });
+    }
+  }
+}
+
+/**
+ * Handle lenient MCP requests for ChatGPT compatibility
+ * This endpoint is more forgiving with Accept headers
+ */
+export async function handleMCPLenient(req: Request, res: Response) {
+  console.log('=== handleMCPLenient called ===');
+  console.log('Method:', req.method);
+  console.log('Headers:', req.headers);
+  console.log('Body:', req.body);
+
+  try {
+    // Log incoming headers for debugging
+    logger.info('MCP Request Headers:', {
+      accept: req.headers.accept,
+      'content-type': req.headers['content-type'],
+      'user-agent': req.headers['user-agent'],
+      'x-session-id': req.headers['x-session-id']
+    });
+
+    // Normalize Accept header for compatibility
+    const originalAccept = req.headers.accept || '';
+    if (originalAccept === '*/*' ||
+        originalAccept === 'application/json' ||
+        originalAccept === 'application/*' ||
+        !originalAccept) {
+      // Set the required Accept header for MCP
+      req.headers.accept = 'application/json, text/event-stream';
+      logger.info(`Normalized Accept header from "${originalAccept}" to "${req.headers.accept}"`);
+    }
+
+    // Get or generate session ID
+    let sessionId = req.headers['x-session-id'] as string;
+
+    // Check if this is an existing session
+    let session = activeSessions.get(sessionId);
+
+    if (!session) {
+      // Create new session
+      sessionId = sessionId || `session_${crypto.randomBytes(16).toString('hex')}`;
+
+      // Create transport with lenient options
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: () => sessionId,
+        // Enable JSON-only responses for better compatibility
+        enableJsonResponse: true,
+      } as any);
+
+      // Create and configure server
+      const server = await createMCPServer();
+
+      // Connect transport to server
+      await server.connect(transport);
+
+      // Store session
+      session = { transport, server };
+      activeSessions.set(sessionId, session);
+
+      logger.info(`New lenient MCP session created: ${sessionId}`);
+    }
+
+    // Log request details
+    if (req.body) {
+      logger.info('MCP Request:', {
+        method: req.body.method,
+        id: req.body.id,
+        params: req.body.params
+      });
+    }
+
+    // Handle the request through the transport
+    // Create a modified request object with normalized headers
+    const modifiedReq = Object.assign({}, req, {
+      headers: Object.assign({}, req.headers)
+    });
+    await session.transport.handleRequest(modifiedReq as any, res as any, req.body);
+
+  } catch (error) {
+    logger.error('Lenient MCP handler error:', error);
+    logger.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
+    logger.error('Request body was:', req.body);
+
+    // Send appropriate error response if not already sent
+    if (!res.headersSent) {
+      res.status(500).json({
+        error: 'Failed to handle MCP request',
+        details: error instanceof Error ? error.message : 'Unknown error',
+        stack: process.env.NODE_ENV !== 'production' ? (error instanceof Error ? error.stack : undefined) : undefined
       });
     }
   }
