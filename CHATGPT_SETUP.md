@@ -42,14 +42,14 @@ Note the HTTPS URL provided by ngrok (e.g., `https://abc123.ngrok.app`)
 - **Icon**: Upload `assets/logo/couchloop_EQ-IconLogo.png`
 - **Name**: CouchLoop EQ
 - **Description**: Stateful conversation management and guided therapeutic journeys
-- **MCP Server URL**: `https://your-server.com/sse` (or ngrok URL for testing)
+- **MCP Server URL**: `https://your-server.com/mcp` (or ngrok URL for testing)
 - **Authentication**: Leave blank (not required)
 
 ### Step 4: Test the Connection
 
 1. Start a new ChatGPT conversation
 2. Type: "Connect to CouchLoop"
-3. ChatGPT should establish an SSE connection to your server
+3. ChatGPT should establish an MCP connection to your server
 4. You can now use all CouchLoop tools and resources
 
 ## Available Tools & Resources
@@ -92,7 +92,7 @@ For production use:
    DATABASE_URL=your_postgres_url
    PORT=3001
    ```
-3. Use HTTPS endpoint: `https://your-domain.com/sse`
+3. Use HTTPS endpoint: `https://your-domain.com/mcp`
 4. No OAuth configuration needed
 
 ## Troubleshooting
@@ -100,7 +100,7 @@ For production use:
 ### Connection Issues
 - Ensure server is running (`npm run server:dev`)
 - Check ngrok is forwarding correctly
-- Verify `/sse` endpoint responds to GET requests
+- Verify `/mcp` endpoint responds to GET requests with HTML info page
 - Check server logs for connection attempts
 
 ### Session Issues
