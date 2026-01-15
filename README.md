@@ -3,7 +3,7 @@
 Turn conversations into guided journeys that remember where you left off.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/wisenbergg/couchloop-mcp/main/assets/logo/couchloop_EQ-IconLogo.png" alt="CouchLoop EQ" width="120" />
+  <img src="https://raw.githubusercontent.com/wisenbergg/couchloop-mcp/master/assets/logo/couchloop_EQ-IconLogo.png" alt="CouchLoop EQ" width="120" />
 </p>
 
 ## What is CouchLoop EQ?
