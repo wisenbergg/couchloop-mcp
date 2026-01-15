@@ -35,9 +35,15 @@ Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/
 }
 ```
 
-### For ChatGPT
+### For ChatGPT (Developer Mode)
 
-CouchLoop EQ is available in the ChatGPT App Store. Search for "CouchLoop EQ" and connect with your account.
+ChatGPT supports MCP servers through Developer Mode. See [CHATGPT_SETUP.md](CHATGPT_SETUP.md) for detailed setup instructions.
+
+Quick steps:
+1. Enable Developer Mode in ChatGPT Settings
+2. Deploy server or use ngrok for local testing
+3. Add as MCP connector with URL: `https://your-server.com/sse`
+4. No authentication required - uses session-based isolation
 
 ## Available Tools
 

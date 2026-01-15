@@ -12,6 +12,7 @@ import { logger } from '../utils/logger.js';
 import { sendMessage } from '../tools/sendMessage.js';
 import { createSession } from '../tools/session.js';
 import { initDatabase } from '../db/client.js';
+import { handleSSE, cleanupSessions } from './sse.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -176,6 +177,29 @@ app.post('/oauth/revoke', validateToken, async (req: Request, res: Response) => 
     });
   }
 });
+
+// ====================
+// SSE/MCP Endpoints for ChatGPT
+// ====================
+
+/**
+ * OPTIONS /sse
+ * CORS preflight for SSE endpoint
+ */
+app.options('/sse', (_req: Request, res: Response) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Session-Id');
+  res.sendStatus(200);
+});
+
+/**
+ * GET/POST /sse
+ * Streamable HTTP endpoint for ChatGPT MCP connection
+ * Handles both SSE (GET) and HTTP messages (POST)
+ */
+app.get('/sse', handleSSE);
+app.post('/sse', express.json(), handleSSE);
 
 // ====================
 // Protected MCP API Endpoints
@@ -422,5 +446,18 @@ async function startServer() {
 
 // Start the server
 startServer();
+
+// Graceful shutdown
+process.on('SIGINT', async () => {
+  logger.info('Received SIGINT, shutting down gracefully...');
+  await cleanupSessions();
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  logger.info('Received SIGTERM, shutting down gracefully...');
+  await cleanupSessions();
+  process.exit(0);
+});
 
 export default app;
