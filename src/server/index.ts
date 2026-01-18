@@ -1,6 +1,15 @@
 // Load environment variables FIRST before any other imports
 import { config } from 'dotenv';
-config({ path: '.env.local' });
+
+// Load environment based on NODE_ENV or default to .env.local
+const envFile = process.env.NODE_ENV === 'production' ? '.env.production' :
+                process.env.NODE_ENV === 'staging' ? '.env.staging' :
+                '.env.local';
+
+// Only load from file if not already set (allows runtime env vars to take precedence)
+if (!process.env.DATABASE_URL) {
+  config({ path: envFile });
+}
 
 import express, { Request, Response } from 'express';
 import path from 'path';
