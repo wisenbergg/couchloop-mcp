@@ -1,6 +1,6 @@
 # CouchLoop EQ — MCP Server
 
-Turn conversations into guided journeys that remember where you left off.
+Behavioral governance layer for safer, more consistent AI conversations.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/wisenbergg/couchloop-mcp/master/assets/logo/couchloop_EQ-IconLogo.png" alt="CouchLoop EQ" width="120" />
@@ -8,7 +8,21 @@ Turn conversations into guided journeys that remember where you left off.
 
 ## What is CouchLoop EQ?
 
-CouchLoop EQ is an MCP (Model Context Protocol) server that adds stateful, resumable conversation experiences to AI assistants like ChatGPT and Claude. It manages sessions, tracks progress through guided journeys, and remembers where you left off—even across multiple conversations.
+CouchLoop EQ is an MCP (Model Context Protocol) server that provides behavioral governance for LLMs. It monitors AI responses for hallucination, inconsistency, tone drift, and unsafe reasoning patterns—while also managing stateful sessions and guided journeys that remember where you left off.
+
+## Key Safety Features
+
+### Behavioral Governance
+- **Hallucination Detection**: Monitors for fabricated facts and unsupported claims
+- **Consistency Checking**: Identifies contradictions and logical incoherence across turns
+- **Tone Monitoring**: Detects emotional escalation, manipulation, or dependency-forming language
+- **Safety Guardrails**: Prevents harmful advice, clinical overreach, and inappropriate moralizing
+
+### Session Management
+- **Stateful Conversations**: Maintains context across multiple interactions
+- **Progress Tracking**: Remember where users left off in guided journeys
+- **Crisis Detection**: Integration with therapeutic AI for emotional support
+- **Memory Context**: Preserves important insights and checkpoints
 
 ## Installation
 
