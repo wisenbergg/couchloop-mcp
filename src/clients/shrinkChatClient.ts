@@ -30,6 +30,9 @@ export const ShrinkResponseSchema = z.object({
   crisis_level: z.union([z.string(), z.number()]).optional(), // Alternative field name
   crisisHandled: z.boolean().optional(),
   crisis_confidence: z.number().min(0).max(1).optional(), // Crisis detection confidence
+  crisis_requires_intervention: z.boolean().optional(), // Flag for revision needed
+  crisis_indicators: z.array(z.string()).optional(), // What triggered detection
+  crisis_suggested_actions: z.array(z.string()).optional(), // Suggested actions
   emotions: z.array(z.string()).optional(),
   therapeuticTechnique: z.string().optional(),
   resources: z.array(z.object({

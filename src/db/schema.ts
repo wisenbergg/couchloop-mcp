@@ -15,6 +15,7 @@ import { sql } from 'drizzle-orm';
 export const users = pgTable('users', {
   id: uuid('id').defaultRandom().primaryKey(),
   externalId: text('external_id').notNull().unique(),
+  isTestAccount: boolean('is_test_account').notNull().default(true),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
   preferences: jsonb('preferences').$type<{
@@ -198,6 +199,63 @@ export const crisisEvents = pgTable('crisis_events', {
   createdAtIdx: index('idx_crisis_events_created_at').on(table.createdAt),
 }));
 
+// Governance evaluations table - tracks all governance checks and interventions
+export const governanceEvaluations = pgTable('governance_evaluations', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  sessionId: uuid('session_id').references(() => sessions.id).notNull(),
+  checkpointId: uuid('checkpoint_id').references(() => checkpoints.id),
+  draftResponse: text('draft_response').notNull(),
+  evaluationResults: jsonb('evaluation_results').$type<{
+    hallucination: { detected: boolean; confidence: number; patterns: string[] };
+    inconsistency: { detected: boolean; confidence: number; patterns: string[] };
+    toneDrift: { detected: boolean; confidence: number; patterns: string[] };
+    unsafeReasoning: { detected: boolean; confidence: number; patterns: string[] };
+    overallRisk: string;
+    recommendedAction: string;
+    confidence: number;
+  }>().notNull(),
+  interventionApplied: varchar('intervention_applied', { length: 50 }),
+  finalResponse: text('final_response'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  sessionIdIdx: index('idx_governance_evaluations_session_id').on(table.sessionId),
+  interventionIdx: index('idx_governance_evaluations_intervention').on(table.interventionApplied),
+  createdAtIdx: index('idx_governance_evaluations_created_at').on(table.createdAt),
+}));
+
+// Governance rules configuration table
+export const governanceRules = pgTable('governance_rules', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  ruleType: varchar('rule_type', { length: 50 }).notNull(),
+  criteria: jsonb('criteria').notNull(),
+  thresholds: jsonb('thresholds').notNull(),
+  action: varchar('action', { length: 20 }).notNull(), // block, modify, warn
+  active: boolean('active').notNull().default(true),
+  priority: integer('priority').notNull().default(0),
+  metadata: jsonb('metadata').default({}),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+  ruleTypeIdx: index('idx_governance_rules_rule_type').on(table.ruleType),
+  activeIdx: index('idx_governance_rules_active').on(table.active),
+  priorityIdx: index('idx_governance_rules_priority').on(table.priority),
+}));
+
+// Governance audit log table - detailed record of all governance actions
+export const governanceAuditLog = pgTable('governance_audit_log', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  evaluationId: uuid('evaluation_id').references(() => governanceEvaluations.id),
+  actionType: varchar('action_type', { length: 50 }).notNull(),
+  reason: text('reason'),
+  confidenceScore: integer('confidence_score'), // 0-100
+  metadata: jsonb('metadata').default({}),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+  evaluationIdIdx: index('idx_governance_audit_evaluation_id').on(table.evaluationId),
+  actionTypeIdx: index('idx_governance_audit_action_type').on(table.actionType),
+  createdAtIdx: index('idx_governance_audit_created_at').on(table.createdAt),
+}));
+
 // Type exports for TypeScript
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -225,3 +283,12 @@ export type NewThreadMapping = typeof threadMappings.$inferInsert;
 
 export type CrisisEvent = typeof crisisEvents.$inferSelect;
 export type NewCrisisEvent = typeof crisisEvents.$inferInsert;
+
+export type GovernanceEvaluation = typeof governanceEvaluations.$inferSelect;
+export type NewGovernanceEvaluation = typeof governanceEvaluations.$inferInsert;
+
+export type GovernanceRule = typeof governanceRules.$inferSelect;
+export type NewGovernanceRule = typeof governanceRules.$inferInsert;
+
+export type GovernanceAuditLog = typeof governanceAuditLog.$inferSelect;
+export type NewGovernanceAuditLog = typeof governanceAuditLog.$inferInsert;

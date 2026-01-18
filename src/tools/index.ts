@@ -106,8 +106,7 @@ export async function setupTools() {
               description: 'What is being captured (e.g., "mood", "reflection", "gratitude")',
             },
             value: {
-              type: 'any',
-              description: 'The captured content',
+              description: 'The captured content (can be any JSON value: string, number, object, array, etc.)',
             },
             advance_step: {
               type: 'boolean',

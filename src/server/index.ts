@@ -12,7 +12,7 @@ import { logger } from '../utils/logger.js';
 import { sendMessage } from '../tools/sendMessage.js';
 import { createSession } from '../tools/session.js';
 import { initDatabase } from '../db/client.js';
-import { handleSSE, handleMCPLenient, cleanupSessions } from './sse.js';
+import { handleSSE, cleanupSessions } from './sse.js';
 import { handleChatGPTMCP } from './chatgpt-mcp.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -249,7 +249,7 @@ function showMCPInfo(req: Request, res: Response, next: Function) {
  * MCP endpoint for ChatGPT Developer Mode
  * Uses custom handler that directly implements MCP protocol
  */
-app.get('/mcp', showMCPInfo, (req: Request, res: Response) => {
+app.get('/mcp', showMCPInfo, (_req: Request, res: Response) => {
   // If we get here, it wasn't a browser request
   res.json({
     error: 'GET not supported for MCP. Use POST with JSON-RPC payload.'

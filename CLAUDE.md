@@ -6,6 +6,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 CouchLoop MCP Server - A Model Context Protocol server that provides stateful conversation management for AI agents (ChatGPT, Claude). It manages sessions, progress checkpoints, and guided journeys to enable multi-turn experiences that survive interruptions.
 
+## Architectural Foundation
+
+⚠️ **IMPORTANT**: See [ARCHITECTURE.md](./ARCHITECTURE.md) for the authoritative definition of CouchLoop as a behavioral governance layer for LLMs.
+
+### Implementation Status
+
+- **Current Implementation (v1.x)**: Session/journey management system with pass-through to shrink-chat backend
+- **Target Architecture (v2.x)**: Full behavioral governance layer with pre-delivery evaluation and intervention
+- **See Also**: [ARCHITECTURE_CURRENT.md](./ARCHITECTURE_CURRENT.md) for detailed current implementation
+
+The v1.x codebase provides the foundation (session management, checkpoints, MCP protocol) that will support the v2.x governance layer.
+
 ## Development Commands
 
 ```bash
@@ -111,6 +123,32 @@ Based on the refactoring strategy, this MCP server will be integrated with the s
 - Target: Route through `/api/shrink` for therapeutic features
 - Key integration point: New `send_message` tool calling shrink-chat API
 - Benefits: Crisis detection, memory management, therapeutic guardrails
+
+## User Types & Positioning
+
+### Consumer Users (App Store End Users)
+- **Target**: General public seeking wellness support
+- **Access**: Via iOS/Android app (CouchLoop wellness companion)
+- **Positioning**: Wellness companion with thoughtful, consistent support
+- **Language**: Non-technical, stability-focused
+- **Key Promise**: Steady, grounded, trustworthy experience without spirals or manipulation
+- **Core Value**: Users feel stability, not infrastructure
+- **Avoids**: Technical jargon, "hallucination" terminology, medical/diagnostic language
+
+### Developer Users (MCP Integration)
+- **Target**: Developers/platforms needing LLM behavioral governance
+- **Access**: Via MCP protocol integration
+- **Positioning**: Behavioral governance layer for LLMs in sensitive contexts
+- **Language**: Technical, control-focused
+- **Key Promise**: Monitors for hallucination, inconsistency, tone drift, unsafe reasoning
+- **Core Value**: Control plane between application and LLM
+- **Benefits**: Reduces downstream risk, trust failures, regulatory exposure
+
+### Key Differentiation
+- **For Consumers**: Experience emotional safety without seeing technical safeguards
+- **For Developers**: Get infrastructure tools to ensure that safety
+- **Same Technology**: Core CouchLoop engine serves both audiences
+- **Different Journeys**: Consumer app vs developer API/MCP integration
 
 ## Testing Approach
 
