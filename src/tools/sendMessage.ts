@@ -112,6 +112,7 @@ export async function sendMessage(args: unknown) {
       threadId,
       input.message,
       {
+        userId: session.userId,
         memoryContext,
         enhancedContext,
         history,
@@ -165,6 +166,7 @@ Suggested approach: ${response.crisis_suggested_actions?.join(', ') || 'De-escal
         threadId,
         revisionPrompt,
         {
+          userId: session.userId,
           memoryContext,
           enhancedContext,
           history: [...history,
