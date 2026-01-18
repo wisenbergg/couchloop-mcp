@@ -81,13 +81,29 @@ export async function sendMessage(args: unknown) {
       .orderBy(desc(checkpoints.createdAt));
 
     const history = previousCheckpoints
-      .filter(cp => cp.value && typeof cp.value === 'object' && 'message' in cp.value && 'response' in cp.value)
+      .filter(cp => {
+        if (!cp.value || typeof cp.value !== 'object') return false;
+        const val = cp.value as any;
+        // Include checkpoints with role field (individual messages)
+        if ('role' in val && 'message' in val) return true;
+        // Include checkpoints with both message and response (combined format)
+        if ('message' in val && 'response' in val) return true;
+        return false;
+      })
       .flatMap(cp => {
         const val = cp.value as any;
-        return [
-          { role: 'user', content: val.message },
-          { role: 'assistant', content: val.response },
-        ];
+        // Handle individual message checkpoints (with role field)
+        if ('role' in val && 'message' in val) {
+          return [{ role: val.role, content: val.message }];
+        }
+        // Handle combined checkpoints (with both message and response)
+        if ('message' in val && 'response' in val) {
+          return [
+            { role: 'user', content: val.message },
+            { role: 'assistant', content: val.response },
+          ];
+        }
+        return [];
       })
       .slice(-10);
 
