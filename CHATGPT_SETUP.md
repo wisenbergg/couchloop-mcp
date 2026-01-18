@@ -7,7 +7,13 @@
 
 ## Quick Setup
 
-### Step 1: Start Your MCP Server
+### Option A: Use Production Server (Recommended)
+
+Skip to Step 3 and use the production URL: `https://couchloop-mcp-production.up.railway.app/mcp`
+
+### Option B: Run Your Own Server
+
+#### Step 1: Start Your MCP Server
 
 ```bash
 # For development
@@ -16,7 +22,7 @@ npm run server:dev
 # Server will run on http://localhost:3001
 ```
 
-### Step 2: Expose Server (for local testing)
+#### Step 2: Expose Server (for local testing)
 
 Since ChatGPT needs a public URL, use ngrok:
 
@@ -42,7 +48,9 @@ Note the HTTPS URL provided by ngrok (e.g., `https://abc123.ngrok.app`)
 - **Icon**: Upload `assets/logo/couchloop_EQ-IconLogo.png`
 - **Name**: CouchLoop EQ
 - **Description**: Stateful conversation management and guided therapeutic journeys
-- **MCP Server URL**: `https://your-server.com/mcp` (or ngrok URL for testing)
+- **MCP Server URL**:
+  - Production: `https://couchloop-mcp-production.up.railway.app/mcp`
+  - Local/ngrok: `https://your-ngrok-id.ngrok.app/mcp`
 - **Authentication**: Leave blank (not required)
 
 ### Step 4: Test the Connection
