@@ -39,9 +39,15 @@ export type AuthContext = z.infer<typeof AuthContextSchema>;
  * Falls back to ephemeral IDs only when no stable context is available
  */
 export async function extractUserFromContext(authContext?: AuthContext): Promise<string> {
-  // Priority 1: Explicit user_id from OAuth provider
-  if (authContext?.user_id) {
-    return authContext.user_id;
+  // Priority 1: Hash-based persistent ID from external user identifier
+  // For ChatGPT: this is the openai/subject that persists across all chat windows
+  // We hash it to avoid storing any external PII
+  if (authContext?.user_id && authContext?.client_id) {
+    const hash = createHash('sha256')
+      .update(`${authContext.client_id}:${authContext.user_id}`)
+      .digest('hex');
+    // Use client prefix to identify the source
+    return `${authContext.client_id}_${hash.substring(0, 24)}`;
   }
 
   // Priority 2: JWT token validation (future OAuth implementation)
@@ -51,14 +57,14 @@ export async function extractUserFromContext(authContext?: AuthContext): Promise
     return `oauth_${authContext.token.substring(0, 16)}`;
   }
 
-  // Priority 3: Hash-based persistent ID for MCP clients
-  // This ensures the same user gets the same ID across all sessions
+  // Priority 3: Conversation-based ID (single chat window only)
+  // This is less ideal as it doesn't persist across windows
   if (authContext?.client_id && authContext?.conversation_id) {
     const hash = createHash('sha256')
-      .update(`${authContext.client_id}:${authContext.conversation_id}`)
+      .update(`${authContext.client_id}:conv:${authContext.conversation_id}`)
       .digest('hex');
-    // Use mcp_ prefix to identify these as MCP-generated stable IDs
-    return `mcp_${hash.substring(0, 28)}`;
+    // Use conv_ prefix to identify these as conversation-specific IDs
+    return `conv_${hash.substring(0, 28)}`;
   }
 
   // Fallback: Create ephemeral user with warning
