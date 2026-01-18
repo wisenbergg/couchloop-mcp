@@ -98,7 +98,28 @@ export async function handleChatGPTMCP(req: Request, res: Response) {
         }
 
         try {
-          const result = await tool.handler(params.arguments || {});
+          // Extract stable identifiers from ChatGPT metadata
+          const openaiSession = params._meta?.['openai/session'];
+          const openaiSubject = params._meta?.['openai/subject'];
+
+          // Inject auth context using OpenAI's stable identifiers
+          const enhancedArguments = {
+            ...params.arguments,
+            auth: params.arguments?.auth || {
+              client_id: 'chatgpt',
+              conversation_id: openaiSession || sessionId,  // Use OpenAI session as conversation ID
+              user_id: openaiSubject  // Use OpenAI subject as stable user ID (priority 1 in auth hierarchy)
+            }
+          };
+
+          logger.info('Enhanced arguments with auth:', {
+            hasAuth: !!enhancedArguments.auth,
+            authUserId: enhancedArguments.auth?.user_id,
+            authConversationId: enhancedArguments.auth?.conversation_id,
+            toolName: params.name
+          });
+
+          const result = await tool.handler(enhancedArguments);
 
           // Wrap the result in MCP content format
           const response = {
