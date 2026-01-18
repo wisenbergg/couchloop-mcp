@@ -47,7 +47,7 @@ Note the HTTPS URL provided by ngrok (e.g., `https://abc123.ngrok.app`)
 
 - **Icon**: Upload `assets/logo/couchloop_EQ-IconLogo.png`
 - **Name**: CouchLoop EQ
-- **Description**: Stateful conversation management and guided therapeutic journeys
+- **Description**: Behavioral governance layer that monitors for hallucination, inconsistency, and unsafe AI responses
 - **MCP Server URL**:
   - Production: `https://couchloop-mcp-production.up.railway.app/mcp`
   - Local/ngrok: `https://your-ngrok-id.ngrok.app/mcp`

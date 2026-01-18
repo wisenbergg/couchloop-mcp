@@ -1,7 +1,7 @@
 {
   "name": "couchloop-eq-mcp",
   "version": "1.0.2",
-  "description": "Turn conversations into guided journeys that remember where you left off - MCP server for stateful AI experiences",
+  "description": "Behavioral governance layer for LLMs - monitors for hallucination, inconsistency, tone drift, and unsafe reasoning while managing stateful AI sessions",
   "main": "dist/index.js",
   "type": "module",
   "bin": {
@@ -42,9 +42,13 @@
   "keywords": [
     "mcp",
     "model-context-protocol",
-    "ai",
+    "ai-safety",
+    "ai-governance",
+    "hallucination-detection",
     "chatgpt",
     "claude",
+    "llm-safety",
+    "behavioral-governance",
     "conversation",
     "state-management"
   ],
