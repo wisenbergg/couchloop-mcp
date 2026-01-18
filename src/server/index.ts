@@ -7,7 +7,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import cookieParser from 'cookie-parser';
 import { oauthServer } from './oauth/authServer.js';
-import { validateToken, requireScope, oauthCors, rateLimit } from './middleware/auth.js';
+import { validateToken, requireScope, rateLimit } from './middleware/auth.js';
+import { enhancedCors, localNetworkAccessMiddleware } from './middleware/localNetworkAccess.js';
 import { logger } from '../utils/logger.js';
 import { sendMessage } from '../tools/sendMessage.js';
 import { createSession } from '../tools/session.js';
@@ -25,7 +26,10 @@ const PORT = process.env.PORT || 3001;
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-app.use(oauthCors);
+
+// Use enhanced CORS with Local Network Access support
+app.use(enhancedCors);
+app.use(localNetworkAccessMiddleware);
 
 // ====================
 // OAuth Endpoints

@@ -69,7 +69,8 @@ export function localNetworkAccessMiddleware(
       res.setHeader('Access-Control-Allow-Credentials', 'true');
 
       // Respond to preflight immediately
-      return res.status(204).end();
+      res.status(204).end();
+      return;
     }
   }
 
@@ -117,7 +118,8 @@ export function enhancedCors(
 
   // Handle OPTIONS preflight
   if (req.method === 'OPTIONS') {
-    return res.status(204).end();
+    res.status(204).end();
+    return;
   }
 
   next();
