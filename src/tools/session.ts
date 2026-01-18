@@ -84,46 +84,51 @@ export async function resumeSession(args: any) {
     const input = ResumeSessionSchema.parse(args);
     const db = getDb();
 
-    // Extract user ID from auth context or generate anonymous user
-    const externalUserId = await extractUserFromContext(input.auth);
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.externalId, externalUserId))
-      .limit(1);
-
-    if (!user) {
-      // Create user if doesn't exist
-      const [newUser] = await db
-        .insert(users)
-        .values({
-          externalId: externalUserId,
-          preferences: {},
-        })
-        .returning();
-
-      if (!newUser) {
-        throw new NotFoundError('User');
-      }
-      return {
-        message: 'No previous sessions found for this user. Please create a new session.',
-        session: null,
-      };
-    }
-
     // Find session to resume
     let session;
+
     if (input.session_id) {
+      // Direct session lookup - skip user validation
+      // This allows resuming sessions when MCP clients don't maintain consistent user context
       [session] = await db
         .select()
         .from(sessions)
-        .where(and(
-          eq(sessions.id, input.session_id),
-          eq(sessions.userId, user.id)
-        ))
+        .where(eq(sessions.id, input.session_id))
         .limit(1);
+
+      if (!session) {
+        throw new NotFoundError('Session with ID', input.session_id);
+      }
     } else {
-      // Get most recent pausable session
+      // Resume most recent session - requires user context
+      // Extract user ID from auth context or generate anonymous user
+      const externalUserId = await extractUserFromContext(input.auth);
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.externalId, externalUserId))
+        .limit(1);
+
+      if (!user) {
+        // Create user if doesn't exist
+        const [newUser] = await db
+          .insert(users)
+          .values({
+            externalId: externalUserId,
+            preferences: {},
+          })
+          .returning();
+
+        if (!newUser) {
+          throw new NotFoundError('User');
+        }
+        return {
+          message: 'No previous sessions found for this user. Please create a new session.',
+          session: null,
+        };
+      }
+
+      // Get most recent pausable session for this user
       [session] = await db
         .select()
         .from(sessions)
@@ -133,10 +138,10 @@ export async function resumeSession(args: any) {
         ))
         .orderBy(desc(sessions.lastActiveAt))
         .limit(1);
-    }
 
-    if (!session) {
-      throw new NotFoundError('Session to resume');
+      if (!session) {
+        throw new NotFoundError('Session to resume for user');
+      }
     }
 
     // Get journey if linked

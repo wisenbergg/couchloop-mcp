@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { createHash } from 'crypto';
 
 /**
  * Authentication context that can be passed through MCP tool calls
@@ -22,30 +23,53 @@ export const AuthContextSchema = z.object({
    * Helps track which AI agent is making the request
    */
   client_id: z.string().optional().describe('Client application identifier'),
+
+  /**
+   * Stable conversation identifier for user binding
+   * Used to generate persistent user IDs for MCP clients without OAuth
+   */
+  conversation_id: z.string().optional().describe('Stable conversation identifier for user binding'),
 });
 
 export type AuthContext = z.infer<typeof AuthContextSchema>;
 
 /**
  * Extract user ID from authentication context
- * Returns a mock user ID if no context is provided (backward compatibility)
+ * Implements secure hash-based persistent identity for MCP clients
+ * Falls back to ephemeral IDs only when no stable context is available
  */
 export async function extractUserFromContext(authContext?: AuthContext): Promise<string> {
-  // If we have a user_id directly, use it
+  // Priority 1: Explicit user_id from OAuth provider
   if (authContext?.user_id) {
     return authContext.user_id;
   }
 
-  // If we have a token, we could validate it here
-  // For now, we'll extract a user ID from the token if it's a JWT-like structure
+  // Priority 2: JWT token validation (future OAuth implementation)
   if (authContext?.token) {
     // TODO: Implement proper JWT validation and extraction
-    // For now, just use the token as a user identifier
+    // For now, use token as a temporary identifier
     return `oauth_${authContext.token.substring(0, 16)}`;
   }
 
-  // Fallback to anonymous user with optional client tracking
-  const clientPrefix = authContext?.client_id ? `${authContext.client_id}_` : '';
+  // Priority 3: Hash-based persistent ID for MCP clients
+  // This ensures the same user gets the same ID across all sessions
+  if (authContext?.client_id && authContext?.conversation_id) {
+    const hash = createHash('sha256')
+      .update(`${authContext.client_id}:${authContext.conversation_id}`)
+      .digest('hex');
+    // Use mcp_ prefix to identify these as MCP-generated stable IDs
+    return `mcp_${hash.substring(0, 28)}`;
+  }
+
+  // Fallback: Create ephemeral user with warning
+  // These should be cleaned up periodically as they indicate missing context
+  console.warn('Creating ephemeral user - no stable identity provided', {
+    client_id: authContext?.client_id,
+    has_conversation_id: !!authContext?.conversation_id,
+    timestamp: new Date().toISOString()
+  });
+
   const { nanoid } = await import('nanoid');
-  return `usr_${clientPrefix}${nanoid(8)}`;
+  // Use ephemeral_ prefix to clearly identify temporary users
+  return `ephemeral_${nanoid(12)}`;
 }

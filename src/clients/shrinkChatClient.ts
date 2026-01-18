@@ -164,6 +164,7 @@ export class ShrinkChatClient {
     threadId: string,
     prompt: string,
     options?: {
+      userId?: string;
       memoryContext?: string;
       enhancedContext?: any;
       history?: Array<{ role: string; content: string }>;
@@ -212,6 +213,7 @@ export class ShrinkChatClient {
     const body = {
       prompt,
       threadId,
+      userId: options?.userId,
       memoryContext: options?.memoryContext || '',
       enhancedContext: options?.enhancedContext || {},
       history: options?.history || [],
