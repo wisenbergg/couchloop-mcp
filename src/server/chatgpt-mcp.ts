@@ -100,10 +100,13 @@ export async function handleChatGPTMCP(req: Request, res: Response) {
         try {
           const result = await tool.handler(params.arguments || {});
 
+          // Wrap the result in MCP content format
           const response = {
             jsonrpc: '2.0',
             id,
-            result
+            result: {
+              content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+            }
           };
 
           logger.info('Tool call result:', response);
