@@ -39,11 +39,16 @@ Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/
 
 ChatGPT supports MCP servers through Developer Mode. See [CHATGPT_SETUP.md](CHATGPT_SETUP.md) for detailed setup instructions.
 
+**Production Server Available:** `https://couchloop-mcp-production.up.railway.app/mcp`
+
 Quick steps:
 1. Enable Developer Mode in ChatGPT Settings
-2. Deploy server or use ngrok for local testing
-3. Add as MCP connector with URL: `https://your-server.com/sse`
-4. No authentication required - uses session-based isolation
+2. Add as MCP connector with URL: `https://couchloop-mcp-production.up.railway.app/mcp`
+3. No authentication required - uses session-based isolation
+
+For local development:
+- Use ngrok or deploy your own server
+- Follow setup in [CHATGPT_SETUP.md](CHATGPT_SETUP.md)
 
 ## Available Tools
 
