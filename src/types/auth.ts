@@ -1,74 +1,120 @@
 import { z } from 'zod';
 import { createHash } from 'crypto';
+import { homedir } from 'os';
+import { join } from 'path';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 
 /**
  * Authentication context that can be passed through MCP tool calls
  * This allows the AI agent to provide user authentication info
  */
 export const AuthContextSchema = z.object({
-  /**
-   * OAuth access token or session identifier
-   * This will be validated against the OAuth tokens table
-   */
   token: z.string().optional().describe('OAuth access token or session identifier'),
-
-  /**
-   * External user identifier (from OAuth provider)
-   * Used as a fallback if token validation fails
-   */
   user_id: z.string().optional().describe('External user identifier from OAuth provider'),
-
-  /**
-   * Client identifier (ChatGPT, Claude, etc.)
-   * Helps track which AI agent is making the request
-   */
   client_id: z.string().optional().describe('Client application identifier'),
-
-  /**
-   * Stable conversation identifier for user binding
-   * Used to generate persistent user IDs for MCP clients without OAuth
-   */
   conversation_id: z.string().optional().describe('Stable conversation identifier for user binding'),
 });
 
 export type AuthContext = z.infer<typeof AuthContextSchema>;
 
 /**
+ * Local identity file structure for free tier persistence
+ */
+interface LocalIdentity {
+  user_id: string;
+  created_at: string;
+  machine: string;
+  tier: 'free' | 'pro';
+}
+
+const IDENTITY_DIR = join(homedir(), '.couchloop-mcp');
+const IDENTITY_FILE = join(IDENTITY_DIR, 'identity.json');
+
+/**
+ * Get or create local identity file for free tier users
+ * This provides single-machine persistence without requiring OAuth
+ */
+function getOrCreateLocalIdentity(): string {
+  try {
+    // Ensure directory exists
+    if (!existsSync(IDENTITY_DIR)) {
+      mkdirSync(IDENTITY_DIR, { recursive: true });
+    }
+
+    // Check if identity file exists
+    if (existsSync(IDENTITY_FILE)) {
+      const data = readFileSync(IDENTITY_FILE, 'utf-8');
+      const identity: LocalIdentity = JSON.parse(data);
+      if (identity.user_id && identity.user_id.startsWith('local_')) {
+        return identity.user_id;
+      }
+    }
+
+    // Create new local identity
+    const { hostname } = require('os');
+    const machineId = createHash('sha256')
+      .update(hostname() + ':' + homedir() + ':' + Date.now())
+      .digest('hex')
+      .substring(0, 24);
+
+    const newIdentity: LocalIdentity = {
+      user_id: 'local_' + machineId,
+      created_at: new Date().toISOString(),
+      machine: hostname(),
+      tier: 'free',
+    };
+
+    writeFileSync(IDENTITY_FILE, JSON.stringify(newIdentity, null, 2));
+    console.log('Created local identity: ' + newIdentity.user_id + ' at ' + IDENTITY_FILE);
+    
+    return newIdentity.user_id;
+  } catch (error) {
+    console.warn('Failed to create/read local identity file:', error);
+    return '';
+  }
+}
+
+/**
  * Extract user ID from authentication context
- * Implements secure hash-based persistent identity for MCP clients
- * Falls back to ephemeral IDs only when no stable context is available
+ * Implements tiered identity:
+ * - Priority 1: OAuth token validation (Pro tier - cross-device)
+ * - Priority 2: External user ID + client ID (ChatGPT OAuth)
+ * - Priority 3: Local file-based identity (Free tier - single machine)
+ * - Priority 4: Conversation-based ID (single window only)
+ * - Fallback: Ephemeral IDs (no persistence)
  */
 export async function extractUserFromContext(authContext?: AuthContext): Promise<string> {
-  // Priority 1: Hash-based persistent ID from external user identifier
+  // Priority 1: OAuth token validation (Pro tier - future)
+  if (authContext?.token) {
+    const hash = createHash('sha256').update(authContext.token).digest('hex');
+    return 'oauth_' + hash.substring(0, 24);
+  }
+
+  // Priority 2: Hash-based persistent ID from external user identifier
   // For ChatGPT: this is the openai/subject that persists across all chat windows
-  // We hash it to avoid storing any external PII
   if (authContext?.user_id && authContext?.client_id) {
     const hash = createHash('sha256')
-      .update(`${authContext.client_id}:${authContext.user_id}`)
+      .update(authContext.client_id + ':' + authContext.user_id)
       .digest('hex');
-    // Use client prefix to identify the source
-    return `${authContext.client_id}_${hash.substring(0, 24)}`;
+    return authContext.client_id + '_' + hash.substring(0, 24);
   }
 
-  // Priority 2: JWT token validation (future OAuth implementation)
-  if (authContext?.token) {
-    // TODO: Implement proper JWT validation and extraction
-    // For now, use token as a temporary identifier
-    return `oauth_${authContext.token.substring(0, 16)}`;
+  // Priority 3: Local file-based identity (Free tier)
+  // Provides single-machine persistence for VS Code, Cursor, Claude Desktop, etc.
+  const localIdentity = getOrCreateLocalIdentity();
+  if (localIdentity) {
+    return localIdentity;
   }
 
-  // Priority 3: Conversation-based ID (single chat window only)
-  // This is less ideal as it doesn't persist across windows
+  // Priority 4: Conversation-based ID (single chat window only)
   if (authContext?.client_id && authContext?.conversation_id) {
     const hash = createHash('sha256')
-      .update(`${authContext.client_id}:conv:${authContext.conversation_id}`)
+      .update(authContext.client_id + ':conv:' + authContext.conversation_id)
       .digest('hex');
-    // Use conv_ prefix to identify these as conversation-specific IDs
-    return `conv_${hash.substring(0, 28)}`;
+    return 'conv_' + hash.substring(0, 28);
   }
 
   // Fallback: Create ephemeral user with warning
-  // These should be cleaned up periodically as they indicate missing context
   console.warn('Creating ephemeral user - no stable identity provided', {
     client_id: authContext?.client_id,
     has_conversation_id: !!authContext?.conversation_id,
@@ -76,6 +122,30 @@ export async function extractUserFromContext(authContext?: AuthContext): Promise
   });
 
   const { nanoid } = await import('nanoid');
-  // Use ephemeral_ prefix to clearly identify temporary users
-  return `ephemeral_${nanoid(12)}`;
+  return 'ephemeral_' + nanoid(12);
+}
+
+/**
+ * Get user tier from identity prefix
+ */
+export function getUserTier(userId: string): 'pro' | 'free' | 'ephemeral' {
+  if (userId.startsWith('oauth_')) return 'pro';
+  if (userId.startsWith('local_')) return 'free';
+  if (userId.startsWith('ephemeral_')) return 'ephemeral';
+  // Client-based IDs (chatgpt_, claude_, etc.) could be either
+  return 'free';
+}
+
+/**
+ * Check if user has Pro tier features
+ */
+export function hasProFeatures(userId: string): boolean {
+  return getUserTier(userId) === 'pro';
+}
+
+/**
+ * Get the local identity file path for debugging/support
+ */
+export function getIdentityFilePath(): string {
+  return IDENTITY_FILE;
 }
