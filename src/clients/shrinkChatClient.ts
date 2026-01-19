@@ -9,7 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 // Configuration with differentiated timeouts
 // Made as a function to allow dynamic reading of environment variables
 const getConfig = () => ({
-  baseUrl: process.env.SHRINK_CHAT_API_URL || 'http://localhost:3000',
+  baseUrl: process.env.COUCHLOOP_SERVER || process.env.SHRINK_CHAT_API_URL || 'http://localhost:3000',
   timeout: {
     default: parseInt(process.env.SHRINK_CHAT_TIMEOUT || '30000'),
     regular: parseInt(process.env.SHRINK_CHAT_TIMEOUT_REGULAR || '15000'),
