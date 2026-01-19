@@ -33,13 +33,6 @@ export async function initDatabase() {
       idle_timeout: 60,     // Increased from 20 to keep connections warm longer
       connect_timeout: 10,  // Keep same connection timeout
       prepare: false,       // Disable prepared statements for better connection reuse
-      types: {
-        // Ensure JSONB is handled correctly
-        json: {
-          to: 114,
-          from: [114],
-        }
-      }
     });
 
     // Initialize Drizzle ORM
