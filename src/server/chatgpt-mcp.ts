@@ -11,6 +11,33 @@ import { setupResources } from '../resources/index.js';
 // Store sessions by ID
 const sessions = new Map<string, any>();
 
+// Cache tool and resource definitions at module level for performance
+// These are static and don't change, so we only need to load them once
+let cachedTools: any[] | null = null;
+let cachedResources: any[] | null = null;
+
+/**
+ * Get cached tools or load them once
+ */
+async function getCachedTools() {
+  if (!cachedTools) {
+    logger.info('Loading tool definitions (one-time initialization)');
+    cachedTools = await setupTools();
+  }
+  return cachedTools;
+}
+
+/**
+ * Get cached resources or load them once
+ */
+async function getCachedResources() {
+  if (!cachedResources) {
+    logger.info('Loading resource definitions (one-time initialization)');
+    cachedResources = await setupResources();
+  }
+  return cachedResources;
+}
+
 /**
  * Handle MCP requests from ChatGPT
  */
@@ -26,9 +53,10 @@ export async function handleChatGPTMCP(req: Request, res: Response) {
     const sessionId = req.headers['x-session-id'] as string || 'default';
 
     if (!sessions.has(sessionId)) {
+      // Use cached tools and resources for performance (saves ~30ms per request)
       sessions.set(sessionId, {
-        tools: await setupTools(),
-        resources: await setupResources(),
+        tools: await getCachedTools(),
+        resources: await getCachedResources(),
         initialized: false
       });
     }

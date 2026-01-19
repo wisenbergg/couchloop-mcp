@@ -27,10 +27,19 @@ export async function initDatabase() {
                        !supabaseServiceKey.includes('your-');
 
     // Initialize Postgres connection for Drizzle
+    // Optimized pool configuration for better performance under load
     sql = postgres(databaseUrl, {
-      max: 10, // Max connections
-      idle_timeout: 20,
-      connect_timeout: 10,
+      max: 25,              // Increased from 10 for better concurrency
+      idle_timeout: 60,     // Increased from 20 to keep connections warm longer
+      connect_timeout: 10,  // Keep same connection timeout
+      prepare: false,       // Disable prepared statements for better connection reuse
+      types: {
+        // Ensure JSONB is handled correctly
+        json: {
+          to: 114,
+          from: [114],
+        }
+      }
     });
 
     // Initialize Drizzle ORM

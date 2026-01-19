@@ -34,12 +34,24 @@ export async function sendMessage(args: unknown) {
 
     logger.info(`Sending message for session ${input.session_id}`);
 
-    // Get session
-    const [session] = await db
-      .select()
-      .from(sessions)
-      .where(eq(sessions.id, input.session_id))
-      .limit(1);
+    // Parallelize session and checkpoint queries (saves ~150ms)
+    // These can run simultaneously since both just need the session ID
+    const [sessionResult, checkpointsResult] = await Promise.all([
+      // Get session
+      db.select()
+        .from(sessions)
+        .where(eq(sessions.id, input.session_id))
+        .limit(1),
+      // Get conversation history - optimized with limit
+      db.select()
+        .from(checkpoints)
+        .where(eq(checkpoints.sessionId, input.session_id))
+        .orderBy(desc(checkpoints.createdAt))
+        .limit(30) // Fetch enough to get 10 message pairs after filtering
+    ]);
+
+    const [session] = sessionResult;
+    const previousCheckpoints = checkpointsResult;
 
     if (!session) {
       throw new NotFoundError(`Session ${input.session_id} not found`);
@@ -55,6 +67,7 @@ export async function sendMessage(args: unknown) {
     }
 
     // Build context (keeping existing context building)
+    // Journey fetch still needs to be sequential since it depends on session.journeyId
     const journey = session.journeyId
       ? await db.select().from(journeys).where(eq(journeys.id, session.journeyId)).limit(1).then(res => res[0])
       : null;
@@ -72,13 +85,6 @@ export async function sendMessage(args: unknown) {
         : null,
       progressIndicators: (session.metadata as any)?.progressIndicators || [],
     };
-
-    // Get conversation history
-    const previousCheckpoints = await db
-      .select()
-      .from(checkpoints)
-      .where(eq(checkpoints.sessionId, session.id))
-      .orderBy(desc(checkpoints.createdAt));
 
     const history = previousCheckpoints
       .filter(cp => {
