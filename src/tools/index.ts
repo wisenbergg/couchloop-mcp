@@ -106,6 +106,9 @@ export async function setupTools() {
               description: 'What is being captured (e.g., "mood", "reflection", "gratitude")',
             },
             value: {
+              // Using empty schema {} to allow any JSON value type
+              type: 'object',
+              additionalProperties: true,
               description: 'The captured content (can be any JSON value: string, number, object, array, etc.)',
             },
             advance_step: {
