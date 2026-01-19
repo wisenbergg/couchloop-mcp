@@ -24,17 +24,32 @@ CouchLoop EQ is an MCP (Model Context Protocol) server that provides behavioral 
 - **Crisis Detection**: Integration with therapeutic AI for emotional support
 - **Memory Context**: Preserves important insights and checkpoints
 
-## Installation
+## Quick Start
+
+### Option 1: Connect to Demo Server (Easiest)
+
+For Claude Desktop (v0.7.0+), add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "couchloop-eq": {
+      "url": "https://couchloop-mcp-production.up.railway.app/mcp",
+      "transport": "sse"
+    }
+  }
+}
+```
+
+Restart Claude and try: **"Start a daily reflection session"**
+
+### Option 2: Run Locally (v1.0.4)
 
 ```bash
 npm install -g couchloop-eq-mcp
 ```
 
-## Setup
-
-### For Claude Desktop
-
-Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+Add to Claude Desktop configuration:
 
 ```json
 {
@@ -42,12 +57,14 @@ Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/
     "couchloop-eq": {
       "command": "couchloop-eq-mcp",
       "env": {
-        "COUCHLOOP_API_KEY": "your-api-key"
+        "COUCHLOOP_SERVER": "https://couchloopchat.com"
       }
     }
   }
 }
 ```
+
+**New in v1.0.4**: Sessions automatically persist locally to `~/.couchloop-mcp/identity.json` - no signup required!
 
 ### For ChatGPT (Developer Mode)
 
@@ -101,10 +118,6 @@ Save an insight:
 ```
 "Save this insight: I notice I'm more energized in the mornings"
 ```
-
-## Get Started
-
-Sign up for API access at [couchloop.com](https://couchloop.com)
 
 ## Support
 
