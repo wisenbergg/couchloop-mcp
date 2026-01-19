@@ -60,3 +60,15 @@ test-oauth.js
 # Temporary files
 tmp/
 temp/
+
+# Claude local files
+.claude/
+
+# Docker MCP contribution (in separate fork)
+docker-mcp-contribution/
+
+# Test data
+test-checkpoint.json
+
+# Business-sensitive documents
+ANTHROPIC_PARTNERSHIP_PROPOSAL.md
