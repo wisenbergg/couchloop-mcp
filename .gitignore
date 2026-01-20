@@ -72,3 +72,133 @@ test-checkpoint.json
 
 # Business-sensitive documents
 ANTHROPIC_PARTNERSHIP_PROPOSAL.md
+
+# ============================================
+# COMPREHENSIVE CLEANUP - Added Jan 20, 2026
+# ============================================
+
+# Test/Analysis Scripts (20+ files)
+test-*.ts
+test-*.sh
+analyze-*.ts
+check-*.ts
+query-*.ts
+verify-*.ts
+examine-*.ts
+quick-test.ts
+claude-sessions-deep-dive.ts
+
+# Session Analysis Files
+session-analysis-*.json
+session-analysis-*.md
+session-*.json
+session-effectiveness-analysis.md
+
+# Work-in-Progress Documentation
+*_COMPLETE.md
+*_SUCCESS.md
+*_CHECKPOINT.md
+*_UPDATE_*.md
+*-complete.md
+*-analysis.md
+*-extracted.md
+*-configured.md
+IMPLEMENTATION_STRATEGY.md
+ARCHITECTURE_CURRENT.md
+database-architecture-complete.md
+mcp-servers-configured.md
+MCP_WIRING_COMPLETE.md
+SCHEMA_ANALYSIS.md
+production-env-vars-extracted.md
+
+# Deployment/Setup Guides (Temporary)
+CLAUDE_SETUP_COMPLETE.md
+DEMO_SCRIPT_COMPLETE.md
+DEPLOYMENT_SUCCESS.md
+DEPLOYMENT_UPDATE_*.md
+DOCKER_PR_*_CHECKPOINT.md
+COVERAGE_EXPANSION_COMPLETE.md
+CHATGPT_SETUP.md
+CLAUDE_DESKTOP_INTEGRATION_TEST.md
+LOCAL_NETWORK_ACCESS_*.md
+MCP_SHRINK_CHAT_INTEGRATION_GUIDE.md
+CODEBASE_EXPLORATION.md
+TEST_COVERAGE_REPORT.md
+
+# Feature Development Docs (WIP)
+AI_ERROR_PREVENTION.md
+CROSS_WINDOW_PERSISTENCE.md
+DEVELOPER_FEATURES.md
+developer_top_issues.md
+GOVERNANCE_SIMPLIFIED.md
+REAL_AI_PROBLEMS.md
+
+# Quick Reference/Demo Docs (Temporary)
+DEMO_SCRIPT.md
+DEPLOY_COUCHLOOP_EQ.md
+DEPLOYMENT_GUIDE.md
+PRODUCTION_DEPLOYMENT.md
+QUICK_START_INTEGRATION.md
+QUICK_TEST_COMMANDS.md
+RELEASE_NOTES_*.md
+docs/couchloop-session-export.md
+
+# Developer-Specific Features (WIP)
+src/developer/
+src/governance/
+examples/
+src/tools/check-versions.ts
+src/tools/detect-code-smell.ts
+src/tools/pre-review-code.ts
+src/tools/preserve-context.ts
+src/tools/protect-files.ts
+src/tools/scan-security.ts
+src/tools/validate_packages.ts
+src/types/context.ts
+src/types/file-protection.ts
+tests/tools/pre-review-code.test.ts
+
+# Runtime/Temporary Data
+src/db/context-store.json
+
+# Database Migrations (using drizzle push workflow)
+src/db/migrations/
+
+# Shell/Bash scripts (especially with env vars)
+test-*.sh
+publish-*.sh
+set-*.sh
+set-railway-vars.sh
+deploy-*.sh
+*-env-vars*.sh
+scripts/*.sh
+
+# Archive directory - comprehensive patterns for sensitive files
+archive/**/*-env-vars-*.md
+archive/**/*staging*.ts
+archive/**/*production*.md
+archive/**/*COMPLETE.md
+archive/**/*SUCCESS.md
+archive/**/*CHECKPOINT.md
+archive/**/*-complete.md
+archive/**/*-analysis.md
+archive/**/*-extracted.md
+archive/**/*-configured.md
+archive/**/test-*.ts
+archive/**/analyze-*.ts
+archive/**/check-*.ts
+archive/oauth-advanced/
+archive/**/config.ts
+
+# Production/Deployment files (security risk)
+production-env-vars-extracted.md
+*-env-vars-*.md
+DEPLOYMENT_GUIDE.md
+DEPLOY_COUCHLOOP_EQ.md
+PRODUCTION_DEPLOYMENT.md
+
+# K8s configs (may contain secrets)
+k8s/oauth/
+
+# GitHub workflows (may contain secrets)
+.github/workflows/*.disabled
