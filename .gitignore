@@ -168,6 +168,11 @@ QUICK_START_INTEGRATION.md
 QUICK_TEST_COMMANDS.md
 RELEASE_NOTES_*.md
 docs/couchloop-session-export.md
+docs/CONFIDENCE_SCORE_FUNCTIONS.md
+docs/Couchloop Marketplace Descriptions.md
+docs/MCP_PERFORMANCE_OPTIMIZATIONS.md
+docs/MCP_SHRINK_CHAT_INTEGRATION_GUIDE.md
+docs/OAUTH_IMPLEMENTATION_PLAN.md
 
 # Developer-Specific Features (WIP)
 src/developer/
