@@ -205,6 +205,7 @@ deploy-*.sh
 scripts/*.sh
 
 # Archive directory - comprehensive patterns for sensitive files
+archive/docs/
 archive/**/*-env-vars-*.md
 archive/**/*staging*.ts
 archive/**/*production*.md
