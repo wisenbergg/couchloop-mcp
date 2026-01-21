@@ -77,6 +77,32 @@ ANTHROPIC_PARTNERSHIP_PROPOSAL.md
 # COMPREHENSIVE CLEANUP - Added Jan 20, 2026
 # ============================================
 
+# Temporary Documentation Files
+*_COMPLETE.md
+*_SUCCESS.md
+*_CHECKPOINT.md
+*_UPDATE_*.md
+*_FIX.md
+*_SUMMARY.md
+*_TEST_RESULTS.md
+*_TROUBLESHOOTING.md
+*_INTEGRATION_GUIDE.md
+*_INTEGRATION_TEST.md
+*_COVERAGE_REPORT.md
+ARCHITECTURE_CURRENT.md
+CODEBASE_EXPLORATION.md
+DEMO_SCRIPT.md
+GOVERNANCE_SIMPLIFIED.md
+LOCAL_NETWORK_ACCESS_*.md
+MCP_SHRINK_CHAT_*.md
+QUICK_START_*.md
+QUICK_TEST_*.md
+TEST_COVERAGE_*.md
+
+# ============================================
+# PREVIOUSLY ADDED CLEANUP - Added Jan 20, 2026
+# ============================================
+
 # Test/Analysis Scripts (20+ files)
 test-*.ts
 test-*.sh
