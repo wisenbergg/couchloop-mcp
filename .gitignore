@@ -51,6 +51,7 @@ logs
 
 # Test files
 test-oauth.js
+test-results.txt
 
 # Background process files
 *.pid
@@ -90,6 +91,7 @@ ANTHROPIC_PARTNERSHIP_PROPOSAL.md
 *_INTEGRATION_TEST.md
 *_COVERAGE_REPORT.md
 ARCHITECTURE_CURRENT.md
+ARCHITECTURE.md
 CODEBASE_EXPLORATION.md
 DEMO_SCRIPT.md
 GOVERNANCE_SIMPLIFIED.md
