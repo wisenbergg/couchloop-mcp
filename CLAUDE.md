@@ -4,177 +4,407 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-CouchLoop MCP Server - A Model Context Protocol server that provides stateful conversation management for AI agents (ChatGPT, Claude). It manages sessions, progress checkpoints, and guided journeys to enable multi-turn experiences that survive interruptions.
+CouchLoop EQ MCP Server - A behavioral governance layer for LLMs that provides both therapeutic session management AND developer safety tools. The project monitors for hallucination, inconsistency, tone drift, and unsafe reasoning while also protecting against common AI coding issues.
 
-## Architectural Foundation
+## 🔴 CRITICAL SECURITY REQUIREMENTS
 
-⚠️ **IMPORTANT**: See [ARCHITECTURE.md](./ARCHITECTURE.md) for the authoritative definition of CouchLoop as a behavioral governance layer for LLMs.
+### NEVER Use Hardcoded Sensitive Values
 
-### Implementation Status
+**ABSOLUTELY FORBIDDEN:**
+- NEVER hardcode API keys, tokens, or secrets in any file
+- NEVER use fallback values like `|| 'dev-secret'` or `|| 'change-in-production'`
+- NEVER commit `.env` files or any file containing real credentials
+- NEVER include database connection strings in code
+- NEVER expose database schemas in published packages
 
-- **Current Implementation (v1.x)**: Session/journey management system with pass-through to shrink-chat backend
-- **Target Architecture (v2.x)**: Full behavioral governance layer with pre-delivery evaluation and intervention
-- **See Also**: [ARCHITECTURE_CURRENT.md](./ARCHITECTURE_CURRENT.md) for detailed current implementation
+**REQUIRED PRACTICES:**
+- ALWAYS use environment variables for ALL sensitive configuration
+- ALWAYS throw errors when required environment variables are missing:
+  ```typescript
+  if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET is required');
+  }
+  ```
+- ALWAYS validate environment variables at startup
+- ALWAYS use `.env.example` with dummy values for documentation
+- ALWAYS add real `.env` files to `.gitignore`
 
-The v1.x codebase provides the foundation (session management, checkpoints, MCP protocol) that will support the v2.x governance layer.
+### Pre-Publish Security Checklist
+
+**Before ANY npm publish or deployment:**
+1. Run `npm pack --dry-run` and verify no sensitive files are included
+2. Check for hardcoded values: `grep -r "secret\|password\|key\|token" dist/`
+3. Verify `.npmignore` excludes all database and sensitive files
+4. Review package.json `files` field to whitelist only necessary files
+5. Test the package in an isolated environment
+
+### Required CI/CD Security Workflow
+
+**You MUST implement or verify existence of GitHub Actions workflow that:**
+1. Scans for hardcoded secrets using tools like `truffleHog` or `gitleaks`
+2. Checks for exposed environment variables
+3. Validates `.npmignore` and `files` configuration
+4. Blocks deployment if sensitive patterns are detected
+5. Runs security audit on dependencies
+
+**Create `.github/workflows/security-check.yml` if it doesn't exist** (see example at end of file)
+
+## Current Implementation (v1.1.0)
+
+### Two Core Capabilities
+
+1. **Therapeutic Session Management** (10 tools)
+   - Stateful conversation management via MCP protocol
+   - Pass-through messaging to shrink-chat backend at `https://couchloopchat.com`
+   - Journey-based guided experiences with checkpoints
+   - Crisis detection and intervention
+
+2. **Developer Safety Tools** (13 tools addressing 8/10 top AI coding issues)
+   - `validate_packages` - Prevents package hallucination across 7 registries (npm, PyPI, Maven, Cargo, Gem, NuGet, Go)
+   - `scan_security` - Detects vulnerabilities, hardcoded secrets, SQL injection
+   - `pre_review_code` - Pre-screens AI-generated code for quality issues
+   - `detect_code_smell` - Identifies code bloat, over-engineering, anti-patterns
+   - `protect_files` - Prevents accidental file deletion with backup/rollback
+   - `preserve_context` - Manages project context to prevent AI amnesia
+   - `check_versions` - Validates library versions and deprecated APIs
+
+Total: **23 MCP tools** available
 
 ## Development Commands
 
 ```bash
-# Development
-npm run dev              # Start development server with hot reload (tsx watch src/index.ts)
+# Core Development
+npm run dev                 # Start MCP server with hot reload (tsx watch src/index.ts)
+npm run server:dev          # Start HTTP/SSE server with hot reload (port 3001)
+npm test                    # Run Vitest suite
+npm run test:watch          # Run tests in watch mode
 
-# Database Setup (Required before first run)
-npm run db:push          # Push schema to PostgreSQL
-npm run db:seed          # Seed journey definitions
-npm run db:studio        # Open Drizzle Studio UI for database inspection
+# Database Management
+npm run db:push             # Push schema changes to PostgreSQL
+npm run db:seed             # Seed journey definitions and test data
+npm run db:studio           # Open Drizzle Studio for database inspection
 
-# Building & Production
-npm run build            # Compile TypeScript to dist/
-npm start                # Run production server (after build)
-
-# Testing
-npm test                 # Run Vitest suite
-npm run test:watch       # Run tests in watch mode
+# Build & Production
+npm run build               # Compile TypeScript to dist/
+npm run start:mcp           # Run MCP server (stdio) - after build
+npm run server              # Run HTTP server (port 3001)
 
 # Code Quality
-npm run lint             # ESLint TypeScript files
-npm run typecheck        # TypeScript type checking without emit
+npm run lint                # ESLint check
+npm run typecheck           # TypeScript type checking
 
 # Deployment
-npm run vercel           # Deploy to Vercel preview
-npm run vercel:prod      # Deploy to Vercel production
+npm run vercel              # Deploy to Vercel preview
+npm run vercel:prod         # Deploy to Vercel production
 ```
 
-## Architecture Overview
+## Testing
 
-### Core Flow
-The MCP server communicates via JSON-RPC over stdio with AI agents:
-1. **Tools** (9 total) - Callable functions that mutate state (sessions, checkpoints, insights)
-2. **Resources** (5 total) - Read-only context providers (current session, journey definitions, user context)
-3. **Database** - PostgreSQL via Supabase with Drizzle ORM for type-safe queries
-4. **Workflows** - Journey engine that orchestrates multi-step guided experiences
+```bash
+# Run specific test file
+npm test -- tests/tools/session.test.ts
 
-### Key Integration Pattern
-```
-AI Agent (ChatGPT/Claude) → MCP Protocol → Tool/Resource Handlers → Database
-                                              ↓
-                                        Workflow Engine (for journeys)
+# Run tests matching pattern
+npm test -- --grep "session"
+
+# Generate coverage report
+npm test -- --coverage
 ```
 
-### Database Relationships
-- `sessions` belong to `users` and optionally link to `journeys`
-- `checkpoints` capture progress within `sessions`
-- `insights` are user reflections, optionally tied to `sessions`
-- `oauthTokens` and `authorizationCodes` handle OAuth flow (currently stubbed)
+Test coverage thresholds: 80% statements/functions/lines, 75% branches
 
-### Tool Handler Pattern
-All tools in `/src/tools/` follow this structure:
-1. Validate input with Zod schema
-2. Get database connection
-3. Perform operation (query/mutation)
-4. Return standardized response
-5. Error handling with custom error classes
+## Environment Configuration
 
-### Session Lifecycle
-Sessions transition through states: `active` → `paused`/`completed`/`abandoned`
-- Sessions can be resumed from `paused` state
-- Journey sessions advance through steps via checkpoints
-- Non-journey sessions are freeform with arbitrary checkpoints
+```bash
+# Development: .env.local
+# Staging: .env.staging
+# Production: .env.production
 
-## Critical Implementation Notes
+# Required variables
+DATABASE_URL=               # PostgreSQL connection string
+SUPABASE_URL=              # Supabase project URL
+SUPABASE_ANON_KEY=         # Supabase anonymous key
+JWT_SECRET=                # Must be 32+ characters
+OAUTH_CLIENT_ID=           # OAuth client identifier
+OAUTH_CLIENT_SECRET=       # OAuth client secret
+OAUTH_REDIRECT_URI=        # OAuth callback URL
+COUCHLOOP_SERVER=          # Shrink-chat backend URL (default: https://couchloopchat.com)
+```
 
-### Current Authentication State
-OAuth implementation in `/api/oauth/` is **stubbed** - it generates mock authorization codes and users. Real authentication UI needs to be implemented before production use.
+## Project Structure
 
-### User Context Management
-Currently uses mock users (nanoid-generated). Each tool call creates/finds its own user. This will be replaced with JWT-based user extraction once OAuth is complete.
+```
+src/
+├── index.ts               # MCP server entry point (stdio)
+├── server/
+│   ├── index.ts          # HTTP/SSE server (port 3001)
+│   ├── sse.ts            # SSE/WebSocket MCP transport
+│   ├── chatgpt-mcp.ts    # ChatGPT MCP integration
+│   └── oauth/            # OAuth flow (currently stubbed)
+├── tools/                # MCP tool handlers (23 tools total)
+│   ├── session.ts        # Session management
+│   ├── journey.ts        # Journey progression
+│   ├── sendMessage.ts    # Shrink-chat integration
+│   ├── validate_packages.ts  # Package validation (7 registries)
+│   ├── scan-security.ts      # Security scanning
+│   ├── pre-review-code.ts    # Code quality pre-review
+│   ├── detect-code-smell.ts  # Anti-pattern detection
+│   ├── protect-files.ts      # File protection system
+│   ├── preserve-context.ts   # Context preservation
+│   └── check-versions.ts     # Version compatibility
+├── resources/            # MCP resource providers (5 resources)
+├── db/                   # Database schema and migrations
+├── developer/            # Guardian project components
+│   ├── analyzers/       # Code analysis utilities
+│   ├── evaluators/      # Quality evaluators
+│   ├── guards/          # Protection guards
+│   ├── scanners/        # Security scanners
+│   └── validators/      # Input validators
+├── workflows/            # Journey engine and definitions
+└── utils/               # Shared utilities (error handling, retry strategies)
+```
 
-### Journey Engine
-The workflow engine (`/src/workflows/engine.ts`) manages step-by-step progression:
-- Journey definitions stored in database with JSONB step arrays
-- Each step can be `prompt`, `checkpoint`, or `summary` type
-- Optional steps can be skipped
-- Progress tracked via `currentStep` in sessions table
+## Core Implementation Patterns
 
-### Environment Configuration
-- Development: `.env.local`
-- Staging: `.env.staging`
-- Production: `.env.production`
+### Developer Safety Tool Pattern
+All guardian tools follow this structure:
+```typescript
+1. Input validation with Zod schemas
+2. Analysis/scanning/validation logic
+3. Risk assessment and scoring
+4. Actionable recommendations
+5. Comprehensive error handling with retry strategies
+```
 
-Required variables:
-- `DATABASE_URL` - PostgreSQL connection string
-- `SUPABASE_*` - Supabase project credentials
-- `OAUTH_*` - OAuth configuration (client ID, secret, redirect)
-- `JWT_SECRET` - Must be 32+ characters
+### Session Management Pattern
+```typescript
+1. Zod schema validation
+2. Database connection
+3. Operation execution
+4. Standardized response
+5. Error handling with custom classes
+```
 
-### MCP Server Initialization
-Entry point `/src/index.ts`:
-1. Loads environment variables
-2. Initializes database connection (singleton pattern)
-3. Creates MCP Server with tool/resource handlers
-4. Connects stdio transport
-5. Handles graceful shutdown
+### Error Handling
+- Circuit breaker for API resilience
+- Retry strategy with exponential backoff
+- Custom error classes for different failure types
+- Comprehensive logging throughout
 
-## Integration with Shrink-Chat (Planned Refactoring)
+## Integration Points
 
-Based on the refactoring strategy, this MCP server will be integrated with the shrink-chat backend:
-- Current: Standalone with own Supabase instance
-- Target: Route through `/api/shrink` for therapeutic features
-- Key integration point: New `send_message` tool calling shrink-chat API
-- Benefits: Crisis detection, memory management, therapeutic guardrails
+### MCP Protocol Connections
+- **Claude Desktop**: stdio transport via `npm run start:mcp`
+- **ChatGPT/Web**: SSE transport via `npm run server` (port 3001)
+- **VS Code/Copilot Chat**: MCP integration supported
+- **Production SSE**: `https://couchloop-mcp-production.up.railway.app/mcp`
 
-## User Types & Positioning
+### Shrink-Chat Backend Integration
+`send_message` tool routes to `https://couchloopchat.com/api/shrink` for:
+- Crisis detection and intervention
+- Memory management and context
+- Therapeutic response generation
 
-### Consumer Users (App Store End Users)
-- **Target**: General public seeking wellness support
-- **Access**: Via iOS/Android app (CouchLoop wellness companion)
-- **Positioning**: Wellness companion with thoughtful, consistent support
-- **Language**: Non-technical, stability-focused
-- **Key Promise**: Steady, grounded, trustworthy experience without spirals or manipulation
-- **Core Value**: Users feel stability, not infrastructure
-- **Avoids**: Technical jargon, "hallucination" terminology, medical/diagnostic language
+## Developer Safety Features (v1.1.0)
 
-### Developer Users (MCP Integration)
-- **Target**: Developers/platforms needing LLM behavioral governance
-- **Access**: Via MCP protocol integration
-- **Positioning**: Behavioral governance layer for LLMs in sensitive contexts
-- **Language**: Technical, control-focused
-- **Key Promise**: Monitors for hallucination, inconsistency, tone drift, unsafe reasoning
-- **Core Value**: Control plane between application and LLM
-- **Benefits**: Reduces downstream risk, trust failures, regulatory exposure
+### Package Validation
+- Supports 7 package registries (npm, PyPI, Maven, Cargo, Gem, NuGet, Go)
+- Detects hallucinated packages before installation
+- Validates version strings and compatibility
 
-### Key Differentiation
-- **For Consumers**: Experience emotional safety without seeing technical safeguards
-- **For Developers**: Get infrastructure tools to ensure that safety
-- **Same Technology**: Core CouchLoop engine serves both audiences
-- **Different Journeys**: Consumer app vs developer API/MCP integration
+### Security Scanning
+- Detects hardcoded secrets and API keys
+- Identifies SQL injection vulnerabilities
+- Scans for insecure patterns and OWASP risks
 
-## Testing Approach
+### Code Quality Pre-Review
+- Pre-screens AI-generated code before human review
+- Identifies potential bugs and logic errors
+- Checks for maintainability issues
 
-Tests are organized in `/tests/` by type:
-- `integration/` - End-to-end workflow tests
-- `tools/` - Individual tool handler tests
-- `workflows/` - Journey engine tests
+### File Protection System
+- Automatic backups before destructive operations
+- Rollback capability for accidental deletions
+- Code freeze mode for critical protection
+- Protected paths configuration
 
-Use Vitest for all testing. Test infrastructure is set up but coverage is minimal - prioritize testing when modifying core functionality.
+### Context Preservation
+- Stores architectural decisions across conversations
+- Maintains requirements and constraints
+- Prevents AI amnesia when context windows fill
+- Categorized storage (architecture, requirements, constraints, decisions, patterns)
 
-## Common Development Tasks
+## Critical Notes
 
-### Adding a New Journey
-1. Define journey structure in `/src/workflows/definitions/`
-2. Add to seed script in `/src/db/seed.ts`
-3. Create corresponding resource handler in `/src/resources/`
-4. Run `npm run db:seed` to update database
+### Authentication
+OAuth implementation in `/api/oauth/` is **intentionally stubbed** by design - generates mock codes/users for simplified integration.
 
-### Adding a New Tool
-1. Create handler in `/src/tools/[toolname].ts`
-2. Define Zod schema for input validation
-3. Register in `/src/index.ts` tool handlers
-4. Follow existing error handling patterns
+### User Context
+Currently uses session-based isolation with mock users (nanoid). Each session gets its own isolated context.
+
+### Local Development Ports
+- MCP stdio: Direct process communication
+- HTTP/SSE server: Port 3001 (configurable via PORT env)
+- Database studio: Port 4983 (Drizzle Studio)
+
+## Common Tasks
+
+### Adding a New MCP Tool
+1. Create handler in `src/tools/[name].ts`
+2. Define Zod schema for validation
+3. Register in `src/tools/index.ts`
+4. Follow error handling patterns from existing tools
+
+### Adding a Journey
+1. Define in `src/workflows/definitions/`
+2. Add to `src/db/seed.ts`
+3. Run `npm run db:seed`
 
 ### Modifying Database Schema
-1. Update `/src/db/schema.ts` with Drizzle table definitions
-2. Run `npm run db:push` to sync with database
+1. Update `src/db/schema.ts`
+2. Run `npm run db:push`
 3. Update seed data if needed
-4. Consider migration strategy for existing data
+
+## Testing Strategy
+
+### Unit Tests
+- Individual tool handlers
+- Utility functions
+- Error handling logic
+
+### Integration Tests
+- End-to-end workflow tests
+- MCP protocol communication
+- Database operations
+
+### Manual Testing
+```bash
+# Test MCP tools directly
+npm run dev
+
+# Test with Claude Desktop
+# Add to ~/Library/Application Support/Claude/claude_desktop_config.json
+
+# Test with ChatGPT Developer Mode
+# Use production URL: https://couchloop-mcp-production.up.railway.app/mcp
+```
+
+## Key Invariants
+
+1. **Every tool validates input with Zod** (no raw parameter usage)
+2. **Every session must have a user** (even if mock)
+3. **Journey progress is immutable** (only forward movement)
+4. **File operations create backups** (automatic protection)
+5. **Context preservation is categorized** (structured storage)
+6. **All tools return standardized responses** (consistent API)
+7. **NO hardcoded secrets or credentials** (use environment variables only)
+8. **Security checks run before EVERY publish** (automated via CI/CD)
+
+## Example Security Workflow (GitHub Actions)
+
+**Required file: `.github/workflows/security-check.yml`**
+
+```yaml
+name: Security Check
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+  # Run before npm publish
+  release:
+    types: [created]
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+
+    # Scan for hardcoded secrets
+    - name: TruffleHog Secret Scan
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        base: ${{ github.event.repository.default_branch }}
+        head: HEAD
+        extra_args: --debug --only-verified
+
+    # Check for sensitive patterns
+    - name: Check for Hardcoded Values
+      run: |
+        # Check for development fallback values
+        if grep -r "|| 'dev-" --include="*.js" --include="*.ts" .; then
+          echo "❌ Found hardcoded development values!"
+          exit 1
+        fi
+
+        # Check for hardcoded secrets patterns
+        if grep -rE "(secret|password|token|key)\\s*=\\s*[\"'][^\"']+[\"']" --include="*.js" --include="*.ts" --exclude-dir=node_modules --exclude-dir=tests .; then
+          echo "❌ Found potential hardcoded secrets!"
+          exit 1
+        fi
+
+    # Verify npm package contents
+    - name: Check NPM Package Contents
+      run: |
+        npm run build
+        npm pack --dry-run > package-contents.txt
+
+        # Check for database files
+        if grep -E "(schema\.|seed\.|migrate\.)" package-contents.txt; then
+          echo "❌ Database files detected in package!"
+          exit 1
+        fi
+
+        # Check for OAuth files
+        if grep -E "oauth|auth.*Server" package-contents.txt; then
+          echo "❌ OAuth implementation files detected in package!"
+          exit 1
+        fi
+
+    # Run dependency audit
+    - name: NPM Audit
+      run: npm audit --audit-level=moderate
+
+    # Validate environment variables
+    - name: Check Environment Variables
+      run: |
+        # Ensure .env files are gitignored
+        if git ls-files | grep -E "\.env$|\.env\.local$|\.env\.production$"; then
+          echo "❌ .env files are not properly gitignored!"
+          exit 1
+        fi
+
+        # Ensure .env.example exists
+        if [ ! -f ".env.example" ]; then
+          echo "❌ .env.example file is missing!"
+          exit 1
+        fi
+
+    # SAST Scan
+    - name: Semgrep Security Scan
+      uses: returntocorp/semgrep-action@v1
+      with:
+        config: >-
+          p/security-audit
+          p/secrets
+          p/owasp-top-ten
+```
+
+**Additional recommended security scripts in `package.json`:**
+
+```json
+"scripts": {
+  "security:check": "npm run security:secrets && npm run security:audit && npm run security:package",
+  "security:secrets": "grep -r 'secret\\|password\\|key\\|token' dist/ --exclude='*.map' || true",
+  "security:audit": "npm audit --audit-level=moderate",
+  "security:package": "npm pack --dry-run | grep -E 'schema\\.|seed\\.|oauth' && echo '❌ Sensitive files found!' && exit 1 || echo '✅ Package clean'",
+  "prepublishOnly": "npm run security:check"
+}
+```

@@ -9,7 +9,7 @@ const envFile = process.env.NODE_ENV === 'production' ? '.env.production' :
 // Always load the environment file, override shell variables
 config({ path: envFile, override: true });
 
-import express, { Request, Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import cookieParser from 'cookie-parser';
@@ -227,7 +227,7 @@ app.options('/mcp', (_req: Request, res: Response) => {
 /**
  * Middleware to show MCP info page for browser requests
  */
-function showMCPInfo(req: Request, res: Response, next: Function) {
+function showMCPInfo(req: Request, res: Response, next: NextFunction) {
   const originalAccept = req.headers.accept || '';
 
   // For browser GET requests, return info page

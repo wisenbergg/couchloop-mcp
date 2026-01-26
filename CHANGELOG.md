@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.5] - 2026-01-22
+
+### Changed
+- Optimized npm package size by excluding build artifacts
+- Improved package structure for better module loading
+- Reduced bundle size from 2.1MB to ~1.2MB
+- Cleaned up distribution files for production use
+
+## [1.1.0] - 2026-01-20
+
+### Added
+- **6 New Developer Safety Tools** addressing 8/10 top AI coding issues:
+  - `validate_packages` - Prevents package hallucination across 7 registries (npm, PyPI, Maven, Cargo, Gem, NuGet, Go)
+  - `scan_security` - Detects vulnerabilities, hardcoded secrets, SQL injection, and insecure patterns
+  - `pre_review_code` - Pre-screens AI-generated code for quality issues before review
+  - `detect_code_smell` - Identifies code bloat, over-engineering, and anti-patterns
+  - `protect_files` - Prevents accidental file deletion with backup and rollback capabilities
+  - `preserve_context` - Manages project context to prevent AI amnesia across conversations
+  - `check_versions` - Validates library versions and detects deprecated APIs
+- File protection system with automatic backups and rollback capability
+- Context preservation for architectural decisions and requirements
+- Support for 7 package registries validation
+- Comprehensive error handling with retry strategies and circuit breakers
+- TypeScript type safety improvements across all new modules
+
+### Fixed
+- TypeScript compilation errors in new developer tools
+- Module resolution issues with ES6 imports
+
+### Changed
+- Total MCP tools increased from 11 to 23
+- Enhanced behavioral governance capabilities for developer workflows
+- Improved error messages and user feedback
+
+### Testing
+- Successfully tested in VS Code with GitHub Copilot Chat
+- Verified integration with Claude Desktop
+- All 23 tools confirmed working with MCP protocol
+
 ## [1.0.2] - 2026-01-18
 
 ### Added

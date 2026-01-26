@@ -41,9 +41,26 @@ CODEBASE_EXPLORATION.md
 CLAUDE.md
 CONTRIBUTING.md
 
-# Database configs
+# Database configs and sensitive files
 drizzle.config.ts
 k8s/
+
+# SECURITY: Exclude sensitive database files but keep client
+dist/db/schema*
+dist/db/migrate*
+dist/db/seed*
+dist/db/migrations/**
+
+# Exclude governance files (not ready for public)
+dist/governance/**
+
+# Exclude OAuth implementation details
+dist/server/oauth/**
+
+# Exclude backup/test implementations
+dist/tools/sendMessage-complex*
+dist/tools/sendMessage-revised*
+dist/tools/sendMessage-truly*
 
 # Build configs
 tsconfig.json
