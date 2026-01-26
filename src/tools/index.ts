@@ -3,6 +3,21 @@ import { saveCheckpoint, getCheckpoints } from './checkpoint.js';
 import { listJourneys, getJourneyStatus } from './journey.js';
 import { saveInsight, getInsights, getUserContext } from './insight.js';
 import { sendMessage } from './sendMessage.js';
+import { validatePackagesTool, handleValidatePackages } from './validate_packages.js';
+import { preReviewCodeTool, handlePreReviewCode } from './pre-review-code.js';
+import { scanSecurityTool, handleScanSecurity } from './scan-security.js';
+import { detectCodeSmellTool, handleDetectCodeSmell } from './detect-code-smell.js';
+import {
+  protectFiles,
+  getProtectionStatus,
+  getOperationHistory,
+  listBackups,
+  rollbackFile,
+  enableCodeFreeze,
+  disableCodeFreeze,
+} from './protect-files.js';
+import { preserveContext } from './preserve-context.js';
+import { checkVersionsTool, handleCheckVersions } from './check-versions.js';
 import { logger } from '../utils/logger.js';
 
 export async function setupTools() {
@@ -257,6 +272,177 @@ export async function setupTools() {
         },
       },
       handler: getUserContext
+    },
+    {
+      definition: validatePackagesTool,
+      handler: handleValidatePackages
+    },
+    {
+      definition: preReviewCodeTool,
+      handler: handlePreReviewCode
+    },
+    {
+      definition: scanSecurityTool,
+      handler: handleScanSecurity
+    },
+    {
+      definition: detectCodeSmellTool,
+      handler: handleDetectCodeSmell
+    },
+    {
+      definition: {
+        name: 'protect_files',
+        description: 'Prevents accidental file deletion and destructive operations. Validates operations against protected paths and patterns, creates automatic backups, and provides rollback capability.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            operation: {
+              type: 'string',
+              enum: ['delete', 'overwrite', 'move'],
+              description: 'Type of file operation to protect',
+            },
+            path: {
+              type: 'string',
+              description: 'Path to file or directory being modified',
+            },
+            target_path: {
+              type: 'string',
+              description: 'Destination path (required for move operations)',
+            },
+            force: {
+              type: 'boolean',
+              description: 'Force operation (bypasses some safety checks)',
+            },
+            reason: {
+              type: 'string',
+              description: 'Reason for the operation',
+            },
+          },
+          required: ['operation', 'path'],
+        },
+      },
+      handler: protectFiles,
+    },
+    {
+      definition: {
+        name: 'get_protection_status',
+        description: 'Get current file protection status, configuration, and backup statistics.',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+          required: [],
+        },
+      },
+      handler: getProtectionStatus,
+    },
+    {
+      definition: {
+        name: 'get_operation_history',
+        description: 'Get history of file operations that were attempted or executed.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            limit: {
+              type: 'number',
+              description: 'Maximum number of operations to return (default: 50)',
+            },
+          },
+          required: [],
+        },
+      },
+      handler: getOperationHistory,
+    },
+    {
+      definition: {
+        name: 'list_backups',
+        description: 'List all available backup snapshots that can be restored.',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+          required: [],
+        },
+      },
+      handler: listBackups,
+    },
+    {
+      definition: {
+        name: 'rollback_file',
+        description: 'Restore a file from a backup snapshot (undo a file modification/deletion).',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            backup_id: {
+              type: 'string',
+              description: 'ID of the backup to restore from',
+            },
+          },
+          required: ['backup_id'],
+        },
+      },
+      handler: rollbackFile,
+    },
+    {
+      definition: {
+        name: 'enable_code_freeze',
+        description: 'Enable code freeze mode - all file operations require explicit approval (critical protection mode).',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+          required: [],
+        },
+      },
+      handler: enableCodeFreeze,
+    },
+    {
+      definition: {
+        name: 'disable_code_freeze',
+        description: 'Disable code freeze mode - resume normal file operation protection rules.',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+          required: [],
+        },
+      },
+      handler: disableCodeFreeze,
+    },
+    {
+      definition: {
+        name: 'preserve_context',
+        description: 'Store, retrieve, and manage important project context to prevent AI amnesia when context windows fill up. Preserves architectural decisions, requirements, constraints, and technical patterns across conversations.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            action: {
+              type: 'string',
+              enum: ['store', 'retrieve', 'check'],
+              description: 'Action to perform: "store" (save context), "retrieve" (get stored context), or "check" (view status)',
+            },
+            category: {
+              type: 'string',
+              enum: ['architecture', 'requirements', 'constraints', 'decisions', 'technical-patterns', 'project-metadata'],
+              description: 'Context category (required for store, optional for retrieve)',
+            },
+            content: {
+              type: 'string',
+              description: 'Content to store (required for store action)',
+            },
+            search_term: {
+              type: 'string',
+              description: 'Search term for retrieving context (optional)',
+            },
+            include_metadata: {
+              type: 'boolean',
+              description: 'Include usage metadata in response (for check action, default: false)',
+            },
+          },
+          required: ['action'],
+        },
+      },
+      handler: preserveContext,
+    },
+    {
+      definition: checkVersionsTool,
+      handler: handleCheckVersions
     }
   ];
 

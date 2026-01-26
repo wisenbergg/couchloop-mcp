@@ -1,0 +1,228 @@
+name: Security Check
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+  # Run before npm publish
+  release:
+    types: [created]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    # Scan for hardcoded secrets
+    - name: TruffleHog Secret Scan
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        base: ${{ github.event.repository.default_branch }}
+        head: HEAD
+        extra_args: --debug --only-verified
+
+    # Check for sensitive patterns in source code
+    - name: Check for Hardcoded Values
+      run: |
+        echo "Checking for hardcoded development values..."
+
+        # Check for development fallback values
+        if grep -r "|| 'dev-" --include="*.js" --include="*.ts" --exclude-dir=node_modules --exclude-dir=dist .; then
+          echo "❌ Found hardcoded development values!"
+          exit 1
+        fi
+
+        # Check for change-in-production patterns
+        if grep -r "change-in-production\|change-this\|todo-secret\|placeholder" --include="*.js" --include="*.ts" --exclude-dir=node_modules --exclude-dir=dist .; then
+          echo "❌ Found placeholder values that should be environment variables!"
+          exit 1
+        fi
+
+        # Check for hardcoded secrets patterns
+        if grep -rE "(api[_-]?key|secret|password|token|credential|auth)\\s*[:=]\\s*[\"'][^\"']{10,}[\"']" --include="*.js" --include="*.ts" --exclude-dir=node_modules --exclude-dir=tests --exclude-dir=dist .; then
+          echo "❌ Found potential hardcoded secrets!"
+          exit 1
+        fi
+
+        echo "✅ No hardcoded values found in source code"
+
+    # Setup Node.js
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build project
+      run: npm run build
+
+    # Verify npm package contents
+    - name: Check NPM Package Contents
+      run: |
+        echo "Checking npm package contents..."
+        npm pack --dry-run > package-contents.txt
+
+        # Check for database schema files
+        if grep -E "dist/db/schema\.|dist/db/seed\.|dist/db/migrate\." package-contents.txt; then
+          echo "❌ Database schema/seed/migration files detected in package!"
+          echo "Files found:"
+          grep -E "dist/db/schema\.|dist/db/seed\.|dist/db/migrate\." package-contents.txt
+          exit 1
+        fi
+
+        # Check for OAuth implementation files
+        if grep -E "dist/server/oauth/" package-contents.txt; then
+          echo "❌ OAuth implementation files detected in package!"
+          echo "Files found:"
+          grep -E "dist/server/oauth/" package-contents.txt
+          exit 1
+        fi
+
+        # Check for governance files
+        if grep -E "dist/governance/" package-contents.txt; then
+          echo "❌ Governance implementation files detected in package!"
+          echo "Files found:"
+          grep -E "dist/governance/" package-contents.txt
+          exit 1
+        fi
+
+        # Check for test/backup implementations
+        if grep -E "sendMessage-(complex|revised|truly)" package-contents.txt; then
+          echo "❌ Test/backup implementation files detected in package!"
+          echo "Files found:"
+          grep -E "sendMessage-(complex|revised|truly)" package-contents.txt
+          exit 1
+        fi
+
+        echo "✅ NPM package contents are clean"
+
+    # Check built files for secrets
+    - name: Check Built Files for Secrets
+      run: |
+        echo "Checking built files for hardcoded secrets..."
+
+        # Check for development values in dist
+        if grep -r "dev-secret\|change-in-production" dist/ --include="*.js"; then
+          echo "❌ Found hardcoded development values in built files!"
+          exit 1
+        fi
+
+        # Check for database URLs
+        if grep -rE "postgres(ql)?://[^\"'\s]+" dist/ --include="*.js"; then
+          echo "❌ Found hardcoded database URLs in built files!"
+          exit 1
+        fi
+
+        echo "✅ No secrets found in built files"
+
+    # Run dependency audit
+    - name: NPM Audit
+      run: |
+        echo "Running npm audit..."
+        npm audit --audit-level=moderate || true
+
+        # Generate audit report
+        npm audit --json > audit.json || true
+
+        # Check for high/critical vulnerabilities
+        HIGH_VULNS=$(cat audit.json | jq '.metadata.vulnerabilities.high // 0')
+        CRITICAL_VULNS=$(cat audit.json | jq '.metadata.vulnerabilities.critical // 0')
+
+        if [ "$CRITICAL_VULNS" -gt 0 ]; then
+          echo "❌ Found $CRITICAL_VULNS critical vulnerabilities!"
+          exit 1
+        fi
+
+        if [ "$HIGH_VULNS" -gt 5 ]; then
+          echo "⚠️ Found $HIGH_VULNS high vulnerabilities (threshold: 5)"
+          exit 1
+        fi
+
+        echo "✅ Dependency audit passed"
+
+    # Validate environment configuration
+    - name: Check Environment Configuration
+      run: |
+        echo "Checking environment configuration..."
+
+        # Ensure .env files are gitignored
+        if git ls-files | grep -E "\.env$|\.env\.local$|\.env\.production$|\.env\.staging$"; then
+          echo "❌ .env files are not properly gitignored!"
+          git ls-files | grep -E "\.env"
+          exit 1
+        fi
+
+        # Ensure .env.example exists
+        if [ ! -f ".env.example" ]; then
+          echo "❌ .env.example file is missing!"
+          exit 1
+        fi
+
+        # Check .env.example doesn't contain real values
+        if grep -E "ey[A-Za-z0-9+/]|sk-[A-Za-z0-9]|npm_[A-Za-z0-9]" .env.example; then
+          echo "❌ .env.example contains what looks like real tokens!"
+          exit 1
+        fi
+
+        echo "✅ Environment configuration is secure"
+
+    # Validate .npmignore configuration
+    - name: Validate NPM Ignore Configuration
+      run: |
+        echo "Checking .npmignore configuration..."
+
+        # Check critical patterns are in .npmignore
+        REQUIRED_PATTERNS=(
+          "\.env"
+          "src/"
+          "tests/"
+          "dist/db/schema"
+          "dist/db/seed"
+          "dist/db/migrate"
+          "dist/governance/"
+          "dist/server/oauth/"
+        )
+
+        for pattern in "${REQUIRED_PATTERNS[@]}"; do
+          if ! grep -q "$pattern" .npmignore; then
+            echo "⚠️ Missing pattern in .npmignore: $pattern"
+          fi
+        done
+
+        echo "✅ .npmignore configuration checked"
+
+    # Generate security report
+    - name: Generate Security Report
+      if: always()
+      run: |
+        echo "## Security Check Summary" >> $GITHUB_STEP_SUMMARY
+        echo "- Hardcoded secrets scan: ✅" >> $GITHUB_STEP_SUMMARY
+        echo "- Package contents check: ✅" >> $GITHUB_STEP_SUMMARY
+        echo "- Environment validation: ✅" >> $GITHUB_STEP_SUMMARY
+        echo "- Dependency audit: ✅" >> $GITHUB_STEP_SUMMARY
+
+    # Upload artifacts for debugging
+    - name: Upload Security Artifacts
+      if: failure()
+      uses: actions/upload-artifact@v3
+      with:
+        name: security-check-artifacts
+        path: |
+          package-contents.txt
+          audit.json

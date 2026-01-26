@@ -299,11 +299,12 @@ export class ErrorHandler {
         };
         break;
 
-      case ErrorType.RATE_LIMIT:
+      case ErrorType.RATE_LIMIT: {
         // Rate limit: exponential backoff
         const waitTime = this.calculateBackoff(context.type);
         await this.delay(waitTime);
         break;
+      }
 
       case ErrorType.SERVER:
         // Server error: circuit breaker pattern
