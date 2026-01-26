@@ -3,15 +3,13 @@ import { oauthServer } from '../oauth/authServer.js';
 import { logger } from '../../utils/logger.js';
 
 // Extend Express Request to include user context
-declare global {
-  namespace Express {
-    interface Request {
-      user?: {
-        userId: string;
-        clientId: string;
-        scope: string;
-      };
-    }
+declare module 'express' {
+  interface Request {
+    user?: {
+      userId: string;
+      clientId: string;
+      scope: string;
+    };
   }
 }
 

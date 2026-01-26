@@ -62,7 +62,7 @@ export async function getJourneyStatus(args: any) {
 
     // Get journey if linked
     let journey = null;
-    let progress = {
+    const progress = {
       current_step: session.currentStep,
       total_steps: 0,
       percent_complete: 0,

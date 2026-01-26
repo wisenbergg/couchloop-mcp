@@ -43,6 +43,8 @@ describe('RetryStrategy', () => {
       const fn = vi.fn().mockRejectedValue(new Error('persistent failure'));
 
       const resultPromise = strategy.execute(fn, { maxAttempts: 3 });
+      // Immediately attach handler to prevent unhandled rejection
+      resultPromise.catch(() => {});
 
       await vi.runAllTimersAsync();
 
@@ -54,6 +56,9 @@ describe('RetryStrategy', () => {
       const fn = vi.fn().mockRejectedValue(new Error('fail'));
 
       const resultPromise = strategy.execute(fn);
+      // Immediately attach handler to prevent unhandled rejection
+      resultPromise.catch(() => {});
+
       await vi.runAllTimersAsync();
 
       await expect(resultPromise).rejects.toThrow();
@@ -172,6 +177,8 @@ describe('RetryStrategy', () => {
         maxAttempts: 3,
         isRetryable: (error) => !error.message.includes('Invalid'),
       });
+      // Immediately attach handler to prevent unhandled rejection
+      resultPromise.catch(() => {});
 
       await vi.runAllTimersAsync();
 

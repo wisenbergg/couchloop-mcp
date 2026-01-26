@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { createHash } from 'crypto';
-import { homedir } from 'os';
+import { homedir, hostname } from 'os';
 import { join } from 'path';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 
@@ -51,7 +51,6 @@ function getOrCreateLocalIdentity(): string {
     }
 
     // Create new local identity
-    const { hostname } = require('os');
     const machineId = createHash('sha256')
       .update(hostname() + ':' + homedir() + ':' + Date.now())
       .digest('hex')
