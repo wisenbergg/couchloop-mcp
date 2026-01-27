@@ -176,21 +176,6 @@ docs/MCP_PERFORMANCE_OPTIMIZATIONS.md
 docs/MCP_SHRINK_CHAT_INTEGRATION_GUIDE.md
 docs/OAUTH_IMPLEMENTATION_PLAN.md
 
-# Developer-Specific Features (WIP)
-src/developer/
-src/governance/
-examples/
-src/tools/check-versions.ts
-src/tools/detect-code-smell.ts
-src/tools/pre-review-code.ts
-src/tools/preserve-context.ts
-src/tools/protect-files.ts
-src/tools/scan-security.ts
-src/tools/validate_packages.ts
-src/types/context.ts
-src/types/file-protection.ts
-tests/tools/pre-review-code.test.ts
-
 # Runtime/Temporary Data
 src/db/context-store.json
 
