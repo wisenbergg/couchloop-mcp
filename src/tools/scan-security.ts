@@ -51,6 +51,11 @@ interface SecurityScanResult {
 export const scanSecurityTool: Tool = {
   name: 'scan_security',
   description: 'Comprehensive security scanner for AI-generated code. Detects SQL injection, XSS, hardcoded secrets, and other vulnerabilities with CWE codes and secure alternatives.',
+  annotations: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    openWorldHint: false,
+  },
   inputSchema: {
     type: 'object',
     properties: {

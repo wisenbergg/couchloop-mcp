@@ -33,6 +33,11 @@ export type CheckVersionsInput = z.infer<typeof CheckVersionsInputSchema>;
 export const checkVersionsTool: Tool = {
   name: 'check_versions',
   description: 'Validate library versions against latest releases, detect deprecated APIs, and prevent AI from using outdated patterns. Checks for breaking changes, security vulnerabilities, and provides upgrade paths.',
+  annotations: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    openWorldHint: true,
+  },
   inputSchema: {
     type: 'object',
     properties: {

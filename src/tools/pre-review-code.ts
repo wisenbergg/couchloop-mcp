@@ -30,6 +30,11 @@ export type PreReviewCodeInput = z.infer<typeof PreReviewCodeInputSchema>;
 export const preReviewCodeTool: Tool = {
   name: 'pre_review_code',
   description: 'Pre-screen AI-generated code to catch obvious issues and reduce human review burden. Detects console logs, commented code, TODOs, missing error handling, hardcoded values, type issues, and code complexity problems.',
+  annotations: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    openWorldHint: false,
+  },
   inputSchema: {
     type: 'object',
     properties: {
