@@ -19,6 +19,11 @@ const inputSchema = z.object({
 export const detectCodeSmellTool: Tool = {
   name: 'detect_code_smell',
   description: 'Detect code bloat, verbose patterns, and over-engineered code that creates technical debt. Analyzes complexity metrics and suggests simplifications.',
+  annotations: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    openWorldHint: false,
+  },
   inputSchema: {
     type: 'object',
     properties: {

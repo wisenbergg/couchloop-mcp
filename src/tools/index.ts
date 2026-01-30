@@ -26,6 +26,11 @@ export async function setupTools() {
       definition: {
         name: 'create_session',
         description: 'Start a new guided session. Optionally specify a journey to follow.',
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          openWorldHint: false,
+        },
         inputSchema: {
           type: 'object',
           properties: {
@@ -47,6 +52,11 @@ export async function setupTools() {
       definition: {
         name: 'send_message',
         description: 'Send a message through the therapeutic AI stack with crisis detection and emotional support.',
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          openWorldHint: true,
+        },
         inputSchema: {
           type: 'object',
           properties: {
@@ -92,6 +102,11 @@ export async function setupTools() {
       definition: {
         name: 'resume_session',
         description: 'Resume a previously paused session. Returns current state and next step.',
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          openWorldHint: false,
+        },
         inputSchema: {
           type: 'object',
           properties: {
@@ -109,6 +124,11 @@ export async function setupTools() {
       definition: {
         name: 'save_checkpoint',
         description: 'Save progress or capture a key moment in the current session.',
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          openWorldHint: false,
+        },
         inputSchema: {
           type: 'object',
           properties: {
@@ -140,6 +160,11 @@ export async function setupTools() {
       definition: {
         name: 'get_checkpoints',
         description: 'Get all checkpoints for a session.',
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          openWorldHint: false,
+        },
         inputSchema: {
           type: 'object',
           properties: {
@@ -157,6 +182,11 @@ export async function setupTools() {
       definition: {
         name: 'list_journeys',
         description: 'List available guided journeys/experiences.',
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          openWorldHint: false,
+        },
         inputSchema: {
           type: 'object',
           properties: {
@@ -174,6 +204,11 @@ export async function setupTools() {
       definition: {
         name: 'get_journey_status',
         description: 'Get current progress in a session/journey.',
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          openWorldHint: false,
+        },
         inputSchema: {
           type: 'object',
           properties: {
@@ -191,6 +226,11 @@ export async function setupTools() {
       definition: {
         name: 'save_insight',
         description: 'Capture a meaningful insight or realization from the conversation.',
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          openWorldHint: false,
+        },
         inputSchema: {
           type: 'object',
           properties: {
@@ -217,6 +257,11 @@ export async function setupTools() {
       definition: {
         name: 'get_insights',
         description: 'Get user insights, optionally filtered by session.',
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          openWorldHint: false,
+        },
         inputSchema: {
           type: 'object',
           properties: {
@@ -256,6 +301,11 @@ export async function setupTools() {
       definition: {
         name: 'get_user_context',
         description: 'Get relevant context about this user for personalization.',
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          openWorldHint: false,
+        },
         inputSchema: {
           type: 'object',
           properties: {
@@ -293,6 +343,11 @@ export async function setupTools() {
       definition: {
         name: 'protect_files',
         description: 'Prevents accidental file deletion and destructive operations. Validates operations against protected paths and patterns, creates automatic backups, and provides rollback capability.',
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          openWorldHint: false,
+        },
         inputSchema: {
           type: 'object',
           properties: {
@@ -327,6 +382,11 @@ export async function setupTools() {
       definition: {
         name: 'get_protection_status',
         description: 'Get current file protection status, configuration, and backup statistics.',
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          openWorldHint: false,
+        },
         inputSchema: {
           type: 'object',
           properties: {},
@@ -339,6 +399,11 @@ export async function setupTools() {
       definition: {
         name: 'get_operation_history',
         description: 'Get history of file operations that were attempted or executed.',
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          openWorldHint: false,
+        },
         inputSchema: {
           type: 'object',
           properties: {
@@ -356,6 +421,11 @@ export async function setupTools() {
       definition: {
         name: 'list_backups',
         description: 'List all available backup snapshots that can be restored.',
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          openWorldHint: false,
+        },
         inputSchema: {
           type: 'object',
           properties: {},
@@ -368,6 +438,11 @@ export async function setupTools() {
       definition: {
         name: 'rollback_file',
         description: 'Restore a file from a backup snapshot (undo a file modification/deletion).',
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: true,
+          openWorldHint: false,
+        },
         inputSchema: {
           type: 'object',
           properties: {
@@ -385,6 +460,11 @@ export async function setupTools() {
       definition: {
         name: 'enable_code_freeze',
         description: 'Enable code freeze mode - all file operations require explicit approval (critical protection mode).',
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          openWorldHint: false,
+        },
         inputSchema: {
           type: 'object',
           properties: {},
@@ -397,6 +477,11 @@ export async function setupTools() {
       definition: {
         name: 'disable_code_freeze',
         description: 'Disable code freeze mode - resume normal file operation protection rules.',
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          openWorldHint: false,
+        },
         inputSchema: {
           type: 'object',
           properties: {},
@@ -409,6 +494,11 @@ export async function setupTools() {
       definition: {
         name: 'preserve_context',
         description: 'Store, retrieve, and manage important project context to prevent AI amnesia when context windows fill up. Preserves architectural decisions, requirements, constraints, and technical patterns across conversations.',
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          openWorldHint: false,
+        },
         inputSchema: {
           type: 'object',
           properties: {

@@ -23,6 +23,11 @@ const inputSchema = z.object({
 export const validatePackagesTool: Tool = {
   name: 'validate_packages',
   description: 'Validate package dependencies to prevent installation of non-existent or malicious packages',
+  annotations: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    openWorldHint: true,
+  },
   inputSchema: {
     type: 'object',
     properties: {
