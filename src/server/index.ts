@@ -191,6 +191,19 @@ app.post('/oauth/revoke', validateToken, async (req: Request, res: Response) => 
 });
 
 // ====================
+// Domain Verification (ChatGPT MCP Marketplace)
+// ====================
+
+/**
+ * GET /.well-known/openai-apps-challenge
+ * Domain verification for ChatGPT MCP marketplace
+ */
+app.get('/.well-known/openai-apps-challenge', (_req: Request, res: Response) => {
+  res.type('text/plain');
+  res.send('V8qqOQoOKY6FQ-EUL6kSbRafEbTpWhkuPJTqa-PJmwo');
+});
+
+// ====================
 // SSE/MCP Endpoints for ChatGPT
 // ====================
 
