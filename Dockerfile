@@ -42,6 +42,9 @@ RUN npm ci --only=production && \
 # Copy built application
 COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
 
+# Copy public assets (landing page)
+COPY --chown=nodejs:nodejs public ./public
+
 # Security hardening
 ENV NODE_ENV=production \
     NODE_OPTIONS="--max-old-space-size=2048 --enable-source-maps" \
