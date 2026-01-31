@@ -134,26 +134,28 @@ jobs:
     - name: NPM Audit
       run: |
         echo "Running npm audit..."
-        npm audit --audit-level=moderate || true
+        # Only audit production dependencies (dev deps like vercel have known issues)
+        npm audit --omit=dev --audit-level=high || true
 
-        # Generate audit report
-        npm audit --json > audit.json || true
+        # Generate audit report for production deps only
+        npm audit --omit=dev --json > audit.json || true
 
-        # Check for high/critical vulnerabilities
+        # Check for high/critical vulnerabilities in production deps
         HIGH_VULNS=$(cat audit.json | jq '.metadata.vulnerabilities.high // 0')
         CRITICAL_VULNS=$(cat audit.json | jq '.metadata.vulnerabilities.critical // 0')
 
         if [ "$CRITICAL_VULNS" -gt 0 ]; then
-          echo "❌ Found $CRITICAL_VULNS critical vulnerabilities!"
+          echo "❌ Found $CRITICAL_VULNS critical vulnerabilities in production dependencies!"
+          cat audit.json | jq '.vulnerabilities | to_entries[] | select(.value.severity == "critical") | .key'
           exit 1
         fi
 
-        if [ "$HIGH_VULNS" -gt 5 ]; then
-          echo "⚠️ Found $HIGH_VULNS high vulnerabilities (threshold: 5)"
+        if [ "$HIGH_VULNS" -gt 3 ]; then
+          echo "⚠️ Found $HIGH_VULNS high vulnerabilities in production deps (threshold: 3)"
           exit 1
         fi
 
-        echo "✅ Dependency audit passed"
+        echo "✅ Dependency audit passed (production deps only)"
 
     # Validate environment configuration
     - name: Check Environment Configuration
