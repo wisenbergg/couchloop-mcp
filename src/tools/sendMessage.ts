@@ -7,6 +7,18 @@ import { logger } from '../utils/logger.js';
 import { NotFoundError } from '../utils/errors.js';
 import { v4 as uuidv4 } from 'uuid';
 import type { ShrinkResponse } from '../clients/shrinkChatClient.js';
+import { EvaluationEngine, type EvaluationResult, type SessionContext } from '../governance/evaluationEngine.js';
+
+// Initialize governance engine (singleton)
+let governanceEngine: EvaluationEngine | null = null;
+
+function getGovernanceEngine(): EvaluationEngine {
+  if (!governanceEngine) {
+    governanceEngine = new EvaluationEngine();
+    logger.info('[Governance] Evaluation engine initialized');
+  }
+  return governanceEngine;
+}
 
 // Input validation schema
 const SendMessageSchema = z.object({
@@ -267,6 +279,22 @@ Suggested approach: ${response.crisis_suggested_actions?.join(', ') || 'De-escal
         .where(eq(sessions.id, session.id));
     }
 
+    // === ASYNC GOVERNANCE EVALUATION ===
+    // Run full governance evaluation in the background (non-blocking)
+    // This analyzes for hallucination, inconsistency, tone drift, and unsafe reasoning
+    runAsyncGovernanceEvaluation(
+      session.id,
+      session.userId || undefined,
+      responseContent,
+      history.map(h => ({
+        role: h.role as 'user' | 'assistant',
+        content: h.content,
+        timestamp: new Date()
+      }))
+    ).catch(err => {
+      logger.error('[Governance] Async evaluation failed:', err);
+    });
+
     // Return response
     return {
       success: true,
@@ -301,14 +329,15 @@ Suggested approach: ${response.crisis_suggested_actions?.join(', ') || 'De-escal
 }
 
 /**
- * Log governance evaluation - SIMPLIFIED
+ * Log governance evaluation - accepts real evaluation results
  */
 async function logGovernanceEvaluation(
   sessionId: string,
   content: string,
   action: string,
   reason: string,
-  confidence: number
+  confidence: number,
+  evaluationResult?: EvaluationResult
 ): Promise<void> {
   const db = getDb();
 
@@ -316,7 +345,31 @@ async function logGovernanceEvaluation(
     await db.insert(governanceEvaluations).values({
       sessionId,
       draftResponse: content.substring(0, 1000),
-      evaluationResults: {
+      evaluationResults: evaluationResult ? {
+        hallucination: {
+          detected: evaluationResult.hallucination.detected,
+          confidence: evaluationResult.hallucination.confidence,
+          patterns: evaluationResult.hallucination.patterns || []
+        },
+        inconsistency: {
+          detected: evaluationResult.inconsistency.detected,
+          confidence: evaluationResult.inconsistency.confidence,
+          patterns: evaluationResult.inconsistency.patterns || []
+        },
+        toneDrift: {
+          detected: evaluationResult.toneDrift.detected,
+          confidence: evaluationResult.toneDrift.confidence,
+          patterns: evaluationResult.toneDrift.patterns || []
+        },
+        unsafeReasoning: {
+          detected: evaluationResult.unsafeReasoning.detected,
+          confidence: evaluationResult.unsafeReasoning.confidence,
+          patterns: evaluationResult.unsafeReasoning.patterns || []
+        },
+        overallRisk: evaluationResult.overallRisk,
+        recommendedAction: evaluationResult.recommendedAction,
+        confidence: evaluationResult.confidence
+      } : {
         hallucination: { detected: false, confidence: 0, patterns: [] },
         inconsistency: { detected: false, confidence: 0, patterns: [] },
         toneDrift: { detected: false, confidence: 0, patterns: [] },
@@ -334,6 +387,83 @@ async function logGovernanceEvaluation(
     });
   } catch (error) {
     logger.error('Failed to log governance evaluation:', error);
+  }
+}
+
+/**
+ * Run async governance evaluation in the background
+ * This evaluates the response for hallucination, inconsistency, tone drift, and unsafe reasoning
+ * without blocking the response to the user
+ */
+async function runAsyncGovernanceEvaluation(
+  sessionId: string,
+  userId: string | undefined,
+  responseContent: string,
+  conversationHistory: Array<{ role: 'user' | 'assistant'; content: string; timestamp: Date }>
+): Promise<void> {
+  try {
+    const engine = getGovernanceEngine();
+    
+    const context: SessionContext = {
+      sessionId,
+      userId,
+      conversationHistory
+    };
+
+    const startTime = Date.now();
+    const result = await engine.evaluate(responseContent, context);
+    const evaluationTime = Date.now() - startTime;
+
+    // Log the evaluation with real results - normalize patterns to always be arrays
+    const db = getDb();
+    await db.insert(governanceEvaluations).values({
+      sessionId,
+      draftResponse: responseContent.substring(0, 1000),
+      evaluationResults: {
+        hallucination: {
+          detected: result.hallucination.detected,
+          confidence: result.hallucination.confidence,
+          patterns: result.hallucination.patterns || []
+        },
+        inconsistency: {
+          detected: result.inconsistency.detected,
+          confidence: result.inconsistency.confidence,
+          patterns: result.inconsistency.patterns || []
+        },
+        toneDrift: {
+          detected: result.toneDrift.detected,
+          confidence: result.toneDrift.confidence,
+          patterns: result.toneDrift.patterns || []
+        },
+        unsafeReasoning: {
+          detected: result.unsafeReasoning.detected,
+          confidence: result.unsafeReasoning.confidence,
+          patterns: result.unsafeReasoning.patterns || []
+        },
+        overallRisk: result.overallRisk,
+        recommendedAction: result.recommendedAction,
+        confidence: result.confidence
+      },
+      interventionApplied: null, // Async evaluation doesn't intervene, just logs
+      finalResponse: null,
+    });
+
+    // Log summary
+    const issuesDetected = [
+      result.hallucination.detected && 'hallucination',
+      result.inconsistency.detected && 'inconsistency', 
+      result.toneDrift.detected && 'toneDrift',
+      result.unsafeReasoning.detected && 'unsafeReasoning'
+    ].filter(Boolean);
+
+    if (issuesDetected.length > 0) {
+      logger.warn(`[Governance] Issues detected in session ${sessionId}: ${issuesDetected.join(', ')} (risk: ${result.overallRisk})`);
+    } else {
+      logger.debug(`[Governance] Response approved for session ${sessionId} (${evaluationTime}ms)`);
+    }
+
+  } catch (error) {
+    logger.error('[Governance] Async evaluation error:', error);
   }
 }
 
