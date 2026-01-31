@@ -6,9 +6,17 @@ Behavioral governance layer for safer, more consistent AI conversations.
   <img src="https://raw.githubusercontent.com/wisenbergg/couchloop-mcp/master/assets/logo/couchloop_EQ-IconLogo.png" alt="CouchLoop EQ" width="120" />
 </p>
 
+<p align="center">
+  <a href="https://couchloop-mcp-production.up.railway.app/">🌐 Landing Page</a> •
+  <a href="https://www.npmjs.com/package/couchloop-eq-mcp">📦 npm</a> •
+  <a href="https://github.com/wisenbergg/couchloop-mcp">⭐ GitHub</a>
+</p>
+
 ## What is CouchLoop EQ?
 
 CouchLoop EQ is an MCP (Model Context Protocol) server that provides behavioral governance for LLMs. It monitors AI responses for hallucination, inconsistency, tone drift, and unsafe reasoning patterns—while also managing stateful sessions and guided journeys that remember where you left off.
+
+**New:** Developer safety tools catch hallucinated packages, SQL injection, XSS, hardcoded secrets, and code smell before they ship.
 
 ## Key Safety Features
 
@@ -81,8 +89,9 @@ For local development:
 - Use ngrok or deploy your own server
 - Follow setup in [CHATGPT_SETUP.md](CHATGPT_SETUP.md)
 
-## Available Tools
+## Available Tools (23 total)
 
+### Session & Journey
 | Tool | Description |
 |------|-------------|
 | `create_session` | Start a new guided session, optionally with a journey |
@@ -95,6 +104,27 @@ For local development:
 | `save_insight` | Capture a meaningful insight from the conversation |
 | `get_insights` | Retrieve saved insights |
 | `get_user_context` | Get relevant context for personalization |
+
+### Developer Safety
+| Tool | Description |
+|------|-------------|
+| `validate_packages` | Catch hallucinated npm/PyPI/Maven packages before install |
+| `validate_library_versions` | Check for deprecated APIs and outdated patterns |
+| `scan_security` | Detect SQL injection, XSS, hardcoded secrets |
+| `pre_review_code` | Screen AI code for console.logs, TODOs, missing error handling |
+| `detect_code_smell` | Find verbose, over-engineered, or bloated code |
+
+### Context & File Protection
+| Tool | Description |
+|------|-------------|
+| `preserve_context` | Store architecture decisions across conversations |
+| `get_operation_history` | Review file operations that were attempted |
+| `enable_code_freeze` | Protect critical files from modification |
+| `disable_code_freeze` | Re-enable file modifications |
+| `protect_files` | Validate operations against protected paths |
+| `rollback_file` | Restore files from backup snapshots |
+| `get_protection_status` | View current file protection config |
+| `list_backups` | See available backup snapshots |
 
 ## Available Journeys
 
