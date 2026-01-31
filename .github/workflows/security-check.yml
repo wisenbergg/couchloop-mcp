@@ -220,7 +220,7 @@ jobs:
     # Upload artifacts for debugging
     - name: Upload Security Artifacts
       if: failure()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: security-check-artifacts
         path: |
