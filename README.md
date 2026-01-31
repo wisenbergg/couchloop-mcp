@@ -7,7 +7,7 @@ Behavioral governance layer for safer, more consistent AI conversations.
 </p>
 
 <p align="center">
-  <a href="https://couchloop-mcp-production.up.railway.app/">🌐 Landing Page</a> •
+  <a href="https://mcp.couchloop.com">🌐 Landing Page</a> •
   <a href="https://www.npmjs.com/package/couchloop-eq-mcp">📦 npm</a> •
   <a href="https://github.com/wisenbergg/couchloop-mcp">⭐ GitHub</a>
 </p>
@@ -42,7 +42,7 @@ For Claude Desktop (v0.7.0+), add to `~/Library/Application Support/Claude/claud
 {
   "mcpServers": {
     "couchloop-eq": {
-      "url": "https://couchloop-mcp-production.up.railway.app/mcp",
+      "url": "https://mcp.couchloop.com/mcp",
       "transport": "sse"
     }
   }
@@ -78,11 +78,11 @@ Add to Claude Desktop configuration:
 
 ChatGPT supports MCP servers through Developer Mode. See [CHATGPT_SETUP.md](CHATGPT_SETUP.md) for detailed setup instructions.
 
-**Production Server Available:** `https://couchloop-mcp-production.up.railway.app/mcp`
+**Production Server Available:** `https://mcp.couchloop.com/mcp`
 
 Quick steps:
 1. Enable Developer Mode in ChatGPT Settings
-2. Add as MCP connector with URL: `https://couchloop-mcp-production.up.railway.app/mcp`
+2. Add as MCP connector with URL: `https://mcp.couchloop.com/mcp`
 3. No authentication required - uses session-based isolation
 
 For local development:
