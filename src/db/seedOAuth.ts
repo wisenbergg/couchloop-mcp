@@ -17,8 +17,11 @@ async function seedOAuthClient() {
     await initDatabase();
     const db = getDb();
 
-    // Generate or use existing client secret
-    const clientSecret = process.env.OAUTH_CLIENT_SECRET || 'dev-secret-change-in-production';
+    // Require client secret from environment
+    const clientSecret = process.env.OAUTH_CLIENT_SECRET;
+    if (!clientSecret) {
+      throw new Error('OAUTH_CLIENT_SECRET environment variable is required');
+    }
 
     // Hash the client secret
     const hashedSecret = await bcrypt.hash(clientSecret, 10);
