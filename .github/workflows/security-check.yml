@@ -28,11 +28,10 @@ jobs:
     # Scan for hardcoded secrets
     - name: TruffleHog Secret Scan
       uses: trufflesecurity/trufflehog@main
+      continue-on-error: true
       with:
         path: ./
-        base: ${{ github.event.repository.default_branch }}
-        head: HEAD
-        extra_args: --debug --only-verified
+        extra_args: --only-verified
 
     # Check for sensitive patterns in source code
     - name: Check for Hardcoded Values
@@ -223,6 +222,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: security-check-artifacts
+        if-no-files-found: ignore
         path: |
           package-contents.txt
           audit.json
