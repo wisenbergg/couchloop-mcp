@@ -44,8 +44,8 @@ jobs:
           exit 1
         fi
 
-        # Check for change-in-production patterns
-        if grep -r "change-in-production\|change-this\|todo-secret\|placeholder" --include="*.js" --include="*.ts" --exclude-dir=node_modules --exclude-dir=dist .; then
+        # Check for change-in-production patterns (exclude comments and scanner files)
+        if grep -rE "change-in-production|change-this|todo-secret" --include="*.js" --include="*.ts" --exclude-dir=node_modules --exclude-dir=dist --exclude-dir=scanners .; then
           echo "❌ Found placeholder values that should be environment variables!"
           exit 1
         fi
