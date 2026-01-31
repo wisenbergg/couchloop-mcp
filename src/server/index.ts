@@ -42,10 +42,18 @@ app.use(localNetworkAccessMiddleware);
 app.use(express.static(path.join(__dirname, '../../public')));
 
 // ====================
-// Landing Page
+// Landing Page & Legal
 // ====================
 app.get('/', (_req: Request, res: Response) => {
   res.sendFile(path.join(__dirname, '../../public/index.html'));
+});
+
+app.get('/privacy', (_req: Request, res: Response) => {
+  res.sendFile(path.join(__dirname, '../../public/privacy.html'));
+});
+
+app.get('/terms', (_req: Request, res: Response) => {
+  res.sendFile(path.join(__dirname, '../../public/terms.html'));
 });
 
 // ====================
