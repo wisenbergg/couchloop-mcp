@@ -1,5 +1,6 @@
 import { jwtVerify } from 'jose';
 import { AuthenticationError } from '../utils/errors.js';
+import crypto from 'crypto';
 
 // Only validate JWT_SECRET when running as web server (not in MCP mode)
 const isMCPMode = process.env.MCP_MODE === 'true';
@@ -15,8 +16,8 @@ if (!isMCPMode) {
   }
   JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
 } else {
-  // Use a placeholder for MCP mode (JWT not used in MCP)
-  JWT_SECRET = new TextEncoder().encode('mcp-mode-placeholder-not-used-for-auth');
+  // MCP mode doesn't use JWT auth - generate random bytes that will never match
+  JWT_SECRET = new TextEncoder().encode(crypto.randomBytes(32).toString('hex'));
 }
 
 export interface AuthContext {
