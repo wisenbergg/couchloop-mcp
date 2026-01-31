@@ -176,11 +176,11 @@ app.post('/oauth/token', async (req: Request, res: Response) => {
         error_description: 'Only authorization_code and refresh_token grants are supported',
       });
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('Token exchange error:', error);
     res.status(400).json({
       error: 'invalid_grant',
-      error_description: error.message || 'Failed to exchange token',
+      error_description: error instanceof Error ? error.message : 'Failed to exchange token',
     });
   }
 });
@@ -316,11 +316,11 @@ app.post('/api/mcp/session', validateToken, rateLimit(30, 60000), async (req: Re
     });
 
     res.json(result);
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('Session creation error:', error);
     res.status(500).json({
       error: 'server_error',
-      message: error.message || 'Failed to create session',
+      message: error instanceof Error ? error.message : 'Failed to create session',
     });
   }
 });
@@ -337,11 +337,11 @@ app.post('/api/mcp/message', validateToken, requireScope('write'), rateLimit(60,
     });
 
     res.json(result);
-  } catch (error: any) {
+  } catch (error: unknown) {
     logger.error('Message sending error:', error);
     res.status(500).json({
       error: 'server_error',
-      message: error.message || 'Failed to send message',
+      message: error instanceof Error ? error.message : 'Failed to send message',
     });
   }
 });
