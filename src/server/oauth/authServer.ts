@@ -23,11 +23,15 @@ export class OAuthServer {
   private readonly jwtExpiresIn: string;
 
   constructor() {
-    this.jwtSecret = process.env.JWT_SECRET || 'dev-secret-change-in-production';
+    const secret = process.env.JWT_SECRET;
+    if (!secret && process.env.NODE_ENV === 'production') {
+      throw new Error('JWT_SECRET environment variable is required in production');
+    }
+    this.jwtSecret = secret || require('crypto').randomBytes(32).toString('hex');
     this.jwtExpiresIn = process.env.JWT_EXPIRES_IN || '24h';
 
     if (!process.env.JWT_SECRET) {
-      logger.warn('Using default JWT secret - CHANGE IN PRODUCTION!');
+      logger.warn('JWT_SECRET not set - using random secret (tokens will not persist across restarts)');
     }
   }
 
