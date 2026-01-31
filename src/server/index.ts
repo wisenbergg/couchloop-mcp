@@ -38,6 +38,16 @@ app.use(cookieParser());
 app.use(enhancedCors);
 app.use(localNetworkAccessMiddleware);
 
+// Serve static files from public directory
+app.use(express.static(path.join(__dirname, '../../public')));
+
+// ====================
+// Landing Page
+// ====================
+app.get('/', (_req: Request, res: Response) => {
+  res.sendFile(path.join(__dirname, '../../public/index.html'));
+});
+
 // ====================
 // OAuth Endpoints
 // ====================
