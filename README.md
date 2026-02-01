@@ -7,6 +7,12 @@ Behavioral governance layer for safer, more consistent AI conversations.
 </p>
 
 <p align="center">
+  <a href="https://www.npmjs.com/package/couchloop-eq-mcp"><img src="https://img.shields.io/npm/v/couchloop-eq-mcp.svg" alt="npm version"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
+  <a href="https://github.com/wisenbergg/couchloop-mcp"><img src="https://img.shields.io/github/stars/wisenbergg/couchloop-mcp?style=social" alt="GitHub stars"></a>
+</p>
+
+<p align="center">
   <a href="https://mcp.couchloop.com">🌐 Landing Page</a> •
   <a href="https://www.npmjs.com/package/couchloop-eq-mcp">📦 npm</a> •
   <a href="https://github.com/wisenbergg/couchloop-mcp">⭐ GitHub</a>
@@ -16,7 +22,19 @@ Behavioral governance layer for safer, more consistent AI conversations.
 
 CouchLoop EQ is an MCP (Model Context Protocol) server that provides behavioral governance for LLMs. It monitors AI responses for hallucination, inconsistency, tone drift, and unsafe reasoning patterns—while also managing stateful sessions and guided journeys that remember where you left off.
 
-**New:** Developer safety tools catch hallucinated packages, SQL injection, XSS, hardcoded secrets, and code smell before they ship.
+## Why CouchLoop EQ?
+
+Unlike raw LLMs that can hallucinate packages, generate insecure code, and lose context mid-conversation, CouchLoop EQ catches problems before they ship:
+
+| Problem | CouchLoop EQ Solution |
+|---------|----------------------|
+| 🎭 **Hallucinated packages** | `validate_packages` catches fake npm/PyPI/Maven before install |
+| 🔓 **Insecure code** | `scan_security` detects SQLi, XSS, hardcoded secrets |
+| 📉 **Code bloat** | `detect_code_smell` flags over-engineering and verbose patterns |
+| 🧠 **Lost context** | `preserve_context` stores architecture decisions across sessions |
+| 🗂️ **Accidental deletion** | `protect_files` + `rollback_file` with automatic backups |
+| 📚 **Deprecated APIs** | `validate_library_versions` warns about outdated patterns |
+| 🔍 **Sloppy AI code** | `pre_review_code` catches console.logs, TODOs, missing error handling |
 
 ## Key Safety Features
 
@@ -34,7 +52,11 @@ CouchLoop EQ is an MCP (Model Context Protocol) server that provides behavioral 
 
 ## Quick Start
 
-### Option 1: Connect to Demo Server (Easiest)
+CouchLoop EQ is a standard MCP server that works with **any MCP-compatible client**—Claude Desktop, ChatGPT, Cursor, Windsurf, VS Code, and more.
+
+### Option 1: Connect to Hosted Server (Easiest)
+
+**Production endpoint:** `https://mcp.couchloop.com/mcp`
 
 For Claude Desktop (v0.7.0+), add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
@@ -43,7 +65,7 @@ For Claude Desktop (v0.7.0+), add to `~/Library/Application Support/Claude/claud
   "mcpServers": {
     "couchloop-eq": {
       "url": "https://mcp.couchloop.com/mcp",
-      "transport": "sse"
+      "transport": "streamable-http"
     }
   }
 }
@@ -51,7 +73,7 @@ For Claude Desktop (v0.7.0+), add to `~/Library/Application Support/Claude/claud
 
 Restart Claude and try: **"Start a daily reflection session"**
 
-### Option 2: Run Locally (v1.0.4)
+### Option 2: Run Locally (v1.1.2)
 
 ```bash
 npm install -g couchloop-eq-mcp
@@ -65,7 +87,7 @@ Add to Claude Desktop configuration:
     "couchloop-eq": {
       "command": "couchloop-eq-mcp",
       "env": {
-        "COUCHLOOP_SERVER": "https://couchloopchat.com"
+        "COUCHLOOP_SERVER": "https://mcp.couchloop.com"
       }
     }
   }
@@ -77,6 +99,13 @@ Add to Claude Desktop configuration:
 ### For ChatGPT (Developer Mode)
 
 ChatGPT supports MCP servers through Developer Mode. See [CHATGPT_SETUP.md](CHATGPT_SETUP.md) for detailed setup instructions.
+
+### For Other MCP Clients
+
+Any MCP-compatible client (Cursor, Windsurf, Continue, etc.) can connect using:
+- **URL:** `https://mcp.couchloop.com/mcp`
+- **Transport:** `streamable-http`
+- **Auth:** None required (session-based isolation)
 
 **Production Server Available:** `https://mcp.couchloop.com/mcp`
 
@@ -148,6 +177,14 @@ Save an insight:
 ```
 "Save this insight: I notice I'm more energized in the mornings"
 ```
+
+## Screenshots
+
+<p align="center">
+  <img src="assets/screenshots/save_insights.png" alt="Save Insights" width="400" />
+  <img src="assets/screenshots/checkpoint_session.png" alt="Checkpoint Session" width="400" />
+  <img src="assets/screenshots/code_review_workflow.png" alt="Code Review Workflow" width="400" />
+</p>
 
 ## Support
 
