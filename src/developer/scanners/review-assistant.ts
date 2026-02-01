@@ -373,6 +373,11 @@ export class ReviewAssistant {
       const line = this.lines[i];
       if (!line) continue;
 
+      // Check for catch BEFORE counting braces on this line
+      if (foundOpenBrace && /\}\s*catch\s*\(/.test(line)) {
+        return true;
+      }
+
       if (!foundOpenBrace && line.includes('{')) {
         foundOpenBrace = true;
         braceCount += (line.match(/\{/g) || []).length;
@@ -380,10 +385,6 @@ export class ReviewAssistant {
       } else if (foundOpenBrace) {
         braceCount += (line.match(/\{/g) || []).length;
         braceCount -= (line.match(/\}/g) || []).length;
-
-        if (braceCount <= 0 && /^\s*\}\s*catch\s*\(/.test(line)) {
-          return true;
-        }
 
         if (braceCount <= 0) break;
       }

@@ -320,6 +320,6 @@ describe('pre_review_code Tool', () => {
 
     expect(result.riskLevel).toBe('high');
     expect(result.metrics.criticalCount).toBeGreaterThan(0);
-    expect(result.metrics.codeQualityScore).toBeLessThan(60);
+    expect(result.metrics.codeQualityScore).toBeLessThan(60); // 2 high + 2 med + 2 low = 100-60=40
   });
 });

@@ -241,7 +241,10 @@ export class ReviewSummaryGenerator {
     const total = this.scanResult.totalIssues;
 
     // Code quality score: 100 - (issues with weighted penalty)
-    const qualityPenalty = ((high || 0) * 10) + ((medium || 0) * 5) + ((low || 0) * 1);
+    // High severity issues (security, critical bugs) have steep penalty
+    // Medium issues (code quality) have moderate penalty
+    // Low issues (style, minor) have small penalty
+    const qualityPenalty = ((high || 0) * 20) + ((medium || 0) * 8) + ((low || 0) * 2);
     const codeQualityScore = Math.max(0, 100 - qualityPenalty);
 
     return {
