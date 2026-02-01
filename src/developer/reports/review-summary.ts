@@ -163,7 +163,7 @@ export class ReviewSummaryGenerator {
   }
 
   private estimateReviewTime(groups: IssueCategoryGroup[]): number {
-    let baseTime = 10; // 10 minutes base review time
+    const baseTime = 10; // 10 minutes base review time
 
     // Add time for each issue group
     const groupTime = groups.reduce((total, group) => {
@@ -259,7 +259,7 @@ export class ReviewSummaryGenerator {
   private generateExecutiveSummary(
     _complexityScore: number,
     riskLevel: 'low' | 'medium' | 'high',
-    metrics: any
+    metrics: ReviewSummary['metrics']
   ): string {
     if (metrics.totalIssues === 0) {
       return `Perfect! No issues detected. Code quality score: ${metrics.codeQualityScore}/100. Ready for review.`;
