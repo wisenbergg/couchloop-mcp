@@ -11,6 +11,39 @@ import { setupResources } from '../resources/index.js';
 // Store sessions by ID
 const sessions = new Map<string, any>();
 
+// Prompts definition
+const prompts = [
+  {
+    name: 'daily-reflection',
+    description: 'Start a guided daily reflection session to process your day',
+    arguments: [
+      { name: 'mood', description: 'Your current mood (optional)', required: false }
+    ]
+  },
+  {
+    name: 'code-review',
+    description: 'Review code for security issues, code smells, and best practices',
+    arguments: [
+      { name: 'code', description: 'The code to review', required: true },
+      { name: 'language', description: 'Programming language', required: false }
+    ]
+  },
+  {
+    name: 'validate-dependencies',
+    description: 'Validate package dependencies for hallucinated or vulnerable packages',
+    arguments: [
+      { name: 'packages', description: 'Comma-separated list of packages to validate', required: true }
+    ]
+  },
+  {
+    name: 'sprint-kickoff',
+    description: 'Start a new sprint session to capture context and decisions',
+    arguments: [
+      { name: 'sprint_name', description: 'Name or identifier for the sprint', required: true }
+    ]
+  }
+];
+
 // Cache tool and resource definitions at module level for performance
 // These are static and don't change, so we only need to load them once
 let cachedTools: any[] | null = null;
@@ -82,11 +115,12 @@ export async function handleChatGPTMCP(req: Request, res: Response) {
               resources: {
                 subscribe: false,
                 listChanged: false
-              }
+              },
+              prompts: {}
             },
             serverInfo: {
               name: 'couchloop-mcp',
-              version: '1.0.2'
+              version: '1.1.3'
             }
           }
         };
@@ -231,6 +265,94 @@ export async function handleChatGPTMCP(req: Request, res: Response) {
             }
           });
         }
+        break;
+      }
+
+      case 'prompts/list': {
+        const response = {
+          jsonrpc: '2.0',
+          id,
+          result: {
+            prompts
+          }
+        };
+
+        logger.info('Sending prompts list:', response);
+        res.json(response);
+        break;
+      }
+
+      case 'prompts/get': {
+        const prompt = prompts.find(p => p.name === params.name);
+
+        if (!prompt) {
+          res.json({
+            jsonrpc: '2.0',
+            id,
+            error: {
+              code: -32602,
+              message: `Prompt not found: ${params.name}`
+            }
+          });
+          return;
+        }
+
+        const args = params.arguments || {};
+        let messages: Array<{ role: string; content: { type: string; text: string } }> = [];
+
+        switch (prompt.name) {
+          case 'daily-reflection':
+            messages = [{
+              role: 'user',
+              content: {
+                type: 'text',
+                text: `Start a daily reflection session${args.mood ? ` (current mood: ${args.mood})` : ''}. Use the create_session tool with journey_slug "daily-reflection".`
+              }
+            }];
+            break;
+
+          case 'code-review':
+            messages = [{
+              role: 'user',
+              content: {
+                type: 'text',
+                text: `Review this code for issues:\n\n\`\`\`${args.language || ''}\n${args.code}\n\`\`\`\n\nUse scan_security, pre_review_code, and detect_code_smell tools to analyze.`
+              }
+            }];
+            break;
+
+          case 'validate-dependencies':
+            messages = [{
+              role: 'user',
+              content: {
+                type: 'text',
+                text: `Validate these packages: ${args.packages}\n\nUse the validate_packages tool to check if they exist and are safe.`
+              }
+            }];
+            break;
+
+          case 'sprint-kickoff':
+            messages = [{
+              role: 'user',
+              content: {
+                type: 'text',
+                text: `Start a new sprint session for "${args.sprint_name}". Use create_session to establish context, then use preserve_context to store the sprint goals.`
+              }
+            }];
+            break;
+        }
+
+        const response = {
+          jsonrpc: '2.0',
+          id,
+          result: {
+            description: prompt.description,
+            messages
+          }
+        };
+
+        logger.info('Sending prompt:', response);
+        res.json(response);
         break;
       }
 
