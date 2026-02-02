@@ -18,6 +18,17 @@ Behavioral governance layer for safer, more consistent AI conversations.
   <a href="https://github.com/wisenbergg/couchloop-mcp">⭐ GitHub</a>
 </p>
 
+---
+
+## 📖 Choose Your Guide
+
+| Use Case | Guide | Description |
+|----------|-------|-------------|
+| 💻 **Developers** | [README-DEVELOPER.md](README-DEVELOPER.md) | Package validation, security scanning, code review, context preservation |
+| 🧘 **Wellness** | [README-WELLNESS.md](README-WELLNESS.md) | Guided sessions, journeys, insights, reflection tools |
+
+---
+
 ## What is CouchLoop EQ?
 
 CouchLoop EQ is an MCP (Model Context Protocol) server that provides behavioral governance for LLMs. It monitors AI responses for hallucination, inconsistency, tone drift, and unsafe reasoning patterns—while also managing stateful sessions and guided journeys that remember where you left off.
@@ -154,6 +165,71 @@ For local development:
 | `rollback_file` | Restore files from backup snapshots |
 | `get_protection_status` | View current file protection config |
 | `list_backups` | See available backup snapshots |
+
+## Real-World Usage
+
+CouchLoop EQ is actively used in production development. Here's what 2 weeks of actual usage looks like:
+
+### Usage Statistics
+| Metric | Value |
+|--------|-------|
+| Insights captured | 49 |
+| Active sessions | 5 |
+| Unique tags | 85+ |
+| Date range | Jan 19 - Feb 2, 2026 |
+
+### Development Areas Tracked
+
+| Category | Insights | Example |
+|----------|----------|---------|
+| 🔐 Security fixes | 12 | Auth flow hardening, validation improvements |
+| 💳 Payment integration | 8 | Payment flow patterns, webhook handling |
+| 📱 Mobile development | 15 | State management, navigation guards |
+| 🗄️ Database operations | 6 | Data cleanup, schema optimization |
+| 🏗️ Architecture decisions | 8 | Caching strategies, event patterns |
+
+### Featured Insight: Complex Bug Resolution
+
+```
+PAYMENT FLOW BUG ROOT CAUSE IDENTIFIED:
+
+Issue: Race condition between frontend state and backend data caused 
+inconsistent user experience during payment retry flows.
+
+Analysis: Traced through 5 components across iOS and backend to find 
+the state synchronization gap.
+
+FIX OPTIONS:
+A) Data cleanup - reset stale records
+B) Frontend fix - stricter validation
+C) Backend fix - additional verification step
+
+Recommended: Defense-in-depth approach combining A + B
+```
+
+This insight was captured mid-debugging session, preserved across context window resets, and referenced 3 days later when implementing the fix.
+
+### Best Practices for Sprint Development
+
+**Start of sprint:** Create a session to establish context
+```
+"Create a session for Sprint 42 - user authentication overhaul"
+```
+
+**After completing a feature:** Save insights, context, or checkpoints depending on complexity
+
+| Feature Size | Recommended Actions |
+|--------------|---------------------|
+| **Small fix** | `save_insight` — Quick note of what was done and why |
+| **Medium feature** | `save_insight` + `save_checkpoint` — Capture decisions and state |
+| **Large feature set** | `preserve_context` + `save_checkpoint` + multiple `save_insight` — Full architecture context |
+
+**Why this matters:** When you need to review or debug later, you can retrieve the exact context of what was just built—even weeks later, across different AI sessions.
+
+```
+"Get my insights tagged 'auth-refactor'" → Instant recall of decisions made
+"Resume my Sprint 42 session" → Pick up exactly where you left off
+```
 
 ## Available Journeys
 
