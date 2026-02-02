@@ -214,10 +214,20 @@ The system prevents:
 
 ### Privacy
 
-- Sessions are isolated per user
-- No data shared between users
-- Insights stored securely
-- No authentication required (session-based)
+**CouchLoop EQ stores zero personal data.**
+
+| What We Store | What We Don't |
+|---------------|---------------|
+| Session IDs (anonymous) | ❌ Emails |
+| Your saved insights | ❌ Names |
+| Checkpoint progress | ❌ Passwords |
+| Journey state | ❌ API keys / secrets |
+
+- **No authentication required** — sessions are completely anonymous
+- **No tracking** — no analytics, no telemetry, no cookies
+- **No data sharing** — nothing goes to third parties
+- **Sessions isolated** — no data shared between users
+- **You control deletion** — your session, your data
 
 ---
 
