@@ -6,9 +6,55 @@
 
 import { z } from 'zod';
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
-import { VersionChecker } from '../developer/validators/version-checker.js';
-import { DependencyUpdater } from '../developer/updaters/dependency-updater.js';
+import { VersionChecker, DeprecatedAPIPattern } from '../developer/validators/version-checker.js';
+import { DependencyUpdater, RiskAssessment, MigrationResource } from '../developer/updaters/dependency-updater.js';
 import { logger } from '../utils/logger.js';
+
+// Type definitions for check-versions
+interface SecurityVulnerability {
+  severity: string;
+  description: string;
+  fixedIn?: string;
+  cve?: string;
+}
+
+interface UpgradeReportSimplified {
+  upgradeCommand: string;
+  installCommand: string;
+  complexity: string;
+  estimatedTime: string;
+  breakingChanges: Array<{ description: string }>;
+  risks: RiskAssessment;
+  testingStrategy: string[];
+}
+
+interface PackageResult {
+  name: string;
+  currentVersion: string;
+  latestVersion: string;
+  isOutdated: boolean;
+  isDeprecated: boolean;
+  updateComplexity: string;
+  majorVersionsBehind?: number;
+  minorVersionsBehind?: number;
+  securityVulnerabilities?: SecurityVulnerability[];
+  upgradeReport?: UpgradeReportSimplified;
+  resources?: MigrationResource[];
+}
+
+interface VersionCheckResult {
+  status: string;
+  timestamp: string;
+  packages?: PackageResult[];
+  deprecatedAPIs?: DeprecatedAPIPattern[];
+  apiWarnings?: string[];
+  summary?: VersionCheckSummary;
+  code?: string;
+}
+
+interface VersionCheckSummary {
+  checksPerformed: string[];
+}
 
 const CheckVersionsInputSchema = z.object({
   packages: z.array(
@@ -100,7 +146,7 @@ export async function handleCheckVersions(input: unknown): Promise<object> {
     const versionChecker = new VersionChecker();
     const dependencyUpdater = new DependencyUpdater();
 
-    const result: any = {
+    const result: VersionCheckResult = {
       status: 'success',
       timestamp: new Date().toISOString()
     };
@@ -123,7 +169,7 @@ export async function handleCheckVersions(input: unknown): Promise<object> {
         params.language || 'unknown'
       );
 
-      if (result.deprecatedAPIs.length > 0) {
+      if (result.deprecatedAPIs && result.deprecatedAPIs.length > 0) {
         result.apiWarnings = generateAPIWarnings(result.deprecatedAPIs);
       }
     }
@@ -146,8 +192,8 @@ export async function handleCheckVersions(input: unknown): Promise<object> {
         status: 'success',
         format: 'summary',
         summary: result.summary,
-        outdatedCount: result.packages?.filter((p: any) => p.isOutdated).length || 0,
-        vulnerabilityCount: result.packages?.reduce((sum: number, p: any) =>
+        outdatedCount: result.packages?.filter((p: PackageResult) => p.isOutdated).length || 0,
+        vulnerabilityCount: result.packages?.reduce((sum: number, p: PackageResult) =>
           sum + (p.securityVulnerabilities?.length || 0), 0) || 0,
         deprecatedAPICount: result.deprecatedAPIs?.length || 0,
         actionItems: generateActionItems(result)
@@ -187,19 +233,19 @@ async function checkPackageVersions(
   dependencyUpdater: DependencyUpdater,
   includeUpgradePath: boolean,
   checkSecurity: boolean
-): Promise<any[]> {
+): Promise<PackageResult[]> {
   const results = await Promise.all(
     packages.map(async (pkg) => {
       const versionInfo = await versionChecker.checkVersion(
         pkg.name,
         pkg.version,
-        pkg.registry as any
+        pkg.registry as 'npm' | 'pypi' | 'maven' | 'cargo' | 'gem' | 'nuget' | 'go' | undefined
       );
 
-      const result: any = {
+      const result: PackageResult = {
         name: pkg.name,
         currentVersion: pkg.version || 'unknown',
-        latestVersion: versionInfo.latestVersion,
+        latestVersion: versionInfo.latestVersion || 'unknown',
         isOutdated: versionInfo.isOutdated,
         isDeprecated: versionInfo.isDeprecated,
         updateComplexity: versionInfo.updateComplexity,
@@ -246,15 +292,9 @@ async function checkPackageVersions(
 /**
  * Generate warnings for deprecated APIs
  */
-function generateAPIWarnings(apis: any[]): string[] {
+function generateAPIWarnings(apis: DeprecatedAPIPattern[]): string[] {
   return apis.map(api => {
-    const timeline = {
-      immediate: 'REMOVE IMMEDIATELY',
-      soon: 'Remove soon',
-      planned: 'Plan for removal'
-    };
-
-    return `${timeline[api.timeline as keyof typeof timeline]}: ${api.pattern} (deprecated in ${api.deprecatedSince})
+    return `DEPRECATED: ${api.pattern} (deprecated in ${api.deprecatedSince})
     → Use: ${api.replacement}
     → Reason: ${api.reason}`;
   });
@@ -263,15 +303,15 @@ function generateAPIWarnings(apis: any[]): string[] {
 /**
  * Generate summary of version checks
  */
-function generateSummary(result: any): object {
-  const summary: any = {
+function generateSummary(result: VersionCheckResult): VersionCheckSummary {
+  const summary: VersionCheckSummary = {
     checksPerformed: []
   };
 
   if (result.packages) {
-    const outdated = result.packages.filter((p: any) => p.isOutdated).length;
-    const deprecated = result.packages.filter((p: any) => p.isDeprecated).length;
-    const vulnerable = result.packages.filter((p: any) => p.securityVulnerabilities?.length > 0).length;
+    const outdated = result.packages.filter((p: PackageResult) => p.isOutdated).length;
+    const deprecated = result.packages.filter((p: PackageResult) => p.isDeprecated).length;
+    const vulnerable = result.packages.filter((p: PackageResult) => (p.securityVulnerabilities?.length ?? 0) > 0).length;
 
     summary.checksPerformed.push(`Package version check (${result.packages.length} packages)`);
 
@@ -292,11 +332,11 @@ function generateSummary(result: any): object {
     }
   }
 
-  if (result.deprecatedAPIs?.length > 0) {
-    summary.checksPerformed.push(`API scan (found ${result.deprecatedAPIs.length} deprecated patterns)`);
+  if ((result.deprecatedAPIs?.length ?? 0) > 0) {
+    summary.checksPerformed.push(`API scan (found ${result.deprecatedAPIs!.length} deprecated patterns)`);
   }
 
-  if (result.code && !result.deprecatedAPIs?.length) {
+  if (result.code && !(result.deprecatedAPIs?.length)) {
     summary.checksPerformed.push('Code scan completed (no deprecated patterns found)');
   }
 
@@ -306,15 +346,15 @@ function generateSummary(result: any): object {
 /**
  * Format result as markdown
  */
-function formatAsMarkdown(result: any): string {
+function formatAsMarkdown(result: VersionCheckResult): string {
   let md = '# Version Check Report\n\n';
   md += `Generated: ${result.timestamp}\n\n`;
 
   // Packages section
-  if (result.packages?.length > 0) {
+  if ((result.packages?.length ?? 0) > 0) {
     md += '## Package Updates\n\n';
 
-    for (const pkg of result.packages) {
+    for (const pkg of result.packages!) {
       const status = pkg.isOutdated ? '🔴 OUTDATED' : pkg.isDeprecated ? '🟡 DEPRECATED' : '✅ CURRENT';
       md += `### ${pkg.name} ${status}\n`;
       md += `- Current: ${pkg.currentVersion}\n`;
@@ -324,9 +364,9 @@ function formatAsMarkdown(result: any): string {
         md += `- Behind: ${pkg.majorVersionsBehind} major version(s)\n`;
       }
 
-      if (pkg.securityVulnerabilities?.length > 0) {
-        md += `- **Security Issues**: ${pkg.securityVulnerabilities.length}\n`;
-        for (const vuln of pkg.securityVulnerabilities.slice(0, 2)) {
+      if ((pkg.securityVulnerabilities?.length ?? 0) > 0) {
+        md += `- **Security Issues**: ${pkg.securityVulnerabilities!.length}\n`;
+        for (const vuln of pkg.securityVulnerabilities!.slice(0, 2)) {
           md += `  - [${vuln.severity.toUpperCase()}] ${vuln.description}\n`;
         }
       }
@@ -350,22 +390,22 @@ function formatAsMarkdown(result: any): string {
   }
 
   // Deprecated APIs section
-  if (result.deprecatedAPIs?.length > 0) {
-    md += '## Deprecated API Patterns Detected\n\n';
+  if ((result.deprecatedAPIs?.length ?? 0) > 0) {
+    md += '## Deprecated API Patterns Detected\\n\\n';
 
-    for (const api of result.deprecatedAPIs) {
-      md += `### ${api.pattern}\n`;
-      md += `- Status: ${api.timeline}\n`;
-      md += `- Deprecated: ${api.deprecatedSince}\n`;
-      md += `- Reason: ${api.reason}\n`;
-      md += `- Use instead: \`${api.replacement}\`\n\n`;
+    for (const api of result.deprecatedAPIs!) {
+      md += `### ${api.pattern}\\n`;
+      md += `- Library: ${api.library}\\n`;
+      md += `- Deprecated: ${api.deprecatedSince}\\n`;
+      md += `- Reason: ${api.reason}\\n`;
+      md += `- Use instead: \`${api.replacement}\`\\n\\n`;
     }
   }
 
   // Summary section
-  if (result.summary?.checksPerformed?.length > 0) {
+  if ((result.summary?.checksPerformed?.length ?? 0) > 0) {
     md += '## Summary\n\n';
-    for (const item of result.summary.checksPerformed) {
+    for (const item of result.summary!.checksPerformed) {
       md += `- ${item}\n`;
     }
   }
@@ -376,31 +416,31 @@ function formatAsMarkdown(result: any): string {
 /**
  * Generate action items
  */
-function generateActionItems(result: any): string[] {
+function generateActionItems(result: VersionCheckResult): string[] {
   const items: string[] = [];
 
   if (result.packages) {
-    const critical = result.packages.filter((p: any) =>
-      p.securityVulnerabilities?.some((v: any) => v.severity === 'critical')
+    const critical = result.packages.filter((p: PackageResult) =>
+      p.securityVulnerabilities?.some((v: SecurityVulnerability) => v.severity === 'critical')
     );
 
     if (critical.length > 0) {
-      items.push(`CRITICAL: Update ${critical.map((p: any) => p.name).join(', ')} immediately for security`);
+      items.push(`CRITICAL: Update ${critical.map((p: PackageResult) => p.name).join(', ')} immediately for security`);
     }
 
-    const outdated = result.packages.filter((p: any) => p.isOutdated && !p.securityVulnerabilities?.length);
+    const outdated = result.packages.filter((p: PackageResult) => p.isOutdated && !p.securityVulnerabilities?.length);
     if (outdated.length > 0) {
       items.push(`Update ${outdated.length} outdated package(s) to latest versions`);
     }
 
-    const deprecated = result.packages.filter((p: any) => p.isDeprecated);
+    const deprecated = result.packages.filter((p: PackageResult) => p.isDeprecated);
     if (deprecated.length > 0) {
       items.push(`Plan migration away from ${deprecated.length} deprecated package(s)`);
     }
   }
 
-  if (result.deprecatedAPIs?.length > 0) {
-    items.push(`Remove ${result.deprecatedAPIs.length} deprecated API pattern(s) from code`);
+  if ((result.deprecatedAPIs?.length ?? 0) > 0) {
+    items.push(`Remove ${result.deprecatedAPIs!.length} deprecated API pattern(s) from code`);
   }
 
   if (items.length === 0) {
