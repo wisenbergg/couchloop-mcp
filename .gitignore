@@ -221,3 +221,6 @@ k8s/oauth/
 
 # GitHub workflows (may contain secrets)
 .github/workflows/*.disabled
+
+# Screenshots
+assets/screenshots/*.png
