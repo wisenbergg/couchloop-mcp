@@ -61,6 +61,12 @@ Unlike raw LLMs that can hallucinate packages, generate insecure code, and lose 
 - **Crisis Detection**: Integration with therapeutic AI for emotional support
 - **Memory Context**: Preserves important insights and checkpoints
 
+### Privacy by Design
+- **No personal data stored**: No emails, names, passwords, or API keys
+- **Session-based isolation**: Each session is anonymous and isolated
+- **Your data stays yours**: Insights and context are tied to session IDs, not identities
+- **No tracking**: No analytics, no telemetry, no third-party data sharing
+
 ## Quick Start
 
 CouchLoop EQ is a standard MCP server that works with **any MCP-compatible client**—Claude Desktop, ChatGPT, Cursor, Windsurf, VS Code, and more.

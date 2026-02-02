@@ -235,6 +235,22 @@ Each piece persisted across context window resets, enabling continuous progress.
 
 ---
 
+## Privacy
+
+**CouchLoop EQ stores zero personal data.**
+
+| What We Store | What We Don't |
+|---------------|---------------|
+| Session IDs (anonymous) | ❌ Emails |
+| Your saved insights | ❌ Names |
+| Checkpoint progress | ❌ Passwords |
+| Context you explicitly save | ❌ API keys / secrets |
+
+- **No authentication required** — sessions are anonymous
+- **No tracking** — no analytics, no telemetry
+- **No data sharing** — nothing goes to third parties
+- **You control deletion** — your session, your data
+
 ## Support
 
 - [GitHub Issues](https://github.com/wisenbergg/couchloop-mcp/issues)

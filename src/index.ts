@@ -5,7 +5,9 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
   ListResourcesRequestSchema,
-  ReadResourceRequestSchema
+  ReadResourceRequestSchema,
+  ListPromptsRequestSchema,
+  GetPromptRequestSchema
 } from '@modelcontextprotocol/sdk/types.js';
 import dotenv from 'dotenv';
 import { setupTools } from './tools/index.js';
@@ -35,6 +37,7 @@ async function main() {
         capabilities: {
           tools: {},
           resources: {},
+          prompts: {},
         },
       }
     );
@@ -86,6 +89,102 @@ async function main() {
     });
 
     logger.info('Resources registered');
+
+    // Set up prompts
+    const prompts = [
+      {
+        name: 'daily-reflection',
+        description: 'Start a guided daily reflection session to process your day',
+        arguments: [
+          { name: 'mood', description: 'Your current mood (optional)', required: false }
+        ]
+      },
+      {
+        name: 'code-review',
+        description: 'Review code for security issues, code smells, and best practices',
+        arguments: [
+          { name: 'code', description: 'The code to review', required: true },
+          { name: 'language', description: 'Programming language', required: false }
+        ]
+      },
+      {
+        name: 'validate-dependencies',
+        description: 'Validate package dependencies for hallucinated or vulnerable packages',
+        arguments: [
+          { name: 'packages', description: 'Comma-separated list of packages to validate', required: true }
+        ]
+      },
+      {
+        name: 'sprint-kickoff',
+        description: 'Start a new sprint session to capture context and decisions',
+        arguments: [
+          { name: 'sprint_name', description: 'Name or identifier for the sprint', required: true }
+        ]
+      }
+    ];
+
+    server.setRequestHandler(ListPromptsRequestSchema, async () => ({
+      prompts
+    }));
+
+    server.setRequestHandler(GetPromptRequestSchema, async (request: any) => {
+      const prompt = prompts.find(p => p.name === request.params.name);
+      if (!prompt) {
+        throw new Error(`Prompt not found: ${request.params.name}`);
+      }
+
+      const args = request.params.arguments || {};
+      let messages: Array<{ role: string; content: { type: string; text: string } }> = [];
+
+      switch (prompt.name) {
+        case 'daily-reflection':
+          messages = [{
+            role: 'user',
+            content: {
+              type: 'text',
+              text: `Start a daily reflection session${args.mood ? ` (current mood: ${args.mood})` : ''}. Use the create_session tool with journey_slug "daily-reflection".`
+            }
+          }];
+          break;
+
+        case 'code-review':
+          messages = [{
+            role: 'user',
+            content: {
+              type: 'text',
+              text: `Review this code for issues:\n\n\`\`\`${args.language || ''}\n${args.code}\n\`\`\`\n\nUse scan_security, pre_review_code, and detect_code_smell tools to analyze.`
+            }
+          }];
+          break;
+
+        case 'validate-dependencies':
+          messages = [{
+            role: 'user',
+            content: {
+              type: 'text',
+              text: `Validate these packages: ${args.packages}\n\nUse the validate_packages tool to check if they exist and are safe.`
+            }
+          }];
+          break;
+
+        case 'sprint-kickoff':
+          messages = [{
+            role: 'user',
+            content: {
+              type: 'text',
+              text: `Start a new sprint session for "${args.sprint_name}". Use create_session to establish context, then use preserve_context to store the sprint goals.`
+            }
+          }];
+          break;
+      }
+
+      return {
+        description: prompt.description,
+        messages
+      };
+    });
+
+    logger.info('Prompts registered');
 
     // Start the server with stdio transport
     const transport = new StdioServerTransport();

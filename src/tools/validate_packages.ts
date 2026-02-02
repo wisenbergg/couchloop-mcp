@@ -44,11 +44,12 @@ export const validatePackagesTool: Tool = {
         items: {
           type: 'object',
           properties: {
-            name: { type: 'string' },
-            version: { type: 'string' },
+            name: { type: 'string', description: 'Package name to validate' },
+            version: { type: 'string', description: 'Specific version to check (optional)' },
             registry: {
               type: 'string',
-              enum: ['npm', 'pypi', 'maven']
+              enum: ['npm', 'pypi', 'maven'],
+              description: 'Package registry (npm, pypi, or maven)'
             }
           },
           required: ['name']
@@ -58,7 +59,8 @@ export const validatePackagesTool: Tool = {
       language: {
         type: 'string',
         enum: ['javascript', 'typescript', 'python', 'java', 'unknown'],
-        default: 'unknown'
+        default: 'unknown',
+        description: 'Programming language of the code being validated'
       },
       autoFix: {
         type: 'boolean',
