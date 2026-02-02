@@ -29,7 +29,7 @@ async function createMCPServer(): Promise<Server> {
   const server = new Server(
     {
       name: 'couchloop-mcp',
-      version: '1.0.2',
+      version: '1.1.3',
     },
     {
       capabilities: {
