@@ -105,13 +105,13 @@ TEST_COVERAGE_*.md
 # PREVIOUSLY ADDED CLEANUP - Added Jan 20, 2026
 # ============================================
 
-# Test/Analysis Scripts (20+ files)
-test-*.ts
-test-*.sh
-analyze-*.ts
-check-*.ts
-query-*.ts
-verify-*.ts
+# Test/Analysis Scripts (20+ files - root only)
+/test-*.ts
+/test-*.sh
+/analyze-*.ts
+/check-*.ts
+/query-*.ts
+/verify-*.ts
 examine-*.ts
 quick-test.ts
 claude-sessions-deep-dive.ts
