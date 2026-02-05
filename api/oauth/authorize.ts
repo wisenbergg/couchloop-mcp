@@ -10,7 +10,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     client_id,
     redirect_uri,
     response_type,
-    scope,
+    // scope - TODO: validate and use scope in token generation
     state,
   } = req.query;
 
