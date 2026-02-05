@@ -8,6 +8,29 @@ import { NotFoundError } from '../utils/errors.js';
 import { v4 as uuidv4 } from 'uuid';
 import type { ShrinkResponse } from '../clients/shrinkChatClient.js';
 import { EvaluationEngine, type EvaluationResult, type SessionContext } from '../governance/evaluationEngine.js';
+import { getOrCreateSession } from './session-manager.js';
+
+// Overall timeout for sendMessage - must be shorter than Smithery/proxy timeout
+const SEND_MESSAGE_TIMEOUT: number = parseInt(process.env.SEND_MESSAGE_TIMEOUT || '25000');
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timeoutId: NodeJS.Timeout;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+
+  try {
+    const result: T = await Promise.race([promise, timeoutPromise]);
+    clearTimeout(timeoutId!);
+    return result;
+  } catch (error) {
+    clearTimeout(timeoutId!);
+    throw error;
+  }
+}
 
 // Initialize governance engine (singleton)
 let governanceEngine: EvaluationEngine | null = null;
@@ -22,7 +45,7 @@ function getGovernanceEngine(): EvaluationEngine {
 
 // Input validation schema
 const SendMessageSchema = z.object({
-  session_id: z.string().uuid(),
+  session_id: z.string().uuid().optional(),
   message: z.string().min(1).max(10000),
   conversation_type: z.string().optional(),
   system_prompt: z.string().optional(),
@@ -33,18 +56,27 @@ const SendMessageSchema = z.object({
 });
 
 /**
- * TRULY SIMPLE sendMessage
- *
- * Just use shrink-chat's existing crisis detection to trigger self-correction.
- * No additional patterns. No complex logic.
+ * sendMessage - wrapped with overall timeout to prevent Smithery proxy aborts.
+ * Uses shrink-chat's existing crisis detection to trigger self-correction.
  */
 export async function sendMessage(args: unknown) {
+  return withTimeout(sendMessageInternal(args), SEND_MESSAGE_TIMEOUT, 'sendMessage');
+}
+
+async function sendMessageInternal(args: unknown) {
 
   try {
     const input = SendMessageSchema.parse(args);
     const db = getDb();
 
-    logger.info(`Sending message for session ${input.session_id}`);
+    // Get or create session implicitly if not provided
+    const { sessionId, isNew } = await getOrCreateSession(
+      input.session_id,
+      undefined,
+      'Message session'
+    );
+
+    logger.info(`Sending message for session ${sessionId}${isNew ? ' (newly created)' : ''}`);
 
     // Parallelize session and checkpoint queries (saves ~150ms)
     // These can run simultaneously since both just need the session ID
@@ -52,12 +84,12 @@ export async function sendMessage(args: unknown) {
       // Get session
       db.select()
         .from(sessions)
-        .where(eq(sessions.id, input.session_id))
+        .where(eq(sessions.id, sessionId))
         .limit(1),
       // Get conversation history - optimized with limit
       db.select()
         .from(checkpoints)
-        .where(eq(checkpoints.sessionId, input.session_id))
+        .where(eq(checkpoints.sessionId, sessionId))
         .orderBy(desc(checkpoints.createdAt))
         .limit(30) // Fetch enough to get 10 message pairs after filtering
     ]);
@@ -66,7 +98,7 @@ export async function sendMessage(args: unknown) {
     const previousCheckpoints = checkpointsResult;
 
     if (!session) {
-      throw new NotFoundError(`Session ${input.session_id} not found`);
+      throw new NotFoundError(`Session ${sessionId} not found`);
     }
 
     // Get or create thread ID
@@ -75,7 +107,7 @@ export async function sendMessage(args: unknown) {
       threadId = uuidv4();
       await db.update(sessions)
         .set({ threadId })
-        .where(eq(sessions.id, input.session_id));
+        .where(eq(sessions.id, sessionId));
     }
 
     // Build context (keeping existing context building)
@@ -161,15 +193,12 @@ export async function sendMessage(args: unknown) {
 
     let selfCorrected = false;
 
-    // Debug log the full response to see what we're getting
-    logger.info('[DEBUG] Full shrink-chat response:', JSON.stringify({
+    // Log crisis fields at debug level (avoids JSON.stringify overhead in production)
+    logger.debug('[Shrink-chat] Crisis fields:', {
       crisis_requires_intervention: response.crisis_requires_intervention,
       crisis_level: response.crisis_level,
-      crisisLevel: response.crisisLevel,
       crisis_confidence: response.crisis_confidence,
-      crisis_indicators: response.crisis_indicators,
-      crisis_suggested_actions: response.crisis_suggested_actions
-    }, null, 2));
+    });
 
     // Check if we need intervention (check both field names and crisis level)
     const needsIntervention = response.crisis_requires_intervention === true ||
@@ -494,14 +523,17 @@ async function handleCrisisDetection(
 /**
  * Fallback handler - keep existing
  */
-async function handleLocalFallback(args: unknown): Promise<any> {
+async function handleLocalFallback(args: unknown): Promise<unknown> {
   const input = SendMessageSchema.parse(args);
   const db = getDb();
+
+  // Get or create session implicitly
+  const { sessionId } = await getOrCreateSession(input.session_id);
 
   const [session] = await db
     .select()
     .from(sessions)
-    .where(eq(sessions.id, input.session_id))
+    .where(eq(sessions.id, sessionId))
     .limit(1);
 
   if (!session) {

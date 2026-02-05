@@ -21,7 +21,7 @@ import { sendMessage } from '../tools/sendMessage.js';
 import { createSession } from '../tools/session.js';
 import { initDatabase } from '../db/client.js';
 import { handleSSE, cleanupSessions } from './sse.js';
-import { handleChatGPTMCP } from './chatgpt-mcp.js';
+import { handleChatGPTMCP } from './http-mcp.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -30,8 +30,8 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(cookieParser());
 
 // Use enhanced CORS with Local Network Access support
@@ -522,6 +522,36 @@ components:
 `;
 
   res.type('text/yaml').send(openApiSpec);
+});
+
+// ====================
+// Error Handling
+// ====================
+
+/**
+ * Global error handler for request-level errors
+ * Handles client disconnects, oversized payloads, malformed JSON
+ */
+app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
+  // Client disconnected before request completed (Smithery proxy timeout, etc.)
+  if (err.type === 'request.aborted') {
+    logger.debug('Client disconnected before request completed');
+    return;
+  }
+
+  // Request body exceeds size limit
+  if (err.type === 'entity.too.large') {
+    res.status(413).json({ error: 'Request body too large' });
+    return;
+  }
+
+  // Malformed JSON in request body
+  if (err.type === 'entity.parse.failed') {
+    res.status(400).json({ error: 'Malformed JSON in request body' });
+    return;
+  }
+
+  next(err);
 });
 
 // Start server

@@ -1,6 +1,7 @@
 /**
- * Custom MCP handler for ChatGPT Developer Mode
- * Implements MCP protocol directly over HTTP without StreamableHTTPServerTransport
+ * HTTP MCP Handler
+ * Implements MCP protocol over HTTP POST for all clients (ChatGPT, Claude Desktop, etc.)
+ * Used by any client connecting to https://mcp.couchloop.com/mcp
  */
 
 import { Request, Response } from 'express';
@@ -40,6 +41,46 @@ const prompts = [
     description: 'Start a new sprint session to capture context and decisions',
     arguments: [
       { name: 'sprint_name', description: 'Name or identifier for the sprint', required: true }
+    ]
+  },
+  {
+    name: 'security-audit',
+    description: 'Comprehensive security scan of code for vulnerabilities',
+    arguments: [
+      { name: 'code', description: 'The code to audit', required: true },
+      { name: 'language', description: 'Programming language', required: false }
+    ]
+  },
+  {
+    name: 'pre-commit-check',
+    description: 'Full code quality check before committing - security, smells, and review',
+    arguments: [
+      { name: 'code', description: 'The code to check', required: true },
+      { name: 'language', description: 'Programming language', required: false }
+    ]
+  },
+  {
+    name: 'check-outdated-deps',
+    description: 'Find outdated or deprecated dependencies in your project',
+    arguments: [
+      { name: 'packages', description: 'Comma-separated list of packages to check', required: true },
+      { name: 'registry', description: 'Package registry (npm, pypi, maven)', required: false }
+    ]
+  },
+  {
+    name: 'save-architecture',
+    description: 'Store current architecture decisions and technical patterns for future reference',
+    arguments: [
+      { name: 'content', description: 'Architecture decision or pattern to preserve', required: true },
+      { name: 'category', description: 'Category: architecture, requirements, constraints, decisions, technical-patterns', required: false }
+    ]
+  },
+  {
+    name: 'retrieve-context',
+    description: 'Retrieve stored context - either recent context or search for specific topic',
+    arguments: [
+      { name: 'search_term', description: 'Optional search term (e.g., "email persistence issue")', required: false },
+      { name: 'category', description: 'Filter by category: architecture, requirements, constraints, decisions, technical-patterns', required: false }
     ]
   }
 ];
@@ -337,6 +378,58 @@ export async function handleChatGPTMCP(req: Request, res: Response) {
               content: {
                 type: 'text',
                 text: `Start a new sprint session for "${args.sprint_name}". Use create_session to establish context, then use preserve_context to store the sprint goals.`
+              }
+            }];
+            break;
+
+          case 'security-audit':
+            messages = [{
+              role: 'user',
+              content: {
+                type: 'text',
+                text: `Perform a comprehensive security audit on this code:\n\n\`\`\`${args.language || ''}\n${args.code}\n\`\`\`\n\nUse scan_security with scanType "thorough" to detect SQL injection, XSS, hardcoded secrets, and other vulnerabilities.`
+              }
+            }];
+            break;
+
+          case 'pre-commit-check':
+            messages = [{
+              role: 'user',
+              content: {
+                type: 'text',
+                text: `Run a full pre-commit quality check on this code:\n\n\`\`\`${args.language || ''}\n${args.code}\n\`\`\`\n\nUse all three tools:\n1. scan_security - check for vulnerabilities\n2. pre_review_code - catch console.logs, TODOs, missing error handling\n3. detect_code_smell - find over-engineering and bloat\n\nProvide a summary of issues found.`
+              }
+            }];
+            break;
+
+          case 'check-outdated-deps':
+            messages = [{
+              role: 'user',
+              content: {
+                type: 'text',
+                text: `Check these packages for outdated versions and deprecated APIs: ${args.packages}${args.registry ? ` (registry: ${args.registry})` : ''}\n\nUse check_versions tool with checkDeprecated=true and includeUpgradePath=true to identify outdated dependencies and migration paths.`
+              }
+            }];
+            break;
+
+          case 'save-architecture':
+            messages = [{
+              role: 'user',
+              content: {
+                type: 'text',
+                text: `Save this architecture decision for future reference:\n\n${args.content}\n\nUse preserve_context with action "store" and category "${args.category || 'architecture'}" to preserve this context.`
+              }
+            }];
+            break;
+
+          case 'retrieve-context':
+            messages = [{
+              role: 'user',
+              content: {
+                type: 'text',
+                text: args.search_term 
+                  ? `Retrieve stored context matching: "${args.search_term}"${args.category ? ` in category "${args.category}"` : ''}.\n\nUse preserve_context with action "retrieve" and search_term "${args.search_term}".`
+                  : `Retrieve recent stored context${args.category ? ` from category "${args.category}"` : ''}.\n\nUse preserve_context with action "retrieve" to get the most recent context.`
               }
             }];
             break;

@@ -4,21 +4,29 @@ import { eq } from 'drizzle-orm';
 import { SaveCheckpointSchema } from '../types/checkpoint.js';
 import { handleError, NotFoundError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
+import { getOrCreateSession } from './session-manager.js';
 
 export async function saveCheckpoint(args: any) {
   try {
     const input = SaveCheckpointSchema.parse(args);
     const db = getDb();
 
-    // Verify session exists and is active
+    // Get or create session implicitly if not provided
+    const { sessionId, isNew } = await getOrCreateSession(
+      input.session_id,
+      input.auth,
+      'Checkpoint session'
+    );
+
+    // Fetch the session
     const [session] = await db
       .select()
       .from(sessions)
-      .where(eq(sessions.id, input.session_id))
+      .where(eq(sessions.id, sessionId))
       .limit(1);
 
     if (!session) {
-      throw new NotFoundError('Session', input.session_id);
+      throw new NotFoundError('Session', sessionId);
     }
 
     if (session.status !== 'active') {
@@ -76,7 +84,7 @@ export async function saveCheckpoint(args: any) {
     const checkpointResult = await db
       .insert(checkpoints)
       .values({
-        sessionId: input.session_id,
+        sessionId: sessionId,
         stepId: stepId,
         key: input.key,
         value: input.value,
@@ -89,6 +97,8 @@ export async function saveCheckpoint(args: any) {
 
     return {
       checkpoint_id: checkpoint.id,
+      session_id: sessionId,
+      session_created: isNew,
       next_step: nextStep,
       journey_complete: journeyComplete,
       message: journeyComplete
@@ -105,29 +115,33 @@ export async function saveCheckpoint(args: any) {
 
 export async function getCheckpoints(args: any) {
   try {
-    const { session_id } = args;
+    const { session_id, auth } = args;
     const db = getDb();
+
+    // Get or create session implicitly if not provided
+    const { sessionId, isNew } = await getOrCreateSession(session_id, auth);
 
     // Verify session exists
     const [session] = await db
       .select()
       .from(sessions)
-      .where(eq(sessions.id, session_id))
+      .where(eq(sessions.id, sessionId))
       .limit(1);
 
     if (!session) {
-      throw new NotFoundError('Session', session_id);
+      throw new NotFoundError('Session', sessionId);
     }
 
     // Get all checkpoints
     const sessionCheckpoints = await db
       .select()
       .from(checkpoints)
-      .where(eq(checkpoints.sessionId, session_id))
+      .where(eq(checkpoints.sessionId, sessionId))
       .orderBy(checkpoints.createdAt);
 
     return {
-      session_id: session_id,
+      session_id: sessionId,
+      session_created: isNew,
       checkpoints: sessionCheckpoints,
       count: sessionCheckpoints.length,
     };
