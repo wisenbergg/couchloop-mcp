@@ -93,7 +93,7 @@
     "registry": "https://registry.npmjs.org/"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.25.2",
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "@supabase/supabase-js": "^2.39.0",
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
