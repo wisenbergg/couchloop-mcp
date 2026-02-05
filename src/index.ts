@@ -13,7 +13,9 @@ import dotenv from 'dotenv';
 import { setupTools } from './tools/index.js';
 import { setupResources } from './resources/index.js';
 import { logger } from './utils/logger.js';
-import { initDatabase } from './db/client.js';
+import { initDatabase, getDb } from './db/client.js';
+import { governancePreCheck, governancePostCheck } from './governance/middleware.js';
+import { governanceAuditLog } from './db/schema.js';
 
 // Load environment variables
 dotenv.config({ path: '.env.local' });
@@ -50,15 +52,96 @@ async function main() {
       tools: tools.map(t => t.definition)
     }));
 
-    server.setRequestHandler(CallToolRequestSchema, async (request: any) => {
-      const tool = tools.find(t => t.definition.name === request.params.name);
+    server.setRequestHandler(CallToolRequestSchema, async (request: { params: { name: string; arguments?: Record<string, unknown> } }) => {
+      const toolName = request.params.name;
+      const args = request.params.arguments || {};
+      
+      const tool = tools.find(t => t.definition.name === toolName);
       if (!tool) {
-        throw new Error(`Tool ${request.params.name} not found`);
+        throw new Error(`Tool ${toolName} not found`);
       }
 
-      const result = await tool.handler(request.params.arguments || {});
+      // ═══════════════════════════════════════════════
+      // GOVERNANCE PRE-CHECK
+      // ═══════════════════════════════════════════════
+      const preCheck = await governancePreCheck(toolName, args);
+      
+      if (!preCheck.allowed) {
+        logger.warn(`[Governance] BLOCKED ${toolName}:`, preCheck.issues);
+        
+        // Log to audit
+        try {
+          const db = getDb();
+          await db.insert(governanceAuditLog).values({
+            actionType: 'pre_check_block',
+            reason: preCheck.issues.join('; '),
+            confidenceScore: Math.round(preCheck.confidence * 100),
+            metadata: {
+              tool: toolName,
+              issues: preCheck.issues,
+              blocked: true,
+            },
+          });
+        } catch (auditError) {
+          logger.warn('Failed to log governance audit:', auditError);
+        }
+        
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              blocked: true,
+              reason: 'Governance pre-check failed',
+              issues: preCheck.issues,
+              confidence: preCheck.confidence,
+            }, null, 2)
+          }]
+        };
+      }
+
+      // ═══════════════════════════════════════════════
+      // EXECUTE TOOL
+      // ═══════════════════════════════════════════════
+      const result = await tool.handler(args);
+
+      // ═══════════════════════════════════════════════
+      // GOVERNANCE POST-CHECK
+      // ═══════════════════════════════════════════════
+      const postCheck = await governancePostCheck(toolName, result);
+      
+      if (postCheck.issues.length > 0) {
+        logger.info(`[Governance] Issues detected in ${toolName} output:`, postCheck.issues);
+        
+        // Log to audit (but don't block - shadow mode)
+        try {
+          const db = getDb();
+          await db.insert(governanceAuditLog).values({
+            actionType: 'post_check_warning',
+            reason: postCheck.issues.join('; '),
+            confidenceScore: Math.round(postCheck.confidence * 100),
+            metadata: {
+              tool: toolName,
+              issues: postCheck.issues,
+              blocked: false,
+            },
+          });
+        } catch (auditError) {
+          logger.warn('Failed to log governance audit:', auditError);
+        }
+      }
+
+      // Add governance metadata to response
+      const governedResult = {
+        ...(typeof result === 'object' && result !== null ? result : { value: result }),
+        _governance: {
+          checked: true,
+          issues: postCheck.issues,
+          confidence: postCheck.confidence,
+        }
+      };
+
       return {
-        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }]
+        content: [{ type: 'text', text: JSON.stringify(governedResult, null, 2) }]
       };
     });
 
@@ -72,7 +155,7 @@ async function main() {
       resources: resources.map(r => r.definition)
     }));
 
-    server.setRequestHandler(ReadResourceRequestSchema, async (request: any) => {
+    server.setRequestHandler(ReadResourceRequestSchema, async (request: { params: { uri: string } }) => {
       const resource = resources.find(r => r.definition.uri === request.params.uri);
       if (!resource) {
         throw new Error(`Resource ${request.params.uri} not found`);
@@ -127,7 +210,7 @@ async function main() {
       prompts
     }));
 
-    server.setRequestHandler(GetPromptRequestSchema, async (request: any) => {
+    server.setRequestHandler(GetPromptRequestSchema, async (request: { params: { name: string; arguments?: Record<string, string> } }) => {
       const prompt = prompts.find(p => p.name === request.params.name);
       if (!prompt) {
         throw new Error(`Prompt not found: ${request.params.name}`);
