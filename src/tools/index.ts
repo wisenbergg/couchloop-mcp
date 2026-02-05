@@ -1,4 +1,5 @@
 import { createSession, resumeSession } from './session.js';
+import { endSession } from './session-manager.js';
 import { saveCheckpoint, getCheckpoints } from './checkpoint.js';
 import { listJourneys, getJourneyStatus } from './journey.js';
 import { saveInsight, getInsights, getUserContext } from './insight.js';
@@ -51,7 +52,7 @@ export async function setupTools() {
     {
       definition: {
         name: 'send_message',
-        description: 'Send a message through the therapeutic AI stack with crisis detection and emotional support.',
+        description: 'Send a message through the therapeutic AI stack with crisis detection and emotional support. Session is created automatically if not provided.',
         annotations: {
           readOnlyHint: false,
           destructiveHint: false,
@@ -62,7 +63,7 @@ export async function setupTools() {
           properties: {
             session_id: {
               type: 'string',
-              description: 'Active session ID',
+              description: 'Session ID (optional - auto-created if not provided)',
             },
             message: {
               type: 'string',
@@ -93,7 +94,7 @@ export async function setupTools() {
               description: 'Type of conversation (e.g., "therapeutic", "crisis", "casual")',
             },
           },
-          required: ['session_id', 'message'],
+          required: ['message'],
         },
       },
       handler: sendMessage
@@ -122,8 +123,8 @@ export async function setupTools() {
     },
     {
       definition: {
-        name: 'save_checkpoint',
-        description: 'Save progress or capture a key moment in the current session.',
+        name: 'end_session',
+        description: 'End the current session. Call this when done with stateful operations.',
         annotations: {
           readOnlyHint: false,
           destructiveHint: false,
@@ -134,7 +135,29 @@ export async function setupTools() {
           properties: {
             session_id: {
               type: 'string',
-              description: 'Active session ID',
+              description: 'Session ID to end (optional - ends current session if not provided)',
+            },
+          },
+          required: [],
+        },
+      },
+      handler: endSession
+    },
+    {
+      definition: {
+        name: 'save_checkpoint',
+        description: 'Save progress or capture a key moment. Session is created automatically if not provided.',
+        annotations: {
+          readOnlyHint: false,
+          destructiveHint: false,
+          openWorldHint: false,
+        },
+        inputSchema: {
+          type: 'object',
+          properties: {
+            session_id: {
+              type: 'string',
+              description: 'Session ID (optional - auto-created if not provided)',
             },
             key: {
               type: 'string',
@@ -151,7 +174,7 @@ export async function setupTools() {
               description: 'Whether to advance to next journey step (default: true)',
             },
           },
-          required: ['session_id', 'key', 'value'],
+          required: ['key', 'value'],
         },
       },
       handler: saveCheckpoint
@@ -159,7 +182,7 @@ export async function setupTools() {
     {
       definition: {
         name: 'get_checkpoints',
-        description: 'Get all checkpoints for a session.',
+        description: 'Get all checkpoints for a session. Uses current session if not specified.',
         annotations: {
           readOnlyHint: true,
           destructiveHint: false,
@@ -170,10 +193,10 @@ export async function setupTools() {
           properties: {
             session_id: {
               type: 'string',
-              description: 'Session ID to get checkpoints for',
+              description: 'Session ID (optional - uses current session if not provided)',
             },
           },
-          required: ['session_id'],
+          required: [],
         },
       },
       handler: getCheckpoints

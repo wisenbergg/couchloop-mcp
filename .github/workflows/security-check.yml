@@ -33,6 +33,48 @@ jobs:
         path: ./
         extra_args: --only-verified
 
+    # Block sensitive files from being committed
+    - name: Check for Sensitive Files
+      run: |
+        echo "Checking for files that should not be tracked..."
+        
+        BLOCKED_FILES=""
+        
+        # AI instruction files (may contain internal architecture)
+        if git ls-files | grep -E "^CLAUDE\.md$|^\.claude|^COPILOT\.md$"; then
+          BLOCKED_FILES="$BLOCKED_FILES\n- AI instruction files (CLAUDE.md, etc.)"
+        fi
+        
+        # Archive folder (backup/test files)
+        if git ls-files | grep -E "^archive/"; then
+          BLOCKED_FILES="$BLOCKED_FILES\n- archive/ folder"
+        fi
+        
+        # Session data files
+        if git ls-files | grep -E "session-analysis.*\.(json|md)$|session-.*\.json$"; then
+          BLOCKED_FILES="$BLOCKED_FILES\n- Session analysis/data files"
+        fi
+        
+        # Environment variable extraction files
+        if git ls-files | grep -iE "env-vars|production-.*extracted"; then
+          BLOCKED_FILES="$BLOCKED_FILES\n- Environment variable files"
+        fi
+        
+        # OAuth advanced implementations (security-sensitive)
+        if git ls-files | grep -E "oauth-advanced/"; then
+          BLOCKED_FILES="$BLOCKED_FILES\n- oauth-advanced/ folder"
+        fi
+        
+        if [ -n "$BLOCKED_FILES" ]; then
+          echo "❌ Found sensitive files that should not be tracked:"
+          echo -e "$BLOCKED_FILES"
+          echo ""
+          echo "Run: git rm --cached <file> to remove from tracking"
+          exit 1
+        fi
+        
+        echo "✅ No sensitive files found in repo"
+
     # Check for sensitive patterns in source code
     - name: Check for Hardcoded Values
       run: |
