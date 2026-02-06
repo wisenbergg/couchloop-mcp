@@ -4,14 +4,32 @@ import { getDb } from '../db/client.js';
 import { getShrinkChatClient } from '../clients/shrinkChatClient.js';
 import { sessions, checkpoints, journeys, crisisEvents, governanceEvaluations } from '../db/schema.js';
 import { logger } from '../utils/logger.js';
+import { sanitizeResponse } from '../utils/sanitize.js';
 import { NotFoundError } from '../utils/errors.js';
 import { v4 as uuidv4 } from 'uuid';
 import type { ShrinkResponse } from '../clients/shrinkChatClient.js';
 import { EvaluationEngine, type EvaluationResult, type SessionContext } from '../governance/evaluationEngine.js';
 import { getOrCreateSession } from './session-manager.js';
 
-// Overall timeout for sendMessage - must be shorter than Smithery/proxy timeout
-const SEND_MESSAGE_TIMEOUT: number = parseInt(process.env.SEND_MESSAGE_TIMEOUT || '25000');
+// Type definitions for metadata fields
+interface SessionMetadata {
+  emotionalState?: string;
+  progressIndicators?: string[];
+}
+
+interface CheckpointValue {
+  role?: 'user' | 'assistant';
+  message?: string;
+  response?: string;
+}
+
+interface HistoryEntry {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+// Overall timeout for sendMessage - increased to 60s for slow AI responses
+const SEND_MESSAGE_TIMEOUT: number = parseInt(process.env.SEND_MESSAGE_TIMEOUT || '60000');
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
   let timeoutId: NodeJS.Timeout;
@@ -119,21 +137,21 @@ async function sendMessageInternal(args: unknown) {
     const memoryContext = JSON.stringify({
       userId: session.userId || 'anonymous',
       conversationType: input.conversation_type || 'supportive',
-      sessionGoals: (journey as any)?.metadata?.goals || [],
-      emotionalState: (session.metadata as any)?.emotionalState || 'neutral',
+      sessionGoals: [],
+      emotionalState: (session.metadata as SessionMetadata | undefined)?.emotionalState || 'neutral',
     });
 
     const enhancedContext = {
-      journeyStep: journey && session.currentStep < (journey.steps as any[]).length
-        ? (journey.steps as any[])[session.currentStep]
+      journeyStep: journey && session.currentStep < journey.steps.length
+        ? journey.steps[session.currentStep]
         : null,
-      progressIndicators: (session.metadata as any)?.progressIndicators || [],
+      progressIndicators: (session.metadata as SessionMetadata | undefined)?.progressIndicators || [],
     };
 
-    const history = previousCheckpoints
+    const history: HistoryEntry[] = previousCheckpoints
       .filter(cp => {
         if (!cp.value || typeof cp.value !== 'object') return false;
-        const val = cp.value as any;
+        const val = cp.value as CheckpointValue;
         // Include checkpoints with role field (individual messages)
         if ('role' in val && 'message' in val) return true;
         // Include checkpoints with both message and response (combined format)
@@ -141,16 +159,16 @@ async function sendMessageInternal(args: unknown) {
         return false;
       })
       .flatMap(cp => {
-        const val = cp.value as any;
+        const val = cp.value as CheckpointValue;
         // Handle individual message checkpoints (with role field)
-        if ('role' in val && 'message' in val) {
+        if (val.role && val.message) {
           return [{ role: val.role, content: val.message }];
         }
         // Handle combined checkpoints (with both message and response)
-        if ('message' in val && 'response' in val) {
+        if (val.message && val.response) {
           return [
-            { role: 'user', content: val.message },
-            { role: 'assistant', content: val.response },
+            { role: 'user' as const, content: val.message },
+            { role: 'assistant' as const, content: val.response },
           ];
         }
         return [];
@@ -324,8 +342,8 @@ Suggested approach: ${response.crisis_suggested_actions?.join(', ') || 'De-escal
       logger.error('[Governance] Async evaluation failed:', err);
     });
 
-    // Return response
-    return {
+    // Build full response (for internal logging)
+    const fullResponse = {
       success: true,
       content: responseContent,
       messageId: response.messageId,
@@ -341,6 +359,9 @@ Suggested approach: ${response.crisis_suggested_actions?.join(', ') || 'De-escal
       },
       timestamp: new Date().toISOString(),
     };
+
+    // Return sanitized response (strips sensitive metadata)
+    return sanitizeResponse(fullResponse);
 
   } catch (error) {
     logger.error('Error in sendMessage:', error);

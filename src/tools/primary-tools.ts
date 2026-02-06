@@ -200,13 +200,14 @@ const rememberTool = {
   },
   handler: async (args: Record<string, unknown>) => {
     const action = (args.action as string) || 'save';
+    const sessionId = args.session_id as string | undefined;
     
     switch (action) {
       case 'recall': {
         // Get checkpoints and insights
-        const checkpoints = await getCheckpoints({ session_id: args.session_id });
-        const insights = await getInsights({ session_id: args.session_id, limit: 10 });
-        const userContext = await getUserContext({});
+        const checkpoints = await getCheckpoints({ session_id: sessionId });
+        const insights = await getInsights({ session_id: sessionId, limit: 10 });
+        const userContext = await getUserContext({ include_recent_insights: true, include_session_history: true });
         return {
           checkpoints,
           insights,
@@ -214,7 +215,7 @@ const rememberTool = {
         };
       }
       case 'list':
-        return getInsights({ session_id: args.session_id, limit: 20 });
+        return getInsights({ session_id: sessionId, limit: 20 });
       case 'save':
       default:
         return handleSmartContext({
