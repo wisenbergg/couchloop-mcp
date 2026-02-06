@@ -225,3 +225,4 @@ k8s/oauth/
 # Screenshots
 assets/screenshots/*.png
 CLAUDE.md
+archive/
