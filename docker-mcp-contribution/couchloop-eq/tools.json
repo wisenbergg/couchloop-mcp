@@ -1,0 +1,223 @@
+[
+  {
+    "name": "couchloop",
+    "description": "Universal entry point for CouchLoop. Routes ANY command to the right tool. ALWAYS use for ambiguous/loose commands. Handles: Sessions (\"end session\", \"start\", \"done\", \"wrap up\", \"goodbye\", \"resume\", \"where should I start\", \"hi\", \"hey\"), Status (\"how am I doing\", \"what do you know about me\", \"show my progress\", \"my settings\"), Memory (\"save\", \"remember\", \"checkpoint\", \"recall\"), Code (\"review code\", \"check this\", \"is this safe\"), Packages (\"audit dependencies\", \"npm audit\"), Protection (\"backup\", \"rollback\", \"freeze\"), Wellness (\"I'm stressed\", \"help me\", \"need to talk\"), Verification (\"verify this\", \"check my response\", \"is this correct\").",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "intent": {
+          "type": "string",
+          "description": "Natural language intent. Examples: \"end session\", \"where should I start\", \"verify this code before I show it\", \"what's my status\""
+        },
+        "context": {
+          "type": "string",
+          "description": "Additional context: code to review, message content, response to verify"
+        },
+        "session_id": {
+          "type": "string",
+          "description": "Session ID if known (auto-detected otherwise)"
+        }
+      },
+      "required": ["intent"]
+    }
+  },
+  {
+    "name": "verify",
+    "description": "CRITICAL: Pre-delivery verification for AI-generated content. Call BEFORE presenting code, package recommendations, or factual claims to users. Catches: hallucinated packages (24% of AI suggestions don't exist!), hallucinated APIs, incorrect imports, ESM/CJS confusion, deprecated methods, security vulnerabilities, inconsistencies with previous statements. Returns verification result with fixes if needed.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["code", "packages", "facts", "response", "all"],
+          "description": "What to verify: 'code' for syntax/APIs, 'packages' for npm/pypi existence, 'facts' for claims/statistics, 'response' for governance/tone, 'all' for comprehensive check"
+        },
+        "content": {
+          "type": "string",
+          "description": "The AI-generated content to verify before presenting to user"
+        },
+        "language": {
+          "type": "string",
+          "description": "Programming language for code verification"
+        },
+        "registry": {
+          "type": "string",
+          "enum": ["npm", "pypi", "maven", "cargo", "go", "nuget", "gem"],
+          "description": "Package registry for package verification (default: npm)"
+        },
+        "context": {
+          "type": "string",
+          "description": "Additional context: user's original question, project type, etc."
+        }
+      },
+      "required": ["type", "content"]
+    }
+  },
+  {
+    "name": "status",
+    "description": "Dashboard and quick status checks. Use for: \"how am I doing\", \"what's my progress\", \"show my history\", \"what do you know about me\", \"my settings\", \"context window\", \"backup status\". Returns personalized status with actionable next steps.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "check": {
+          "type": "string",
+          "enum": ["session", "history", "context", "protection", "preferences", "all"],
+          "description": "'session': current progress, time elapsed, checkpoints. 'history': recent sessions, insights, patterns. 'context': stored decisions, constraints, window usage. 'protection': backup status, freeze mode. 'preferences': timezone, journey length. 'all': full dashboard."
+        },
+        "session_id": {
+          "type": "string",
+          "description": "Session ID for session-specific status"
+        }
+      },
+      "required": ["check"]
+    }
+  },
+  {
+    "name": "conversation",
+    "description": "Therapeutic AI conversation with crisis detection, emotional support, and session memory. Auto-manages sessions. Use for emotional/wellness topics. Triggers: \"I'm stressed\", \"feeling overwhelmed\", \"anxious\", \"need to talk\", \"help me\", \"how are you\", \"let's chat\". NOT for code questions. Session actions: 'start' new, 'end' current, 'resume' previous, 'status' check.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "string",
+          "description": "Your message or feeling to explore"
+        },
+        "action": {
+          "type": "string",
+          "enum": ["send", "start", "end", "resume", "status"],
+          "description": "Action: send (default), start new session, end session, resume previous, or get status"
+        },
+        "journey": {
+          "type": "string",
+          "description": "Guided journey: 'daily-reflection', 'gratitude-practice', 'weekly-review', 'stress-release'"
+        },
+        "session_id": {
+          "type": "string",
+          "description": "Session ID (auto-managed if not provided)"
+        }
+      },
+      "required": ["message"]
+    }
+  },
+  {
+    "name": "code_review",
+    "description": "Complete code review with AI error detection. Checks: security vulnerabilities (SQL injection, XSS, secrets), code quality (console.logs, TODOs), code smells (complexity, bloat), AND AI-generated errors (hallucinated APIs, wrong imports, ESM/CJS issues). Use 'verify_before_presenting' mode to check AI-generated code BEFORE showing to user. Triggers: \"review\", \"check code\", \"analyze\", \"security check\", \"is this safe\".",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "description": "Code to review"
+        },
+        "language": {
+          "type": "string",
+          "description": "Programming language (auto-detected if not specified)"
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["full", "security", "quality", "ai_errors", "verify_before_presenting"],
+          "description": "'full': comprehensive review. 'security': vulnerabilities only. 'quality': style/patterns. 'ai_errors': hallucination check. 'verify_before_presenting': quick pre-delivery check."
+        },
+        "auto_fix": {
+          "type": "boolean",
+          "description": "Return auto-fixed version alongside issues (default: false)"
+        },
+        "project_context": {
+          "type": "string",
+          "description": "Project type for build context: 'esm', 'commonjs', 'typescript', 'react', etc."
+        }
+      },
+      "required": ["code"]
+    }
+  },
+  {
+    "name": "package_audit",
+    "description": "Dependency audit with existence validation. CRITICAL: Validates packages actually exist before recommending (catches 24% hallucinated packages). Checks: typosquatting, security vulnerabilities, deprecated versions, maintenance status. Use 'validate_before_recommending' mode BEFORE suggesting packages to users. Triggers: \"audit\", \"check dependencies\", \"outdated\", \"npm audit\", \"is this package real\".",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "packages": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Package names to audit or validate"
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["full", "security", "validate", "outdated", "validate_before_recommending"],
+          "description": "'full': comprehensive audit. 'security': CVE scan. 'validate': existence check only. 'outdated': version drift. 'validate_before_recommending': verify packages exist before suggesting to user."
+        },
+        "registry": {
+          "type": "string",
+          "enum": ["npm", "pypi", "maven", "cargo", "go", "nuget", "gem"],
+          "description": "Package registry (default: npm)"
+        },
+        "include_upgrade_path": {
+          "type": "boolean",
+          "description": "Include upgrade guide with breaking changes and migration steps"
+        }
+      },
+      "required": ["packages"]
+    }
+  },
+  {
+    "name": "remember",
+    "description": "Context persistence across conversations. Prevents AI amnesia. Stores: checkpoints (progress), insights (realizations), decisions (technical choices), requirements, constraints, patterns. Also manages user preferences. Triggers: \"save\", \"remember\", \"checkpoint\", \"don't forget\", \"note this\", \"my preferences\", \"what did I decide\".",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": ["save", "recall", "list", "search", "preferences"],
+          "description": "'save': store new context. 'recall': retrieve specific memory. 'list': show recent. 'search': find by keyword. 'preferences': manage user settings."
+        },
+        "content": {
+          "type": "string",
+          "description": "Content to save, or search query for recall"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["checkpoint", "insight", "decision", "requirement", "constraint", "pattern", "preference"],
+          "description": "Type of context (affects storage and retrieval)"
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Tags for categorization and pattern detection"
+        },
+        "session_id": {
+          "type": "string",
+          "description": "Session to associate with"
+        }
+      },
+      "required": ["action"]
+    }
+  },
+  {
+    "name": "protect",
+    "description": "File protection for safe AI-assisted development. Prevents accidental deletions, creates automatic backups, enables rollback, supports code freeze mode. Triggers: \"backup\", \"protect\", \"freeze\", \"rollback\", \"undo\", \"restore\", \"safe mode\", \"don't delete\".",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": ["check", "backup", "rollback", "freeze", "unfreeze", "status", "history"],
+          "description": "'check': verify operation is safe. 'backup': create backup. 'rollback': restore previous. 'freeze/unfreeze': code freeze mode. 'status': protection status. 'history': backup list."
+        },
+        "path": {
+          "type": "string",
+          "description": "File path for check, backup, rollback"
+        },
+        "operation": {
+          "type": "string",
+          "enum": ["delete", "overwrite", "move"],
+          "description": "Operation type for safety check"
+        },
+        "backup_id": {
+          "type": "string",
+          "description": "Backup ID for rollback"
+        }
+      },
+      "required": ["action"]
+    }
+  }
+]

@@ -2,7 +2,7 @@
  * MCP Tools - Main Export
  * 
  * This module provides two modes:
- * 1. SIMPLE MODE (default): 5 primary tools that bundle all functionality
+ * 1. SIMPLE MODE (default): 8 primary tools that bundle all functionality
  * 2. FULL MODE: All 30 granular tools for power users
  * 
  * Set MCP_TOOL_MODE=full in environment for full mode

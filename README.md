@@ -90,7 +90,7 @@ For Claude Desktop (v0.7.0+), add to `~/Library/Application Support/Claude/claud
 
 Restart Claude and try: **"Start a daily reflection session"**
 
-### Option 2: Run Locally (v1.1.2)
+### Option 2: Run Locally (v1.2.0)
 
 ```bash
 npm install -g couchloop-eq-mcp
@@ -135,42 +135,38 @@ For local development:
 - Use ngrok or deploy your own server
 - Follow setup in [CHATGPT_SETUP.md](CHATGPT_SETUP.md)
 
-## Available Tools (23 total)
+## Available Tools (6 Primary)
 
-### Session & Journey
+CouchLoop EQ v1.2.0 uses a simplified 6-tool architecture. The `couchloop` meta-tool acts as an intelligent router—just say what you want in natural language.
+
+### Universal Entry Point
 | Tool | Description |
 |------|-------------|
-| `create_session` | Start a new guided session, optionally with a journey |
-| `resume_session` | Resume a previously paused session |
-| `send_message` | Send a message through the therapeutic AI stack |
-| `save_checkpoint` | Save progress or capture a key moment |
-| `get_checkpoints` | Retrieve all checkpoints for a session |
-| `list_journeys` | List available guided journeys |
-| `get_journey_status` | Get current progress in a session/journey |
-| `save_insight` | Capture a meaningful insight from the conversation |
-| `get_insights` | Retrieve saved insights |
-| `get_user_context` | Get relevant context for personalization |
+| `couchloop` | **Intent router** — Routes any loose command to the right tool. Use for: "end session", "save this", "review code", "help me", etc. |
 
-### Developer Safety
+### Domain Tools
 | Tool | Description |
 |------|-------------|
-| `validate_packages` | Catch hallucinated npm/PyPI/Maven packages before install |
-| `validate_library_versions` | Check for deprecated APIs and outdated patterns |
-| `scan_security` | Detect SQL injection, XSS, hardcoded secrets |
-| `pre_review_code` | Screen AI code for console.logs, TODOs, missing error handling |
-| `detect_code_smell` | Find verbose, over-engineered, or bloated code |
+| `conversation` | Therapeutic AI conversation with crisis detection and session memory. Actions: start, send, end, resume, status |
+| `code_review` | Complete code analysis — security vulnerabilities, code smells, AI-generated errors |
+| `package_audit` | Dependency audit — validates packages exist, checks versions, finds vulnerabilities |
+| `remember` | Save and recall context, checkpoints, insights across sessions |
+| `protect` | File protection — backup, freeze, rollback, restore |
 
-### Context & File Protection
-| Tool | Description |
-|------|-------------|
-| `preserve_context` | Store architecture decisions across conversations |
-| `get_operation_history` | Review file operations that were attempted |
-| `enable_code_freeze` | Protect critical files from modification |
-| `disable_code_freeze` | Re-enable file modifications |
-| `protect_files` | Validate operations against protected paths |
-| `rollback_file` | Restore files from backup snapshots |
-| `get_protection_status` | View current file protection config |
-| `list_backups` | See available backup snapshots |
+### Usage Examples
+
+```
+# Via intent router (recommended for loose commands)
+"end session"          → couchloop routes to conversation(action: end)
+"save this for later"  → couchloop routes to remember(action: save)
+"review my code"       → couchloop routes to code_review
+"what can you do"      → couchloop returns capabilities list
+
+# Direct tool calls (for precise control)
+conversation(action: "start", message: "Begin daily reflection")
+remember(action: "recall")  # Get saved context
+code_review(code: "function foo()...")  # Analyze code
+```
 
 ## Real-World Usage
 

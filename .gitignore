@@ -65,9 +65,6 @@ temp/
 # Claude local files
 .claude/
 
-# Docker MCP contribution (in separate fork)
-docker-mcp-contribution/
-
 # Test data
 test-checkpoint.json
 
