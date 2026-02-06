@@ -1,12 +1,22 @@
 import { getDb } from '../db/client.js';
 import { insights, users, sessions } from '../db/schema.js';
 import { eq, desc, and } from 'drizzle-orm';
-import { SaveInsightSchema, GetUserContextSchema } from '../types/insight.js';
+import { SaveInsightSchema, GetUserContextSchema, type SaveInsightInput, type GetUserContextInput } from '../types/insight.js';
 import { extractUserFromContext } from '../types/auth.js';
 import { handleError, NotFoundError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
+import type { Insight } from '../db/schema.js';
 
-export async function saveInsight(args: any) {
+// Types for getUserContext response
+export interface RecentSession {
+  id: string;
+  status: string;
+  started_at: Date;
+  completed_at: Date | null;
+  journey_id: string | null;
+}
+
+export async function saveInsight(args: SaveInsightInput) {
   try {
     const input = SaveInsightSchema.parse(args);
     const db = getDb();
@@ -58,8 +68,9 @@ export async function saveInsight(args: any) {
 
     logger.info(`Saved insight: ${insight.id}`);
 
+    // Return sanitized response (no internal IDs)
     return {
-      insight_id: insight.id,
+      success: true,
       message: 'Insight captured successfully.',
     };
   } catch (error) {
@@ -68,7 +79,7 @@ export async function saveInsight(args: any) {
   }
 }
 
-export async function getInsights(args: any) {
+export async function getInsights(args: { session_id?: string; limit?: number; auth?: Record<string, unknown> }) {
   try {
     const { session_id, limit = 10, auth } = args;
     const db = getDb();
@@ -131,7 +142,7 @@ export async function getInsights(args: any) {
   }
 }
 
-export async function getUserContext(args: any) {
+export async function getUserContext(args: GetUserContextInput) {
   try {
     const input = GetUserContextSchema.parse(args);
     const db = getDb();
@@ -163,7 +174,7 @@ export async function getUserContext(args: any) {
     }
 
     // Get recent insights if requested
-    let recentInsights: any[] = [];
+    let recentInsights: Insight[] = [];
     if (input.include_recent_insights) {
       recentInsights = await db
         .select()
@@ -174,7 +185,7 @@ export async function getUserContext(args: any) {
     }
 
     // Get recent sessions if requested
-    let recentSessions: any[] = [];
+    let recentSessions: RecentSession[] = [];
     if (input.include_session_history) {
       recentSessions = await db
         .select({

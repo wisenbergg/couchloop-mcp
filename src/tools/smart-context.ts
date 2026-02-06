@@ -170,12 +170,13 @@ export async function handleSmartContext(args: unknown) {
       results.build_context = await handleDetectBuildContext({});
     }
 
+    // Log full results server-side
+    logger.debug('[SmartContext] Full results:', results);
+
+    // Return sanitized response
     return {
       success: true,
       type: input.type,
-      key,
-      saved_to: Object.keys(results),
-      results,
       message: `Context captured as ${input.type}`,
     };
   } catch (error) {
