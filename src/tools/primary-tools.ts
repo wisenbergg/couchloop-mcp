@@ -4,14 +4,18 @@
  * This module exports only the PRIMARY tools that users should see.
  * All granular tools are internal engines used by these primary tools.
  * 
- * PUBLIC TOOLS (5):
- * 1. conversation     - Therapeutic AI conversation with governance
- * 2. code_review      - Complete code analysis (security, quality, AI errors)
- * 3. package_audit    - Complete dependency audit (validation, versions, upgrades)
- * 4. remember         - Smart context capture (checkpoints, insights, decisions)
- * 5. protect          - File protection and safety features
+ * PUBLIC TOOLS (8):
+ * 0. couchloop        - Intent router (discoverability layer for loose commands)
+ * 1. verify           - Pre-delivery verification (catches AI hallucinations, validates packages)
+ * 2. status           - Dashboard (session progress, history, context, protection)
+ * 3. conversation     - Therapeutic AI conversation with governance
+ * 4. code_review      - Complete code analysis (security, quality, AI errors)
+ * 5. package_audit    - Complete dependency audit (validation, versions, upgrades)
+ * 6. remember         - Smart context capture (checkpoints, insights, decisions)
+ * 7. protect          - File protection and safety features
  */
 
+import { intentRouterTool, registerTools } from './intent-router.js';
 import { sendMessage } from './sendMessage.js';
 import { createSession, resumeSession } from './session.js';
 import { endSession } from './session-manager.js';
@@ -29,6 +33,8 @@ import {
 import { listJourneys, getJourneyStatus } from './journey.js';
 import { getCheckpoints } from './checkpoint.js';
 import { getInsights, getUserContext } from './insight.js';
+import { verifyTool } from './verify.js';
+import { statusTool } from './status.js';
 import { logger } from '../utils/logger.js';
 
 // ============================================================
@@ -39,7 +45,7 @@ import { logger } from '../utils/logger.js';
 const conversationTool = {
   definition: {
     name: 'conversation',
-    description: 'Start or continue a therapeutic AI conversation with built-in crisis detection, emotional support, and session memory. Handles session management automatically.',
+    description: 'Start or continue a therapeutic AI conversation with built-in crisis detection, emotional support, and session memory. Handles session management automatically. Triggers: "end session", "start session", "wrap up", "done for now", "talk", "chat", "how are you", "feeling", "stressed", "anxious", "help me".',
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -102,7 +108,7 @@ const conversationTool = {
 const codeReviewTool = {
   definition: {
     name: 'code_review',
-    description: 'Complete code review: security vulnerabilities (SQL injection, XSS, secrets), code quality (console.logs, TODOs, error handling), code smells (complexity, bloat), and AI-generated errors (hallucinated APIs, build context issues). One call, full analysis.',
+    description: 'Complete code review: security vulnerabilities (SQL injection, XSS, secrets), code quality (console.logs, TODOs, error handling), code smells (complexity, bloat), and AI-generated errors (hallucinated APIs, build context issues). One call, full analysis. Triggers: "review", "check code", "analyze", "security check", "lint", "find bugs", "is this safe".',
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
@@ -133,7 +139,7 @@ const codeReviewTool = {
 const packageAuditTool = {
   definition: {
     name: 'package_audit',
-    description: 'Complete dependency audit: validates packages exist and are legitimate (catches typosquatting), checks for outdated versions and security vulnerabilities, generates upgrade reports with migration guides and breaking changes.',
+    description: 'Complete dependency audit: validates packages exist and are legitimate (catches typosquatting), checks for outdated versions and security vulnerabilities, generates upgrade reports with migration guides and breaking changes. Triggers: "audit", "check dependencies", "outdated", "vulnerable packages", "upgrade", "npm audit", "security scan".',
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
@@ -162,7 +168,7 @@ const packageAuditTool = {
 const rememberTool = {
   definition: {
     name: 'remember',
-    description: 'Capture and preserve important context from conversations. Automatically routes to the right storage: checkpoints for progress, insights for realizations, context for technical decisions. Prevents AI amnesia across conversations.',
+    description: 'Capture and preserve important context from conversations. Automatically routes to the right storage: checkpoints for progress, insights for realizations, context for technical decisions. Prevents AI amnesia across conversations. Triggers: "save", "remember this", "checkpoint", "note", "don\'t forget", "keep track", "save progress", "log this".',
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -231,7 +237,7 @@ const rememberTool = {
 const protectTool = {
   definition: {
     name: 'protect',
-    description: 'File protection and safety: prevent accidental deletions, create automatic backups, rollback changes, enable code freeze mode. Essential for safe AI-assisted development.',
+    description: 'File protection and safety: prevent accidental deletions, create automatic backups, rollback changes, enable code freeze mode. Essential for safe AI-assisted development. Triggers: "backup", "protect", "freeze", "rollback", "undo", "restore", "safe mode".',
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -298,7 +304,10 @@ const protectTool = {
 // ============================================================
 
 export async function setupTools() {
-  const tools = [
+  // Domain-specific tools (order matters for some clients)
+  const domainTools = [
+    verifyTool,     // Pre-delivery verification (critical for catching AI errors)
+    statusTool,     // Dashboard and status checks
     conversationTool,
     codeReviewTool,
     packageAuditTool,
@@ -306,7 +315,16 @@ export async function setupTools() {
     protectTool,
   ];
 
-  logger.info(`Prepared ${tools.length} primary MCP tools`);
+  // Register domain tools with intent router for internal invocation
+  registerTools(domainTools);
+
+  // Intent router (couchloop) goes FIRST for maximum discoverability
+  const tools = [
+    intentRouterTool,
+    ...domainTools,
+  ];
+
+  logger.info(`Prepared ${tools.length} primary MCP tools (including intent router)`);
   return tools;
 }
 

@@ -191,23 +191,37 @@ When you need to review or debug later, retrieve exact context of what was built
 
 ---
 
-## Tool Reference
+## Tool Reference (v1.2.0)
 
+CouchLoop EQ now uses 8 primary tools. The `couchloop` meta-tool routes natural language to the correct tool.
+
+### Universal Entry Point
 | Tool | Purpose |
-|------|---------|
-| `validate_packages` | Verify npm/PyPI/Maven packages exist before install |
-| `check_versions` | Detect deprecated APIs and outdated patterns |
-| `scan_security` | Find SQL injection, XSS, hardcoded secrets |
-| `pre_review_code` | Screen for console.logs, TODOs, missing error handling |
-| `detect_code_smell` | Flag verbose, over-engineered, or bloated code |
-| `preserve_context` | Store architecture decisions across sessions |
-| `protect_files` | Validate operations against protected paths |
-| `enable_code_freeze` | Lock critical files from modification |
-| `disable_code_freeze` | Unlock protected files |
-| `rollback_file` | Restore from backup snapshots |
-| `get_protection_status` | View current protection config |
-| `list_backups` | See available backup snapshots |
-| `get_operation_history` | Review attempted file operations |
+|------|---------|  
+| `couchloop` | Routes any loose command: "review code", "audit packages", "save this", "backup" |
+
+### Developer Tools
+| Tool | Purpose |
+|------|---------|  
+| `code_review` | Security scan + code quality + AI error detection in one call |
+| `package_audit` | Validate packages exist, check versions, find vulnerabilities |
+| `remember` | Store/recall context, checkpoints, insights |
+| `protect` | File backup, freeze, rollback, restore |
+
+### Usage Examples
+```
+# Via couchloop (natural language)
+"review this code"       → routes to code_review
+"audit my dependencies"  → routes to package_audit  
+"save this context"      → routes to remember
+"backup src/core/"       → routes to protect
+
+# Direct calls (precise control)
+code_review(code: "...", auto_fix: true)
+package_audit(packages: ["axios", "lodash"])
+remember(action: "recall")
+protect(action: "freeze", path: "src/core/")
+```
 
 ---
 

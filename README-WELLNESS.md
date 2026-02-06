@@ -90,7 +90,18 @@ Steps through:
 
 ---
 
-## Core Features
+## Core Features (v1.2.0)
+
+CouchLoop EQ now uses 8 primary tools. Just say what you want—the `couchloop` intent router handles the rest.
+
+### Quick Commands
+```
+"end session"           → ends and saves current session
+"save this insight"     → captures to remember tool
+"start daily reflection" → begins conversation journey
+"how am I doing"        → retrieves your context and insights
+"help"                  → shows all capabilities
+```
 
 ### Sessions
 
