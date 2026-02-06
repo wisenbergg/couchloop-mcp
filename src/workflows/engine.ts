@@ -5,7 +5,14 @@ import { JourneyStep } from '../types/journey.js';
 import { logger } from '../utils/logger.js';
 
 export class WorkflowEngine {
-  private db = getDb();
+  private _db: ReturnType<typeof getDb> | null = null;
+
+  private get db() {
+    if (!this._db) {
+      this._db = getDb();
+    }
+    return this._db;
+  }
 
   async initializeSession(userId: string, journeyId: string): Promise<string> {
     const sessionResult = await this.db
