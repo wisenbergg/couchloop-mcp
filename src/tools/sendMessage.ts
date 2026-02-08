@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { eq, desc } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getDb } from '../db/client.js';
 import { getShrinkChatClient } from '../clients/shrinkChatClient.js';
 import { sessions, checkpoints, journeys, crisisEvents, governanceEvaluations } from '../db/schema.js';
@@ -8,19 +8,13 @@ import { sanitizeResponse } from '../utils/sanitize.js';
 import { NotFoundError } from '../utils/errors.js';
 import { v4 as uuidv4 } from 'uuid';
 import type { ShrinkResponse } from '../clients/shrinkChatClient.js';
-import { EvaluationEngine, type EvaluationResult, type SessionContext } from '../governance/evaluationEngine.js';
+import { EvaluationEngine, type SessionContext } from '../governance/evaluationEngine.js';
 import { getOrCreateSession } from './session-manager.js';
 
 // Type definitions for metadata fields
 interface SessionMetadata {
   emotionalState?: string;
   progressIndicators?: string[];
-}
-
-interface CheckpointValue {
-  role?: 'user' | 'assistant';
-  message?: string;
-  response?: string;
 }
 
 interface HistoryEntry {
@@ -96,24 +90,11 @@ async function sendMessageInternal(args: unknown) {
 
     logger.info(`Sending message for session ${sessionId}${isNew ? ' (newly created)' : ''}`);
 
-    // Parallelize session and checkpoint queries (saves ~150ms)
-    // These can run simultaneously since both just need the session ID
-    const [sessionResult, checkpointsResult] = await Promise.all([
-      // Get session
-      db.select()
-        .from(sessions)
-        .where(eq(sessions.id, sessionId))
-        .limit(1),
-      // Get conversation history - optimized with limit
-      db.select()
-        .from(checkpoints)
-        .where(eq(checkpoints.sessionId, sessionId))
-        .orderBy(desc(checkpoints.createdAt))
-        .limit(30) // Fetch enough to get 10 message pairs after filtering
-    ]);
-
-    const [session] = sessionResult;
-    const previousCheckpoints = checkpointsResult;
+    // Query session only - message history is owned by shrink-chat
+    const [session] = await db.select()
+      .from(sessions)
+      .where(eq(sessions.id, sessionId))
+      .limit(1);
 
     if (!session) {
       throw new NotFoundError(`Session ${sessionId} not found`);
@@ -148,45 +129,8 @@ async function sendMessageInternal(args: unknown) {
       progressIndicators: (session.metadata as SessionMetadata | undefined)?.progressIndicators || [],
     };
 
-    const history: HistoryEntry[] = previousCheckpoints
-      .filter(cp => {
-        if (!cp.value || typeof cp.value !== 'object') return false;
-        const val = cp.value as CheckpointValue;
-        // Include checkpoints with role field (individual messages)
-        if ('role' in val && 'message' in val) return true;
-        // Include checkpoints with both message and response (combined format)
-        if ('message' in val && 'response' in val) return true;
-        return false;
-      })
-      .flatMap(cp => {
-        const val = cp.value as CheckpointValue;
-        // Handle individual message checkpoints (with role field)
-        if (val.role && val.message) {
-          return [{ role: val.role, content: val.message }];
-        }
-        // Handle combined checkpoints (with both message and response)
-        if (val.message && val.response) {
-          return [
-            { role: 'user' as const, content: val.message },
-            { role: 'assistant' as const, content: val.response },
-          ];
-        }
-        return [];
-      })
-      .slice(-10);
-
-    // Save user message
-    await db.insert(checkpoints).values({
-      sessionId: session.id,
-      stepId: session.currentStep.toString(),
-      key: 'user-message',
-      value: {
-        message: input.message,
-        messageId: uuidv4(),
-        role: 'user',
-        timestamp: new Date().toISOString(),
-      },
-    });
+    // Message history is owned by shrink-chat (via threadId) - no need to build from checkpoints
+    const history: HistoryEntry[] = [];
 
     // Get shrink-chat client
     const client = getShrinkChatClient();
@@ -227,15 +171,6 @@ async function sendMessageInternal(args: unknown) {
     if (needsIntervention) {
       logger.info(`[Self-Correction] Shrink-chat detected crisis requiring intervention`);
 
-      // Log the initial response
-      await logGovernanceEvaluation(
-        session.id,
-        response.content || response.reply || '',
-        'revision_requested',
-        `Crisis level ${response.crisis_level}: ${response.crisis_indicators?.join(', ') || 'intervention required'}`,
-        response.crisis_confidence || 0
-      );
-
       // Ask LLM to revise based on shrink-chat's own assessment
       const revisionPrompt = `The previous response may escalate the user's distress (crisis level: ${response.crisis_level}).
 Please provide a safer, more supportive response to: "${input.message}"
@@ -260,44 +195,13 @@ Suggested approach: ${response.crisis_suggested_actions?.join(', ') || 'De-escal
         }
       );
 
-      // Log revised response
-      await logGovernanceEvaluation(
-        session.id,
-        revisedResponse.content || revisedResponse.reply || '',
-        'revision_applied',
-        'Self-corrected based on crisis detection',
-        revisedResponse.crisis_confidence || 0
-      );
-
       response = revisedResponse;
       selfCorrected = true;
       logger.info(`[Self-Correction] Applied revised response`);
-    } else {
-      // Log approved response
-      await logGovernanceEvaluation(
-        session.id,
-        response.content || response.reply || '',
-        'approved',
-        'No intervention required',
-        response.crisis_confidence || 0
-      );
     }
 
-    // Save assistant response
+    // Extract response content
     const responseContent = response.content || response.reply || response.response_text || '';
-    await db.insert(checkpoints).values({
-      sessionId: session.id,
-      stepId: session.currentStep.toString(),
-      key: 'assistant-message',
-      value: {
-        message: responseContent,
-        messageId: response.messageId || uuidv4(),
-        role: 'assistant',
-        crisisLevel: response.crisis_level || response.crisisLevel,
-        selfCorrected,
-        timestamp: new Date().toISOString(),
-      },
-    });
 
     // Handle high crisis even after revision (for resources/escalation)
     if (response.crisis_level && (typeof response.crisis_level === 'string' ? response.crisis_level !== 'none' : response.crisis_level > 7)) {
@@ -375,68 +279,6 @@ Suggested approach: ${response.crisis_suggested_actions?.join(', ') || 'De-escal
     }
 
     throw error;
-  }
-}
-
-/**
- * Log governance evaluation - accepts real evaluation results
- */
-async function logGovernanceEvaluation(
-  sessionId: string,
-  content: string,
-  action: string,
-  reason: string,
-  confidence: number,
-  evaluationResult?: EvaluationResult
-): Promise<void> {
-  const db = getDb();
-
-  try {
-    await db.insert(governanceEvaluations).values({
-      sessionId,
-      draftResponse: content.substring(0, 1000),
-      evaluationResults: evaluationResult ? {
-        hallucination: {
-          detected: evaluationResult.hallucination.detected,
-          confidence: evaluationResult.hallucination.confidence,
-          patterns: evaluationResult.hallucination.patterns || []
-        },
-        inconsistency: {
-          detected: evaluationResult.inconsistency.detected,
-          confidence: evaluationResult.inconsistency.confidence,
-          patterns: evaluationResult.inconsistency.patterns || []
-        },
-        toneDrift: {
-          detected: evaluationResult.toneDrift.detected,
-          confidence: evaluationResult.toneDrift.confidence,
-          patterns: evaluationResult.toneDrift.patterns || []
-        },
-        unsafeReasoning: {
-          detected: evaluationResult.unsafeReasoning.detected,
-          confidence: evaluationResult.unsafeReasoning.confidence,
-          patterns: evaluationResult.unsafeReasoning.patterns || []
-        },
-        overallRisk: evaluationResult.overallRisk,
-        recommendedAction: evaluationResult.recommendedAction,
-        confidence: evaluationResult.confidence
-      } : {
-        hallucination: { detected: false, confidence: 0, patterns: [] },
-        inconsistency: { detected: false, confidence: 0, patterns: [] },
-        toneDrift: { detected: false, confidence: 0, patterns: [] },
-        unsafeReasoning: {
-          detected: action === 'revision_requested',
-          confidence,
-          patterns: [reason]
-        },
-        overallRisk: action === 'revision_requested' ? 'high' : 'low',
-        recommendedAction: action === 'revision_requested' ? 'modify' : 'allow',
-        confidence: confidence
-      },
-      interventionApplied: action === 'revision_requested' ? 'revision' : null,
-      finalResponse: action === 'revision_applied' ? content.substring(0, 1000) : null,
-    });
-  } catch (error) {
-    logger.error('Failed to log governance evaluation:', error);
   }
 }
 
@@ -562,19 +404,6 @@ async function handleLocalFallback(args: unknown): Promise<unknown> {
   }
 
   const fallbackContent = "I understand you're trying to communicate. The therapeutic service is temporarily unavailable, but your message has been noted. Please try again shortly.";
-
-  await db.insert(checkpoints).values({
-    sessionId: session.id,
-    stepId: session.currentStep.toString(),
-    key: 'assistant-message',
-    value: {
-      message: fallbackContent,
-      messageId: uuidv4(),
-      role: 'assistant',
-      fallbackMode: true,
-      timestamp: new Date().toISOString(),
-    },
-  });
 
   return {
     success: true,
