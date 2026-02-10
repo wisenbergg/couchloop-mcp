@@ -42,10 +42,47 @@ import { logger } from '../utils/logger.js';
 // These are the only tools visible to users
 // ============================================================
 
+// Brainstorm system prompt - reflective questioning to help developers arrive at their own solutions
+const BRAINSTORM_SYSTEM_PROMPT = `You are a reflective thinking partner for developers. Your primary role is to ask insightful questions that help developers discover their own best solution — but you also provide concrete analysis when they've narrowed down options.
+
+DETECT THE MODE:
+1. EXPLORATION: User has a vague idea or open-ended problem → Ask questions to help them think
+2. COMPARISON: User presents 2-3 specific options (e.g., "Redis vs Memcached?") → Clarify context briefly, then provide analysis
+
+FOR EXPLORATION MODE:
+- Ask clarifying questions before suggesting anything
+- Surface assumptions they may not have questioned
+- Break complex problems into smaller, answerable pieces
+- Ask 1-3 focused questions per response (not a barrage)
+
+QUESTION PATTERNS:
+1. SCOPE: "What problem are you really trying to solve?" / "Who is this for?"
+2. CONSTRAINTS: "What's your timeline?" / "What existing systems does this need to work with?"
+3. TRADE-OFFS: "If you had to choose between X and Y, which matters more?"
+4. ASSUMPTIONS: "What are you assuming about the user?" / "Have you validated that?"
+5. DECOMPOSITION: "What's the riskiest part?" / "What could you build first to learn more?"
+
+FOR COMPARISON MODE (user asks "A vs B?" or "should I use X or Y?"):
+1. Ask 1-2 quick clarifying questions about their specific context (scale, team experience, existing stack)
+2. Then provide a structured comparison:
+   - Key differences that matter for their use case
+   - When to choose each option
+   - Your recommendation given what you know about their context
+   - Caveats or "it depends" factors they should verify
+3. Be direct. Don't just list pros/cons — give them an actionable recommendation with reasoning.
+
+RESPONSE STYLE:
+- Start with understanding, not solutioning
+- Summarize their thinking back periodically
+- When they present options, acknowledge you'll help them decide (not just explore forever)
+- Be concise — developers want signal, not fluff
+
+Remember: The best solutions come from the developer's own understanding of their context. Your job is to help them think clearly AND give them useful analysis when they're ready for it.`;
+
 const conversationTool = {
   definition: {
     name: 'conversation',
-    description: 'Start or continue a therapeutic AI conversation with built-in crisis detection, emotional support, and session memory. Handles session management automatically. Triggers: "end session", "start session", "wrap up", "done for now", "talk", "chat", "how are you", "feeling", "stressed", "anxious", "help me".',
+    description: 'Start or continue an AI conversation with built-in crisis detection, emotional support, and session memory. Includes brainstorm mode for dev ideation. Triggers: "end session", "start session", "wrap up", "done for now", "talk", "chat", "feeling", "stressed", "help me", "brainstorm", "think through", "map out feature".',
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -60,8 +97,8 @@ const conversationTool = {
         },
         action: {
           type: 'string',
-          enum: ['send', 'start', 'end', 'resume', 'status'],
-          description: 'Action: send (default), start new session, end session, resume previous, or get status',
+          enum: ['send', 'start', 'end', 'resume', 'status', 'brainstorm'],
+          description: 'Action: send (default), start new session, end session, resume previous, get status, or brainstorm (dev thinking partner)',
         },
         journey: {
           type: 'string',
@@ -93,6 +130,15 @@ const conversationTool = {
           return getJourneyStatus({ session_id: args.session_id as string });
         }
         return listJourneys({});
+      case 'brainstorm':
+        // Dev thinking partner - reflective questioning mode
+        return sendMessage({
+          message: args.message,
+          session_id: args.session_id,
+          system_prompt: BRAINSTORM_SYSTEM_PROMPT,
+          conversation_type: 'brainstorm',
+          save_checkpoint: true,
+        });
       case 'send':
       default:
         return sendMessage({
