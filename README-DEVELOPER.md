@@ -198,11 +198,14 @@ CouchLoop EQ now uses 8 primary tools. The `couchloop` meta-tool routes natural 
 ### Universal Entry Point
 | Tool | Purpose |
 |------|---------|  
-| `couchloop` | Routes any loose command: "review code", "audit packages", "save this", "backup" |
+| `couchloop` | Routes any loose command: "review code", "audit packages", "brainstorm feature", "save this" |
 
 ### Developer Tools
 | Tool | Purpose |
 |------|---------|  
+| `verify` | Pre-delivery verification — catches AI hallucinations before presenting to users |
+| `status` | Dashboard — session progress, context window, saved insights |
+| `conversation` | AI conversation with **brainstorm** mode for dev ideation |
 | `code_review` | Security scan + code quality + AI error detection in one call |
 | `package_audit` | Validate packages exist, check versions, find vulnerabilities |
 | `remember` | Store/recall context, checkpoints, insights |
@@ -213,14 +216,51 @@ CouchLoop EQ now uses 8 primary tools. The `couchloop` meta-tool routes natural 
 # Via couchloop (natural language)
 "review this code"       → routes to code_review
 "audit my dependencies"  → routes to package_audit  
+"brainstorm a caching layer" → routes to conversation(action: brainstorm)
 "save this context"      → routes to remember
 "backup src/core/"       → routes to protect
 
 # Direct calls (precise control)
+conversation(action: "brainstorm", message: "Redis vs Memcached for sessions?")
+verify(type: "packages", content: "lodash-utils-pro")  # Catches hallucinated packages
 code_review(code: "...", auto_fix: true)
 package_audit(packages: ["axios", "lodash"])
 remember(action: "recall")
 protect(action: "freeze", path: "src/core/")
+```
+
+---
+
+## Brainstorm Mode (NEW)
+
+Use CouchLoop as a **thinking partner** for architecture decisions, feature design, or technology choices.
+
+```
+"brainstorm: should I use Redis or Memcached for session storage?"
+```
+
+**How it works:**
+1. Asks 1-2 clarifying questions about your context (scale, team, existing stack)
+2. Provides structured comparison with trade-offs
+3. Gives a direct recommendation with reasoning
+
+**Example flow:**
+```
+You: "brainstorm a caching layer for my API"
+
+CouchLoop: "What's your expected request volume, and do you need 
+cache invalidation when data changes?"
+
+You: "~1000 req/s, and yes invalidation matters"
+
+CouchLoop: "Redis is your best bet. Here's why:
+- Built-in pub/sub for cache invalidation
+- Handles 1K req/s easily (it's designed for 100K+)
+- Supports data structures you'll likely need later
+- Use Redis Cluster if you grow past single-node limits
+
+Alternative: If you're already on AWS, ElastiCache 
+with Redis engine simplifies operations."
 ```
 
 ---

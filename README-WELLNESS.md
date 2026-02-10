@@ -96,12 +96,27 @@ CouchLoop EQ now uses 8 primary tools. Just say what you want—the `couchloop` 
 
 ### Quick Commands
 ```
-"end session"           → ends and saves current session
-"save this insight"     → captures to remember tool
+"end session"            → ends and saves current session
+"save this insight"      → captures to remember tool
 "start daily reflection" → begins conversation journey
-"how am I doing"        → retrieves your context and insights
-"help"                  → shows all capabilities
+"how am I doing"         → retrieves your context and insights
+"brainstorm this"        → reflective thinking partner mode
+"help"                   → shows all capabilities
 ```
+
+### Brainstorm Mode (NEW)
+
+Use CouchLoop as a reflective thinking partner—not just for technical decisions, but for personal exploration:
+
+```
+"brainstorm: I'm feeling stuck in my current routine"
+```
+
+CouchLoop asks clarifying questions to help you think through what's really going on, rather than jumping to solutions. Great for:
+- Exploring feelings or patterns you've noticed
+- Thinking through life decisions
+- Processing something that happened
+- Clarifying what you actually want
 
 ### Sessions
 

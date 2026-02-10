@@ -1,5 +1,5 @@
 name: couchloop-eq
-description: CouchLoop EQ - Intent-routed MCP server with 6 primary tools for AI governance, session management, code review, and context persistence. The couchloop meta-tool routes natural language commands to the right tool automatically.
+description: CouchLoop EQ - Intent-routed MCP server with 8 primary tools for AI governance, session management, code review, brainstorm mode, and context persistence. The couchloop meta-tool routes natural language commands to the right tool automatically.
 homepage: https://github.com/wisenbergg/couchloop-mcp
 author: Greg Wisenberg
 categories:
