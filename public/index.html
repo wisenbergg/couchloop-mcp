@@ -436,9 +436,12 @@
       <div class="container">
         <div class="section-header">
           <h2>Get Started in 60 Seconds</h2>
-          <p>Add CouchLoop EQ to ChatGPT or Claude</p>
+          <p>Add CouchLoop EQ to any MCP-compatible client</p>
         </div>
-        <div class="setup-box">
+
+        <!-- ChatGPT -->
+        <div class="setup-box" style="margin-bottom: 24px;">
+          <h3 style="margin-bottom: 16px;">💬 ChatGPT</h3>
           <div class="setup-step">
             <div class="step-number">1</div>
             <div class="step-content">
@@ -458,14 +461,61 @@
             <div class="step-number">3</div>
             <div class="step-content">
               <h4>Start Chatting</h4>
-              <p>That's it! CouchLoop EQ now monitors conversations for issues and provides session persistence, context preservation, and developer safety tools.</p>
+              <p>That's it! No auth required — uses session-based isolation.</p>
             </div>
           </div>
-          <div style="margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--border);">
-            <h4 style="margin-bottom: 12px;">For Developers: Install via npm</h4>
-            <div class="code-block">npx couchloop-eq-mcp</div>
-          </div>
         </div>
+
+        <!-- Claude Desktop -->
+        <div class="setup-box" style="margin-bottom: 24px;">
+          <h3 style="margin-bottom: 16px;">🤖 Claude Desktop</h3>
+          <p style="margin-bottom: 12px;">Add to <code>~/Library/Application Support/Claude/claude_desktop_config.json</code>:</p>
+          <div class="code-block" style="text-align: left; white-space: pre; font-size: 0.85rem;">{
+  "mcpServers": {
+    "couchloop-eq": {
+      "url": "https://mcp.couchloop.com/mcp",
+      "transport": "streamable-http"
+    }
+  }
+}</div>
+          <p style="margin-top: 12px; color: var(--text-secondary);">Restart Claude and try: "Start a daily reflection session"</p>
+        </div>
+
+        <!-- VS Code -->
+        <div class="setup-box" style="margin-bottom: 24px;">
+          <h3 style="margin-bottom: 16px;">📝 VS Code</h3>
+          <p style="margin-bottom: 12px;">Add to your <code>.vscode/settings.json</code> or User Settings:</p>
+          <div class="code-block" style="text-align: left; white-space: pre; font-size: 0.85rem;">{
+  "mcp": {
+    "servers": {
+      "couchloop-eq": {
+        "type": "http",
+        "url": "https://mcp.couchloop.com/mcp"
+      }
+    }
+  }
+}</div>
+          <p style="margin-top: 12px; color: var(--text-secondary);">Works with GitHub Copilot Chat in agent mode.</p>
+        </div>
+
+        <!-- Cursor / Windsurf / Other -->
+        <div class="setup-box" style="margin-bottom: 24px;">
+          <h3 style="margin-bottom: 16px;">⚡ Cursor, Windsurf &amp; Others</h3>
+          <p>Any MCP-compatible client can connect using:</p>
+          <table style="width: 100%; margin-top: 12px; border-collapse: collapse;">
+            <tr><td style="padding: 6px 0; color: var(--text-secondary);">URL</td><td style="padding: 6px 0;"><code>https://mcp.couchloop.com/mcp</code></td></tr>
+            <tr><td style="padding: 6px 0; color: var(--text-secondary);">Transport</td><td style="padding: 6px 0;"><code>streamable-http</code></td></tr>
+            <tr><td style="padding: 6px 0; color: var(--text-secondary);">Auth</td><td style="padding: 6px 0;">None required</td></tr>
+          </table>
+        </div>
+
+        <!-- npm -->
+        <div class="setup-box">
+          <h3 style="margin-bottom: 16px;">📦 Install via npm</h3>
+          <div class="code-block">npx couchloop-eq-mcp</div>
+          <p style="margin-top: 12px; color: var(--text-secondary);">Run locally with stdio transport. Sessions persist to <code>~/.couchloop-mcp/identity.json</code>.</p>
+        </div>
+
       </div>
     </section>
 
