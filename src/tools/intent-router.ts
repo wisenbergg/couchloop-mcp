@@ -147,6 +147,26 @@ const INTENT_MAPPINGS: IntentMapping[] = [
     tool: 'help',  // Special case - handled inline
   },
 
+  // Brainstorm/Ideation - DEV THINKING PARTNER
+  {
+    patterns: [
+      /\b(brainstorm|ideate|think\s+through|map\s+out|explore)\b/i,
+      /\b(help\s+me\s+(think|figure|work)\s+(through|out))\b/i,
+      /\b(design|architect|plan)\b.*\b(feature|component|system|api|app|project)\b/i,
+      /\b(feature|component|system|api|app|project)\b.*\b(design|architect|plan)\b/i,
+      /\b(thinking\s+about|considering|mulling|pondering)\b.*\b(building|creating|implementing|adding)\b/i,
+      /\b(how\s+should\s+i|what'?s\s+the\s+best\s+way\s+to)\b.*\b(implement|build|design|structure)\b/i,
+      /\b(rubber\s+duck|think\s+out\s+loud|talk\s+through)\b/i,
+      /\bi\s+have\s+an?\s+idea\b/i,
+      /\b(let'?s\s+)?(flesh\s+out|scope\s+out|sketch\s+out)\b/i,
+      /\b(break\s+down|decompose)\b.*\b(problem|task|feature)\b/i,
+      /\b(spike|prototype|poc|proof\s+of\s+concept)\b/i,
+      /\b(trade[\s-]?offs?|pros\s+and\s+cons|options)\b/i,
+    ],
+    tool: 'conversation',
+    action: 'brainstorm',
+  },
+
   // Status/Dashboard - NEW
   {
     patterns: [
@@ -262,8 +282,9 @@ export const intentRouterTool = {
 - Protection: "backup", "freeze code", "rollback", "undo", "restore"
 - Wellness: "I'm stressed", "feeling anxious", "help me", "need to talk"
 - Verification: "verify this", "check my response", "is this correct", "does this package exist"
+- Brainstorm: "brainstorm", "think through", "map out feature", "help me design", "I have an idea", "flesh out", "trade-offs"
 
-This tool should be invoked for ANY ambiguous or loose command related to sessions, memory, code quality, verification, or emotional support.`,
+This tool should be invoked for ANY ambiguous or loose command related to sessions, memory, code quality, verification, brainstorming, or emotional support.`,
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -321,7 +342,8 @@ This tool should be invoked for ANY ambiguous or loose command related to sessio
           couchloop: 'Universal entry point - routes any command to the right tool',
           verify: 'Pre-delivery verification - catches AI hallucinations, validates packages, checks code',
           status: 'Dashboard - session progress, history, context, protection, preferences',
-          conversation: 'Therapeutic AI conversation with crisis detection and session memory. Actions: start, send, end, resume, status',
+          conversation: 'Therapeutic AI conversation with crisis detection and session memory. Actions: start, send, end, resume, status, brainstorm',
+          brainstorm: 'Dev thinking partner - reflective questions to help map out features, components, architecture decisions',
           remember: 'Save and recall context, checkpoints, insights. Actions: save, recall, list, preferences',
           code_review: 'Complete code analysis - security vulnerabilities, code smells, AI errors. Modes: full, security, quality, ai_errors, verify_before_presenting',
           package_audit: 'Dependency audit - validates packages exist, checks versions, finds vulnerabilities. Modes: full, security, validate, validate_before_recommending',
@@ -330,12 +352,14 @@ This tool should be invoked for ANY ambiguous or loose command related to sessio
         examples: [
           'couchloop(intent: "end session") → ends current session',
           'couchloop(intent: "where should I start") → status with next steps',
+          'couchloop(intent: "brainstorm a caching layer") → reflective dev thinking partner',
           'verify(type: "packages", content: "import lodash-utils") → validates package exists',
           'verify(type: "code", content: "function foo()...") → checks for AI errors',
           'status(check: "all") → full dashboard',
+          'conversation(action: "brainstorm", message: "I want to add auth to my app") → asks clarifying questions',
           'conversation(action: "send", message: "I\'m feeling stressed") → wellness chat',
         ],
-        hint: 'Use couchloop for loose commands, verify before presenting AI-generated content, or call specific tools directly.',
+        hint: 'Use couchloop for loose commands, brainstorm to think through ideas, verify before presenting AI-generated content, or call specific tools directly.',
       };
     }
 
