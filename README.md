@@ -39,13 +39,14 @@ Unlike raw LLMs that can hallucinate packages, generate insecure code, and lose 
 
 | Problem | CouchLoop EQ Solution |
 |---------|----------------------|
-| 🎭 **Hallucinated packages** | `validate_packages` catches fake npm/PyPI/Maven before install |
-| 🔓 **Insecure code** | `scan_security` detects SQLi, XSS, hardcoded secrets |
-| 📉 **Code bloat** | `detect_code_smell` flags over-engineering and verbose patterns |
-| 🧠 **Lost context** | `preserve_context` stores architecture decisions across sessions |
-| 🗂️ **Accidental deletion** | `protect_files` + `rollback_file` with automatic backups |
-| 📚 **Deprecated APIs** | `validate_library_versions` warns about outdated patterns |
-| 🔍 **Sloppy AI code** | `pre_review_code` catches console.logs, TODOs, missing error handling |
+| 🎭 **Hallucinated packages** | `verify` + `package_audit` catch fake npm/PyPI/Maven before install |
+| 🔓 **Insecure code** | `code_review` detects SQLi, XSS, hardcoded secrets |
+| 📉 **Code bloat** | `code_review` flags over-engineering, console.logs, missing error handling |
+| 🧠 **Lost context** | `remember` stores architecture decisions and checkpoints across sessions |
+| 🗂️ **Accidental deletion** | `protect` with automatic backups, freeze mode, and rollback |
+| 📚 **Deprecated APIs** | `package_audit` warns about outdated versions and breaking changes |
+| 🔍 **Sloppy AI code** | `verify` pre-checks AI responses for hallucinated APIs and bad imports |
+| 💡 **Unstructured thinking** | `conversation(brainstorm)` helps think through trade-offs, compare options, decompose ideas |
 
 ## Key Safety Features
 
@@ -135,19 +136,21 @@ For local development:
 - Use ngrok or deploy your own server
 - Follow setup in [CHATGPT_SETUP.md](CHATGPT_SETUP.md)
 
-## Available Tools (6 Primary)
+## Available Tools (8 Primary)
 
-CouchLoop EQ v1.2.0 uses a simplified 6-tool architecture. The `couchloop` meta-tool acts as an intelligent router—just say what you want in natural language.
+CouchLoop EQ v1.2.0 uses an 8-tool architecture. The `couchloop` meta-tool acts as an intelligent router—just say what you want in natural language.
 
 ### Universal Entry Point
 | Tool | Description |
 |------|-------------|
-| `couchloop` | **Intent router** — Routes any loose command to the right tool. Use for: "end session", "save this", "review code", "help me", etc. |
+| `couchloop` | **Intent router** — Routes any loose command to the right tool. Use for: "end session", "save this", "review code", "brainstorm this", "help me", etc. |
 
-### Domain Tools
+### Core Tools
 | Tool | Description |
 |------|-------------|
-| `conversation` | Therapeutic AI conversation with crisis detection and session memory. Actions: start, send, end, resume, status |
+| `verify` | **Pre-delivery verification** — Catches AI hallucinations, validates packages, checks code before presenting to users |
+| `status` | **Dashboard** — Session progress, history, context window usage, protection status, preferences |
+| `conversation` | AI conversation with crisis detection and session memory. Actions: start, send, end, resume, status, **brainstorm** |
 | `code_review` | Complete code analysis — security vulnerabilities, code smells, AI-generated errors |
 | `package_audit` | Dependency audit — validates packages exist, checks versions, finds vulnerabilities |
 | `remember` | Save and recall context, checkpoints, insights across sessions |
@@ -160,11 +163,14 @@ CouchLoop EQ v1.2.0 uses a simplified 6-tool architecture. The `couchloop` meta-
 "end session"          → couchloop routes to conversation(action: end)
 "save this for later"  → couchloop routes to remember(action: save)
 "review my code"       → couchloop routes to code_review
+"brainstorm a feature" → couchloop routes to conversation(action: brainstorm)
 "what can you do"      → couchloop returns capabilities list
 
 # Direct tool calls (for precise control)
 conversation(action: "start", message: "Begin daily reflection")
+conversation(action: "brainstorm", message: "Design a caching layer")  # Dev ideation
 remember(action: "recall")  # Get saved context
+verify(type: "packages", content: "lodash-utils")  # Validate before install
 code_review(code: "function foo()...")  # Analyze code
 ```
 

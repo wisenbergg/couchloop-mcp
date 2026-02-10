@@ -223,3 +223,6 @@ k8s/oauth/
 assets/screenshots/*.png
 CLAUDE.md
 archive/
+
+# Internal submission guides
+docker-mcp-contribution/README.md
