@@ -79,8 +79,10 @@ export async function handleComprehensivePackageAudit(args: unknown) {
 
     // Step 1: Validate all packages exist and are legitimate
     const validationResult = await handleValidatePackages({ 
-      packages: input.packages,
-      registry: input.registry,
+      packages: input.packages.map(pkg => ({ 
+        name: pkg, 
+        registry: input.registry 
+      })),
     }) as Record<string, unknown>;
 
     if (validationResult.results && typeof validationResult.results === 'object') {
