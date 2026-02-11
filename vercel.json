@@ -5,6 +5,14 @@
   "framework": null,
   "rewrites": [
     {
+      "source": "/use-cases/dev",
+      "destination": "/use-cases/dev.html"
+    },
+    {
+      "source": "/use-cases/wellness",
+      "destination": "/use-cases/wellness.html"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/$1"
     }
