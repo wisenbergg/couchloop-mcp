@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wellness Use Cases – CouchLoop EQ</title>
+  <meta name="description" content="CouchLoop EQ wellness use cases: guided reflections, session persistence, insight tracking, and crisis detection for therapeutic AI conversations.">
+  <link rel="icon" href="https://couchloop.com/favicon.ico">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #6366f1;
+      --primary-dark: #4f46e5;
+      --secondary: #10b981;
+      --background: #0f172a;
+      --surface: #1e293b;
+      --surface-light: #334155;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --border: #475569;
+      --gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--background);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+
+    header {
+      padding: 24px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .header-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: var(--text);
+    }
+
+    .logo-icon { width: 40px; height: 40px; border-radius: 10px; overflow: hidden; }
+    .logo-icon img { width: 100%; height: 100%; object-fit: contain; }
+    .logo-text { font-size: 1.5rem; font-weight: 700; }
+    .logo-text span { color: var(--primary); }
+
+    nav a {
+      color: var(--text-muted);
+      text-decoration: none;
+      margin-left: 32px;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    nav a:hover { color: var(--text); }
+    nav a.active { color: var(--primary); }
+
+    .hero {
+      padding: 80px 0 60px;
+      text-align: center;
+    }
+
+    .badge {
+      display: inline-block;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 8px 16px;
+      border-radius: 50px;
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+    }
+    .badge strong { color: var(--secondary); }
+
+    h1 {
+      font-size: 3rem;
+      font-weight: 700;
+      line-height: 1.1;
+      margin-bottom: 24px;
+      background: var(--gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero p {
+      font-size: 1.25rem;
+      color: var(--text-muted);
+      max-width: 700px;
+      margin: 0 auto;
+    }
+
+    .section { padding: 60px 0; }
+
+    .section-header {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+    .section-header h2 {
+      font-size: 2rem;
+      margin-bottom: 12px;
+    }
+    .section-header p {
+      color: var(--text-muted);
+      font-size: 1.1rem;
+    }
+
+    .use-case {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 40px;
+      margin-bottom: 32px;
+      transition: border-color 0.2s;
+    }
+    .use-case:hover { border-color: var(--primary); }
+
+    .use-case-header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .use-case-icon {
+      width: 48px;
+      height: 48px;
+      background: var(--gradient);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      flex-shrink: 0;
+    }
+
+    .use-case-header h3 { font-size: 1.4rem; }
+    .use-case-header .tool-badge {
+      background: var(--surface-light);
+      border: 1px solid var(--border);
+      padding: 4px 12px;
+      border-radius: 50px;
+      font-size: 0.75rem;
+      color: var(--secondary);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      margin-left: auto;
+    }
+
+    .use-case-scenario {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      margin-bottom: 20px;
+      font-style: italic;
+      border-left: 3px solid var(--primary);
+      padding-left: 16px;
+    }
+
+    .use-case-body { color: var(--text-muted); font-size: 0.95rem; }
+    .use-case-body p { margin-bottom: 12px; }
+    .use-case-body strong { color: var(--text); }
+
+    .conversation {
+      background: var(--background);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      margin: 20px 0;
+    }
+
+    .msg {
+      margin-bottom: 16px;
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+    .msg:last-child { margin-bottom: 0; }
+
+    .msg-user {
+      background: var(--primary-dark);
+      color: white;
+      margin-left: 40px;
+      border-bottom-right-radius: 4px;
+    }
+
+    .msg-ai {
+      background: var(--surface-light);
+      color: var(--text);
+      margin-right: 40px;
+      border-bottom-left-radius: 4px;
+    }
+
+    .msg-label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+
+    .outcome {
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 20px;
+    }
+
+    .outcome h4 {
+      color: var(--secondary);
+      margin-bottom: 8px;
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .outcome ul { list-style: none; padding: 0; }
+    .outcome li {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      padding: 4px 0;
+      padding-left: 20px;
+      position: relative;
+    }
+    .outcome li::before {
+      content: '✓';
+      color: var(--secondary);
+      position: absolute;
+      left: 0;
+    }
+
+    .safety-note {
+      background: rgba(99, 102, 241, 0.1);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 20px;
+    }
+
+    .safety-note h4 {
+      color: var(--primary);
+      margin-bottom: 8px;
+      font-size: 0.9rem;
+    }
+
+    .safety-note p {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    .cta-section {
+      text-align: center;
+      padding: 80px 0;
+    }
+
+    .btn {
+      padding: 14px 28px;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+      cursor: pointer;
+      border: none;
+      display: inline-block;
+    }
+
+    .btn-primary {
+      background: var(--gradient);
+      color: white;
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 40px rgba(99, 102, 241, 0.3);
+    }
+
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+      margin-left: 12px;
+    }
+    .btn-secondary:hover { background: var(--surface-light); }
+
+    footer {
+      padding: 40px 0;
+      text-align: center;
+      border-top: 1px solid var(--border);
+    }
+    footer p { color: var(--text-muted); }
+    .footer-links {
+      display: flex;
+      gap: 24px;
+      justify-content: center;
+      margin-top: 12px;
+    }
+    .footer-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    .footer-links a:hover { color: var(--text); }
+
+    @media (max-width: 768px) {
+      h1 { font-size: 2.2rem; }
+      .use-case { padding: 24px; }
+      .msg-user { margin-left: 16px; }
+      .msg-ai { margin-right: 16px; }
+      nav { display: none; }
+      .use-case-header { flex-wrap: wrap; }
+      .use-case-header .tool-badge { margin-left: 0; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container header-content">
+      <a href="/" class="logo">
+        <div class="logo-icon"><img src="/logo.png" alt="CouchLoop EQ"></div>
+        <div class="logo-text">CouchLoop <span>EQ</span></div>
+      </a>
+      <nav>
+        <a href="/">Home</a>
+        <a href="/use-cases/dev">Dev Use Cases</a>
+        <a href="/use-cases/wellness" class="active">Wellness Use Cases</a>
+        <a href="https://github.com/wisenbergg/couchloop-mcp">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="container">
+        <div class="badge">guided journeys · <strong>crisis-aware</strong></div>
+        <h1>Wellness Use Cases</h1>
+        <p>CouchLoop EQ supports guided reflections, session persistence, insight tracking, and crisis detection — designed for therapeutic AI conversations.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+
+        <!-- USE CASE 1: Daily Reflection -->
+        <div class="use-case">
+          <div class="use-case-header">
+            <div class="use-case-icon">🧘</div>
+            <h3>Daily Reflection: A 5-Minute Check-In</h3>
+            <span class="tool-badge">conversation(start)</span>
+          </div>
+          <div class="use-case-scenario">
+            "I want a quick structured reflection at the end of my work day."
+          </div>
+          <div class="use-case-body">
+            <div class="conversation">
+              <div class="msg msg-user">
+                <div class="msg-label">User</div>
+                Start a daily reflection session
+              </div>
+              <div class="msg msg-ai">
+                <div class="msg-label">CouchLoop EQ</div>
+                Welcome to your daily reflection. Let's take a few minutes to check in.
+                <br><br>
+                <strong>How are you feeling right now?</strong> Not how your day was — how you feel in this moment. Take a breath before answering.
+              </div>
+              <div class="msg msg-user">
+                <div class="msg-label">User</div>
+                Tired but relieved. Finished a big feature today that I've been stuck on for days.
+              </div>
+              <div class="msg msg-ai">
+                <div class="msg-label">CouchLoop EQ</div>
+                That relief after being stuck — that's worth noticing. The tiredness makes sense; sustained problem-solving takes a lot out of you.
+                <br><br>
+                <strong>What helped you get unstuck?</strong> Was it a different approach, a break, or something else?
+              </div>
+              <div class="msg msg-user">
+                <div class="msg-label">User</div>
+                I took a walk and came back with a completely different idea. The original approach was overengineered.
+              </div>
+              <div class="msg msg-ai">
+                <div class="msg-label">CouchLoop EQ</div>
+                That's a pattern worth remembering — stepping away let you see the simplicity you were missing. The walk didn't just rest you, it gave your brain space to reframe.
+                <br><br>
+                Would you like me to save that as an insight? "Stepping away helps me see overengineering and find simpler solutions."
+              </div>
+            </div>
+            <div class="outcome">
+              <h4>Outcome</h4>
+              <ul>
+                <li>Structured 5-minute reflection with guided prompts</li>
+                <li>Identified a personal productivity pattern</li>
+                <li>Insight saved for future reference across sessions</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- USE CASE 2: Resume Session -->
+        <div class="use-case">
+          <div class="use-case-header">
+            <div class="use-case-icon">🔄</div>
+            <h3>Resume: Pick Up Where You Left Off</h3>
+            <span class="tool-badge">conversation(resume)</span>
+          </div>
+          <div class="use-case-scenario">
+            "I was mid-conversation about work stress last week. I don't want to re-explain everything."
+          </div>
+          <div class="use-case-body">
+            <div class="conversation">
+              <div class="msg msg-user">
+                <div class="msg-label">User</div>
+                Resume my last session
+              </div>
+              <div class="msg msg-ai">
+                <div class="msg-label">CouchLoop EQ</div>
+                Welcome back. Your last session was 4 days ago. Here's where we left off:
+                <br><br>
+                You were talking about <strong>feeling overwhelmed by context-switching</strong> between 3 projects. You'd identified that the switching itself wasn't the problem — it was the lack of clear boundaries between them.
+                <br><br>
+                You were considering setting "project blocks" in your calendar. Did you get a chance to try that?
+              </div>
+              <div class="msg msg-user">
+                <div class="msg-label">User</div>
+                I did! It helped but I keep getting pulled out of blocks by Slack messages.
+              </div>
+              <div class="msg msg-ai">
+                <div class="msg-label">CouchLoop EQ</div>
+                So the structure worked, but the interruptions undermine it. That's a good signal — the problem isn't your approach, it's the environment around it.
+                <br><br>
+                <strong>What would it look like to protect those blocks?</strong> Some people mute Slack during blocks, others set a status. What feels realistic for your team culture?
+              </div>
+            </div>
+            <div class="outcome">
+              <h4>Outcome</h4>
+              <ul>
+                <li>Session resumed with full context — no re-explaining</li>
+                <li>Built on previous conversation naturally</li>
+                <li>Continued the problem-solving thread from last week</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- USE CASE 3: Gratitude Practice -->
+        <div class="use-case">
+          <div class="use-case-header">
+            <div class="use-case-icon">🙏</div>
+            <h3>Gratitude Practice: 3-Minute Reframe</h3>
+            <span class="tool-badge">conversation(start, journey)</span>
+          </div>
+          <div class="use-case-scenario">
+            "I had a rough day. I want to do a quick gratitude exercise."
+          </div>
+          <div class="use-case-body">
+            <div class="conversation">
+              <div class="msg msg-user">
+                <div class="msg-label">User</div>
+                Start a gratitude practice
+              </div>
+              <div class="msg msg-ai">
+                <div class="msg-label">CouchLoop EQ</div>
+                Let's take 3 minutes for gratitude. This isn't about ignoring hard things — it's about noticing what's also true alongside them.
+                <br><br>
+                <strong>Name one thing from today that went well</strong> — even something small. A good cup of coffee counts.
+              </div>
+              <div class="msg msg-user">
+                <div class="msg-label">User</div>
+                My teammate helped me debug something without me asking. She just noticed I was stuck.
+              </div>
+              <div class="msg msg-ai">
+                <div class="msg-label">CouchLoop EQ</div>
+                That's a meaningful one. Someone paying attention without being asked — that says something about the trust on your team.
+                <br><br>
+                <strong>Now name something about yourself you appreciate today.</strong> This one's often harder.
+              </div>
+            </div>
+            <div class="outcome">
+              <h4>Outcome</h4>
+              <ul>
+                <li>Quick structured gratitude exercise</li>
+                <li>Balanced — acknowledges hard days while finding positives</li>
+                <li>Self-directed reflection, not generic affirmations</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- USE CASE 4: Crisis Detection -->
+        <div class="use-case">
+          <div class="use-case-header">
+            <div class="use-case-icon">🛡️</div>
+            <h3>Crisis Detection: Knowing When to Escalate</h3>
+            <span class="tool-badge">conversation (built-in)</span>
+          </div>
+          <div class="use-case-scenario">
+            CouchLoop EQ monitors conversations for crisis signals and responds with appropriate resources — never tries to be a therapist.
+          </div>
+          <div class="use-case-body">
+            <div class="conversation">
+              <div class="msg msg-user">
+                <div class="msg-label">User</div>
+                I don't see the point in anything anymore. Nothing is going to change.
+              </div>
+              <div class="msg msg-ai">
+                <div class="msg-label">CouchLoop EQ</div>
+                I hear you, and I want to take what you're saying seriously. Feeling like nothing will change is really heavy.
+                <br><br>
+                I'm not a therapist, but I want to make sure you have the right support:
+                <br><br>
+                <strong>988 Suicide & Crisis Lifeline</strong> — Call or text 988 (24/7)<br>
+                <strong>Crisis Text Line</strong> — Text HOME to 741741<br>
+                <br>
+                Would you like to talk about what's contributing to this feeling? I'm here, and there's no rush.
+              </div>
+            </div>
+            <div class="safety-note">
+              <h4>Safety by Design</h4>
+              <p>CouchLoop EQ never provides clinical diagnoses, prescribes treatment, or replaces professional help. Crisis detection is built into every conversation — it monitors for distress signals and provides real resources when they matter. This isn't a feature you toggle on; it's always active.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- USE CASE 5: Insight Tracking -->
+        <div class="use-case">
+          <div class="use-case-header">
+            <div class="use-case-icon">💡</div>
+            <h3>Insight Tracking: Build Self-Awareness Over Time</h3>
+            <span class="tool-badge">remember</span>
+          </div>
+          <div class="use-case-scenario">
+            "I keep noticing the same stress patterns but forget by the next session. I want to track them."
+          </div>
+          <div class="use-case-body">
+            <div class="conversation">
+              <div class="msg msg-user">
+                <div class="msg-label">User</div>
+                Save this insight: I notice I get most anxious on Sunday evenings — it's anticipatory stress about Monday. It's not about the work itself, it's about the transition.
+              </div>
+              <div class="msg msg-ai">
+                <div class="msg-label">CouchLoop EQ</div>
+                ✅ Saved with tags: <code>anxiety</code>, <code>patterns</code>, <code>work-life</code>
+                <br><br>
+                This is your 4th insight about transitions. You're building a clear picture: it's not the destinations that stress you — it's the switching.
+              </div>
+              <div class="msg msg-user" style="margin-top: 16px;">
+                <div class="msg-label">User (2 weeks later)</div>
+                Show my insights about anxiety
+              </div>
+              <div class="msg msg-ai">
+                <div class="msg-label">CouchLoop EQ</div>
+                Found 4 insights tagged <code>anxiety</code>:
+                <br><br>
+                1. "Sunday evening anticipatory stress — it's about the transition, not the work" <em>(Feb 10)</em><br>
+                2. "Context-switching between projects triggers same feeling as Monday mornings" <em>(Feb 5)</em><br>
+                3. "Morning anxiety reduces after 15 min of focused work" <em>(Jan 28)</em><br>
+                4. "Uncertainty about priorities is worse than having too much to do" <em>(Jan 22)</em>
+                <br><br>
+                <strong>Pattern emerging:</strong> Your anxiety is consistently about transitions and uncertainty, not workload. That's a useful distinction.
+              </div>
+            </div>
+            <div class="outcome">
+              <h4>Outcome</h4>
+              <ul>
+                <li>Insights persist across weeks and sessions</li>
+                <li>Patterns identified automatically over time</li>
+                <li>Self-awareness built from the user's own words, not generic advice</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <section class="cta-section">
+      <div class="container">
+        <h2 style="margin-bottom: 16px;">Start a conversation</h2>
+        <p style="color: var(--text-muted); margin-bottom: 32px;">Add CouchLoop EQ to ChatGPT or Claude — no signup, no tracking, session-isolated.</p>
+        <a href="/#setup" class="btn btn-primary">Get Started</a>
+        <a href="/use-cases/dev" class="btn btn-secondary">See Developer Use Cases →</a>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container">
+      <p>Built with care by the CouchLoop team</p>
+      <div class="footer-links">
+        <a href="https://couchloop.com">CouchLoop.com</a>
+        <a href="https://couchloopchat.com">CouchLoop Chat</a>
+        <a href="https://github.com/wisenbergg/couchloop-mcp">GitHub</a>
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>
