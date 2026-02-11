@@ -56,6 +56,14 @@ app.get('/terms', (_req: Request, res: Response) => {
   res.sendFile(path.join(__dirname, '../../public/terms.html'));
 });
 
+app.get('/use-cases/dev', (_req: Request, res: Response) => {
+  res.sendFile(path.join(__dirname, '../../public/use-cases/dev.html'));
+});
+
+app.get('/use-cases/wellness', (_req: Request, res: Response) => {
+  res.sendFile(path.join(__dirname, '../../public/use-cases/wellness.html'));
+});
+
 // ====================
 // OAuth Endpoints
 // ====================
