@@ -16,6 +16,7 @@ import { handlePreReviewCode } from './pre-review-code.js';
 import { handleDetectCodeSmell } from './detect-code-smell.js';
 import { handlePreventAIErrors } from './prevent-ai-errors.js';
 import { logger } from '../utils/logger.js';
+import { sanitizeCode } from '../utils/inputSanitize.js';
 
 const ComprehensiveCodeReviewInputSchema = z.object({
   code: z.string().describe('Code to review'),
@@ -66,6 +67,8 @@ export const comprehensiveCodeReviewTool = {
 export async function handleComprehensiveCodeReview(args: unknown) {
   try {
     const input = ComprehensiveCodeReviewInputSchema.parse(args);
+    // Defense-in-depth: strip null bytes from code input
+    const code = sanitizeCode(input.code);
     const focus = input.focus || ['security', 'quality', 'smell', 'ai-errors'];
     
     logger.info('Running comprehensive code review');
@@ -75,11 +78,11 @@ export async function handleComprehensiveCodeReview(args: unknown) {
     
     // Run all relevant checks in parallel
     const checks = await Promise.allSettled([
-      focus.includes('security') ? handleScanSecurity({ code: input.code, language: input.language }) : null,
-      focus.includes('quality') ? handlePreReviewCode({ code: input.code, language: input.language }) : null,
-      focus.includes('smell') ? handleDetectCodeSmell({ code: input.code, language: input.language }) : null,
+      focus.includes('security') ? handleScanSecurity({ code, language: input.language }) : null,
+      focus.includes('quality') ? handlePreReviewCode({ code, language: input.language }) : null,
+      focus.includes('smell') ? handleDetectCodeSmell({ code, language: input.language }) : null,
       focus.includes('ai-errors') ? handlePreventAIErrors({ 
-        code: input.code, 
+        code, 
         language: input.language, 
         auto_fix: input.auto_fix,
         check_build_context: true 

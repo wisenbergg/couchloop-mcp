@@ -100,6 +100,7 @@
     "dotenv": "^16.3.1",
     "drizzle-orm": "^0.29.1",
     "express": "^5.2.1",
+    "helmet": "^8.1.0",
     "jose": "^5.2.0",
     "jsonwebtoken": "^9.0.3",
     "nanoid": "^5.0.4",

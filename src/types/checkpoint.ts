@@ -14,7 +14,7 @@ const ContextCategoryEnum = z.enum([
 export const SaveCheckpointSchema = z.object({
   session_id: z.string().uuid().optional().describe('Active session ID (auto-created if not provided)'),
   key: z.string().describe('What is being captured (e.g., "mood", "reflection", "gratitude")'),
-  value: z.any().describe('The captured content'),
+  value: z.unknown().describe('The captured content'),
   advance_step: z.boolean().default(true).describe('Whether to advance to next journey step'),
   auth: AuthContextSchema.optional().describe('Authentication context for user identification'),
   
