@@ -3,7 +3,7 @@
  * Validates Java package existence from Maven Central
  */
 
-import type { PackageInfo, RegistryValidator } from '../types/package.js';
+import type { PackageInfo, RegistryValidator, MavenSearchResponse } from '../types/package.js';
 
 export class MavenValidator implements RegistryValidator {
   private readonly registryUrl = 'https://search.maven.org/solrsearch/select';
@@ -48,7 +48,7 @@ export class MavenValidator implements RegistryValidator {
         throw new Error(`Registry returned ${response.status}`);
       }
 
-      const data = await response.json() as any;
+      const data = await response.json() as MavenSearchResponse;
 
       if (!data.response?.docs?.length) {
         const result: PackageInfo = {
@@ -64,6 +64,18 @@ export class MavenValidator implements RegistryValidator {
       }
 
       const doc = data.response.docs[0];
+
+      if (!doc) {
+        const result: PackageInfo = {
+          name: packageName,
+          version,
+          registry: 'maven',
+          exists: false,
+          lastChecked: new Date()
+        };
+        this.cache.set(cacheKey, { data: result, timestamp: Date.now() });
+        return result;
+      }
 
       const result: PackageInfo = {
         name: packageName,
@@ -101,9 +113,9 @@ export class MavenValidator implements RegistryValidator {
         return [];
       }
 
-      const data = await response.json() as any;
+      const data = await response.json() as MavenSearchResponse;
 
-      return data.response.docs.map((doc: any) => ({
+      return data.response.docs.map((doc) => ({
         name: `${doc.g}:${doc.a}`,
         version: doc.v,
         registry: 'maven' as const,

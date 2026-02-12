@@ -182,7 +182,7 @@ export async function saveCheckpoint(args: unknown): Promise<CheckpointResponse 
   }
 }
 
-export async function getCheckpoints(args: any) {
+export async function getCheckpoints(args: { session_id?: string; auth?: { user_id?: string; client_id?: string; token?: string } }) {
   try {
     const { session_id, auth } = args;
     const db = getDb();

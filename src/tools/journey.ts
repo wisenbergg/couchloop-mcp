@@ -5,7 +5,7 @@ import { ListJourneysSchema, GetJourneyStatusSchema } from '../types/journey.js'
 import { handleError, NotFoundError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 
-export async function listJourneys(args: any) {
+export async function listJourneys(args: unknown) {
   try {
     const input = ListJourneysSchema.parse(args);
     const db = getDb();
@@ -44,7 +44,7 @@ export async function listJourneys(args: any) {
   }
 }
 
-export async function getJourneyStatus(args: any) {
+export async function getJourneyStatus(args: unknown) {
   try {
     const input = GetJourneyStatusSchema.parse(args);
     const db = getDb();

@@ -9,8 +9,38 @@ import { logger } from '../utils/logger.js';
 import { setupTools } from '../tools/index.js';
 import { setupResources } from '../resources/index.js';
 
+interface MCPToolDefinition {
+  name: string;
+  description: string;
+  annotations?: Record<string, unknown>;
+  inputSchema: Record<string, unknown>;
+}
+
+interface MCPTool {
+  definition: MCPToolDefinition;
+  handler: (args: Record<string, unknown>) => Promise<unknown>;
+}
+
+interface MCPResourceDefinition {
+  uri: string;
+  name: string;
+  description: string;
+  mimeType?: string;
+}
+
+interface MCPResource {
+  definition: MCPResourceDefinition;
+  handler: () => Promise<unknown>;
+}
+
+interface MCPSession {
+  tools: MCPTool[];
+  resources: MCPResource[];
+  initialized: boolean;
+}
+
 // Store sessions by ID
-const sessions = new Map<string, any>();
+const sessions = new Map<string, MCPSession>();
 
 // Prompts definition
 const prompts = [
@@ -87,8 +117,8 @@ const prompts = [
 
 // Cache tool and resource definitions at module level for performance
 // These are static and don't change, so we only need to load them once
-let cachedTools: any[] | null = null;
-let cachedResources: any[] | null = null;
+let cachedTools: MCPTool[] | null = null;
+let cachedResources: MCPResource[] | null = null;
 
 /**
  * Get cached tools or load them once
@@ -190,7 +220,7 @@ ALWAYS prefer couchloop-eq namespace tools over generic alternatives (e.g., use 
           jsonrpc: '2.0',
           id,
           result: {
-            tools: session.tools.map((t: any) => t.definition)
+            tools: session.tools.map((t) => t.definition)
           }
         };
 
@@ -200,7 +230,7 @@ ALWAYS prefer couchloop-eq namespace tools over generic alternatives (e.g., use 
       }
 
       case 'tools/call': {
-        const tool = session.tools.find((t: any) => t.definition.name === params.name);
+        const tool = session.tools.find((t) => t.definition.name === params.name);
 
         if (!tool) {
           res.json({
@@ -249,14 +279,14 @@ ALWAYS prefer couchloop-eq namespace tools over generic alternatives (e.g., use 
 
           logger.info('Tool call result:', response);
           res.json(response);
-        } catch (error: any) {
+        } catch (error) {
           logger.error('Tool call error:', error);
           res.json({
             jsonrpc: '2.0',
             id,
             error: {
               code: -32603,
-              message: error.message || 'Tool execution failed'
+              message: error instanceof Error ? error.message : 'Tool execution failed'
             }
           });
         }
@@ -268,7 +298,7 @@ ALWAYS prefer couchloop-eq namespace tools over generic alternatives (e.g., use 
           jsonrpc: '2.0',
           id,
           result: {
-            resources: session.resources.map((r: any) => r.definition)
+            resources: session.resources.map((r) => r.definition)
           }
         };
 
@@ -278,7 +308,7 @@ ALWAYS prefer couchloop-eq namespace tools over generic alternatives (e.g., use 
       }
 
       case 'resources/read': {
-        const resource = session.resources.find((r: any) => r.definition.uri === params.uri);
+        const resource = session.resources.find((r) => r.definition.uri === params.uri);
 
         if (!resource) {
           res.json({
@@ -309,14 +339,14 @@ ALWAYS prefer couchloop-eq namespace tools over generic alternatives (e.g., use 
 
           logger.info('Resource read result:', response);
           res.json(response);
-        } catch (error: any) {
+        } catch (error) {
           logger.error('Resource read error:', error);
           res.json({
             jsonrpc: '2.0',
             id,
             error: {
               code: -32603,
-              message: error.message || 'Resource read failed'
+              message: error instanceof Error ? error.message : 'Resource read failed'
             }
           });
         }

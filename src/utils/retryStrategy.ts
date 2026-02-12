@@ -208,7 +208,7 @@ export class RetryStrategy {
   /**
    * Create a retry wrapper for a specific function
    */
-  wrap<T extends (...args: any[]) => Promise<any>>(
+  wrap<T extends (...args: unknown[]) => Promise<unknown>>(
     fn: T,
     options: RetryOptions = {}
   ): T {

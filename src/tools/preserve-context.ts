@@ -1,4 +1,4 @@
-import { PreserveContextSchema, PreserveContextResponse } from '../types/context.js';
+import { PreserveContextSchema, PreserveContextResponse, type ContextCategoryType } from '../types/context.js';
 import { getContextManager } from '../developer/managers/context-manager.js';
 import { logger } from '../utils/logger.js';
 
@@ -14,7 +14,7 @@ import { logger } from '../utils/logger.js';
  * - 'retrieve': Get stored context by category or search term
  * - 'check': Check context window status and get usage metrics
  */
-export async function preserveContext(args: any): Promise<PreserveContextResponse> {
+export async function preserveContext(args: unknown): Promise<PreserveContextResponse> {
   try {
     // Validate input
     const input = PreserveContextSchema.parse(args);
@@ -54,7 +54,7 @@ export async function preserveContext(args: any): Promise<PreserveContextRespons
       default: {
         return {
           success: false,
-          action: input.action as any,
+          action: input.action as PreserveContextResponse['action'],
           message: `Unknown action: ${input.action}`,
         };
       }
@@ -83,15 +83,15 @@ export async function preserveContext(args: any): Promise<PreserveContextRespons
  */
 export async function storeContext(category: string, content: string): Promise<void> {
   const contextManager = await getContextManager();
-  await contextManager.storeEntry(category as any, content);
+  await contextManager.storeEntry(category as ContextCategoryType, content);
 }
 
 /**
  * Convenience function to retrieve context
  */
-export async function retrieveContext(category?: string, searchTerm?: string): Promise<any[]> {
+export async function retrieveContext(category?: string, searchTerm?: string): Promise<PreserveContextResponse['data']> {
   const contextManager = await getContextManager();
-  const response = await contextManager.retrieve(category as any, searchTerm);
+  const response = await contextManager.retrieve(category as ContextCategoryType | undefined, searchTerm);
   // Ensure we always return an array
   const data = response.data;
   if (Array.isArray(data)) {
@@ -103,7 +103,7 @@ export async function retrieveContext(category?: string, searchTerm?: string): P
 /**
  * Convenience function to check context status
  */
-export async function checkContextStatus(): Promise<any> {
+export async function checkContextStatus(): Promise<PreserveContextResponse> {
   const contextManager = await getContextManager();
   return await contextManager.check(true);
 }

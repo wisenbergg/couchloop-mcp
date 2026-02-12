@@ -6,7 +6,7 @@ export interface PerformanceMetric {
   duration: number;
   success: boolean;
   timestamp: Date;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface PerformanceStats {
@@ -70,7 +70,7 @@ export class PerformanceMonitor extends EventEmitter {
   async measure<T>(
     operation: string,
     fn: () => Promise<T>,
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ): Promise<T> {
     const start = performance.now();
     let success = true;
@@ -93,7 +93,7 @@ export class PerformanceMonitor extends EventEmitter {
   measureSync<T>(
     operation: string,
     fn: () => T,
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ): T {
     const start = performance.now();
     let success = true;
@@ -117,7 +117,7 @@ export class PerformanceMonitor extends EventEmitter {
     operation: string,
     duration: number,
     success: boolean = true,
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ): void {
     const metric: PerformanceMetric = {
       operation,
@@ -376,7 +376,7 @@ export class PerformanceMonitor extends EventEmitter {
   /**
    * Export metrics for external monitoring
    */
-  export(): any {
+  export(): { uptime: number; health: HealthStatus; stats: Record<string, PerformanceStats>; timestamp: string } {
     return {
       uptime: this.getUptime(),
       health: this.getHealthStatus(),
@@ -393,7 +393,7 @@ export const performanceMonitor = new PerformanceMonitor();
 export async function measure<T>(
   operation: string,
   fn: () => Promise<T>,
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 ): Promise<T> {
   return performanceMonitor.measure(operation, fn, metadata);
 }
@@ -402,7 +402,7 @@ export function recordMetric(
   operation: string,
   duration: number,
   success: boolean = true,
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 ): void {
   performanceMonitor.record(operation, duration, success, metadata);
 }

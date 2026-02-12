@@ -55,7 +55,7 @@ export class RegistryManager {
       return {
         name: packageName,
         version,
-        registry: targetRegistry as any,
+        registry: targetRegistry as PackageInfo['registry'],
         exists: false,
         warning: `Unknown registry: ${targetRegistry}`,
         lastChecked: new Date()
@@ -111,8 +111,8 @@ export class RegistryManager {
    */
   clearCaches(): void {
     this.validators.forEach(validator => {
-      if ('clearCache' in validator) {
-        (validator as any).clearCache();
+      if (validator.clearCache) {
+        validator.clearCache();
       }
     });
   }

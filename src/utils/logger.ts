@@ -18,7 +18,7 @@ class Logger {
     this.isMCP = process.env.MCP_MODE === 'true' || process.argv.includes('--mcp');
   }
 
-  private log(level: LogLevel, ...args: any[]) {
+  private log(level: LogLevel, ...args: unknown[]) {
     // Skip all console output when running as MCP server
     if (this.isMCP) {
       return;
@@ -38,19 +38,19 @@ class Logger {
     }
   }
 
-  error(...args: any[]) {
+  error(...args: unknown[]) {
     this.log('ERROR', ...args);
   }
 
-  warn(...args: any[]) {
+  warn(...args: unknown[]) {
     this.log('WARN', ...args);
   }
 
-  info(...args: any[]) {
+  info(...args: unknown[]) {
     this.log('INFO', ...args);
   }
 
-  debug(...args: any[]) {
+  debug(...args: unknown[]) {
     this.log('DEBUG', ...args);
   }
 }

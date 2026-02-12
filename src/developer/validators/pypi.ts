@@ -3,7 +3,7 @@
  * Validates Python package existence from PyPI registry
  */
 
-import type { PackageInfo, RegistryValidator } from '../types/package.js';
+import type { PackageInfo, RegistryValidator, PyPiRegistryResponse, SecurityIssue } from '../types/package.js';
 
 export class PyPiValidator implements RegistryValidator {
   private readonly registryUrl = 'https://pypi.org/pypi';
@@ -44,7 +44,7 @@ export class PyPiValidator implements RegistryValidator {
         throw new Error(`Registry returned ${response.status}`);
       }
 
-      const data = await response.json() as any;
+      const data = await response.json() as PyPiRegistryResponse;
 
       const result: PackageInfo = {
         name: packageName,
@@ -57,9 +57,9 @@ export class PyPiValidator implements RegistryValidator {
       };
 
       // Check for vulnerabilities if available
-      if (data.vulnerabilities?.length > 0) {
-        result.securityIssues = data.vulnerabilities.map((vuln: any) => ({
-          severity: vuln.severity || 'medium',
+      if (data.vulnerabilities?.length) {
+        result.securityIssues = data.vulnerabilities.map((vuln) => ({
+          severity: (vuln.severity || 'medium') as SecurityIssue['severity'],
           description: vuln.description,
           cve: vuln.cve,
           fixedIn: vuln.fixed_in?.[0]
@@ -104,7 +104,7 @@ export class PyPiValidator implements RegistryValidator {
         try {
           const response = await fetch(`${this.registryUrl}/${variant}/json`);
           if (response.ok) {
-            const data = await response.json() as any;
+            const data = await response.json() as PyPiRegistryResponse;
             if (!seen.has(data.info.name)) {
               seen.add(data.info.name);
               results.push({

@@ -6,7 +6,7 @@
 
 import { z } from 'zod';
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
-import { ReviewAssistant } from '../developer/scanners/review-assistant.js';
+import { ReviewAssistant, type ScanResult } from '../developer/scanners/review-assistant.js';
 import { ReviewSummaryGenerator, formatReviewSummaryAsMarkdown } from '../developer/reports/review-summary.js';
 import { logger } from '../utils/logger.js';
 
@@ -152,12 +152,12 @@ export async function handlePreReviewCode(input: unknown): Promise<object> {
   }
 }
 
-function filterByStrictness(scanResult: any, strictness: 'low' | 'medium' | 'high') {
+function filterByStrictness(scanResult: ScanResult, strictness: 'low' | 'medium' | 'high') {
   let filtered = { ...scanResult };
 
   if (strictness === 'low') {
     // Only keep critical issues
-    filtered.issues = scanResult.issues.filter((issue: any) => issue.severity === 'high');
+    filtered.issues = scanResult.issues.filter((issue) => issue.severity === 'high');
   } else if (strictness === 'medium') {
     // Keep all issues (default)
     filtered.issues = scanResult.issues;
@@ -165,14 +165,16 @@ function filterByStrictness(scanResult: any, strictness: 'low' | 'medium' | 'hig
   // 'high' strictness keeps everything
 
   // Recompile summary
-  filtered.issuesByType = {};
-  filtered.issuesBySeverity = { low: 0, medium: 0, high: 0 };
+  const issuesByType: Record<string, number> = {};
+  const issuesBySeverity: Record<string, number> = { low: 0, medium: 0, high: 0 };
 
-  filtered.issues.forEach((issue: any) => {
-    filtered.issuesByType[issue.type] = (filtered.issuesByType[issue.type] || 0) + 1;
-    filtered.issuesBySeverity[issue.severity]++;
+  filtered.issues.forEach((issue) => {
+    issuesByType[issue.type] = (issuesByType[issue.type] || 0) + 1;
+    issuesBySeverity[issue.severity] = (issuesBySeverity[issue.severity] ?? 0) + 1;
   });
 
+  filtered.issuesByType = issuesByType;
+  (filtered as Record<string, unknown>).issuesBySeverity = issuesBySeverity;
   filtered.totalIssues = filtered.issues.length;
 
   return filtered;

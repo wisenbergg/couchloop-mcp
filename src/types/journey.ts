@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { Session, Checkpoint } from '../db/schema.js';
 
 export const JourneyStepTypeSchema = z.enum(['prompt', 'checkpoint', 'summary']);
 export type JourneyStepType = z.infer<typeof JourneyStepTypeSchema>;
@@ -42,13 +43,13 @@ export const GetJourneyStatusSchema = z.object({
 export type GetJourneyStatusInput = z.infer<typeof GetJourneyStatusSchema>;
 
 export interface JourneyStatusResponse {
-  session: any;
+  session: Session;
   journey: Journey | null;
   progress: {
     current_step: number;
     total_steps: number;
     percent_complete: number;
   };
-  checkpoints: any[];
+  checkpoints: Checkpoint[];
   time_elapsed_minutes: number;
 }

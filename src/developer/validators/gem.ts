@@ -3,7 +3,7 @@
  * Validates Ruby gem existence from rubygems.org
  */
 
-import type { PackageInfo, RegistryValidator } from '../types/package.js';
+import type { PackageInfo, RegistryValidator, GemRegistryResponse, GemSearchResponse } from '../types/package.js';
 
 export class GemValidator implements RegistryValidator {
   private readonly registryUrl = 'https://rubygems.org/api/v1';
@@ -43,7 +43,7 @@ export class GemValidator implements RegistryValidator {
         throw new Error(`Registry returned ${response.status}`);
       }
 
-      const data = await response.json() as any;
+      const data = await response.json() as GemRegistryResponse;
 
       const result: PackageInfo = {
         name: packageName,
@@ -82,9 +82,9 @@ export class GemValidator implements RegistryValidator {
         return [];
       }
 
-      const data = await response.json() as any;
+      const data = await response.json() as GemSearchResponse;
 
-      return data.slice(0, limit).map((gem: any) => ({
+      return data.slice(0, limit).map((gem) => ({
         name: gem.name,
         version: gem.version,
         registry: 'gem' as const,

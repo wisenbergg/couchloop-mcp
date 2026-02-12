@@ -3,7 +3,7 @@
  * Validates Rust package existence from crates.io registry
  */
 
-import type { PackageInfo, RegistryValidator } from '../types/package.js';
+import type { PackageInfo, RegistryValidator, CargoRegistryResponse, CargoVersionResponse, CargoSearchResponse } from '../types/package.js';
 
 export class CargoValidator implements RegistryValidator {
   private readonly registryUrl = 'https://crates.io/api/v1';
@@ -46,7 +46,7 @@ export class CargoValidator implements RegistryValidator {
         throw new Error(`Registry returned ${response.status}`);
       }
 
-      const data = await response.json() as any;
+      const data = await response.json() as CargoRegistryResponse;
       const crate = data.crate;
 
       // Check if specific version exists
@@ -76,7 +76,7 @@ export class CargoValidator implements RegistryValidator {
           throw new Error(`Version check returned ${versionResponse.status}`);
         }
 
-        const versionData = await versionResponse.json() as any;
+        const versionData = await versionResponse.json() as CargoVersionResponse;
 
         const result: PackageInfo = {
           name: packageName,
@@ -139,9 +139,9 @@ export class CargoValidator implements RegistryValidator {
         return [];
       }
 
-      const data = await response.json() as any;
+      const data = await response.json() as CargoSearchResponse;
 
-      return data.crates.map((crate: any) => ({
+      return data.crates.map((crate) => ({
         name: crate.name,
         version: crate.max_version,
         registry: 'cargo' as const,

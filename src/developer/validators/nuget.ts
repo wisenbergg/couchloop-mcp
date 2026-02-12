@@ -3,7 +3,7 @@
  * Validates .NET/C# package existence from nuget.org
  */
 
-import type { PackageInfo, RegistryValidator } from '../types/package.js';
+import type { PackageInfo, RegistryValidator, NuGetIndexResponse, NuGetSearchResponse } from '../types/package.js';
 
 export class NuGetValidator implements RegistryValidator {
   private readonly registryUrl = 'https://api.nuget.org/v3-flatcontainer';
@@ -42,7 +42,7 @@ export class NuGetValidator implements RegistryValidator {
         throw new Error(`Registry returned ${response.status}`);
       }
 
-      const data = await response.json() as any;
+      const data = await response.json() as NuGetIndexResponse;
       const versions = data.versions || [];
 
       if (versions.length === 0) {
@@ -106,9 +106,9 @@ export class NuGetValidator implements RegistryValidator {
         return [];
       }
 
-      const data = await response.json() as any;
+      const data = await response.json() as NuGetSearchResponse;
 
-      return (data.data || []).map((pkg: any) => ({
+      return (data.data || []).map((pkg) => ({
         name: pkg.id,
         version: pkg.version,
         registry: 'nuget' as const,

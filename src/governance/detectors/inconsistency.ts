@@ -118,10 +118,10 @@ export class InconsistencyChecker {
 
     for (const checkpoint of sessionCheckpoints) {
       if (checkpoint.key === 'user-message' || checkpoint.key === 'assistant-message') {
-        const value = checkpoint.value as any;
+        const value = checkpoint.value as Record<string, string> | null;
         history.push({
           role: checkpoint.key === 'user-message' ? 'user' : 'assistant',
-          content: value.message || value.content || ''
+          content: value?.message || value?.content || ''
         });
       }
     }

@@ -60,7 +60,7 @@ export const ErrorResponseSchema = z.object({
   message: z.string().optional(),
   error_type: z.string().optional(),
   code: z.string().optional(),
-  details: z.any().optional(),
+  details: z.unknown().optional(),
 });
 
 export type ShrinkResponse = z.infer<typeof ShrinkResponseSchema>;
@@ -130,7 +130,7 @@ export class ShrinkChatClient {
             const errorData = await res.json().catch(() => ({
               error: res.statusText,
               error_type: 'http_error'
-            })) as any;
+            })) as ErrorResponse;
 
             throw new Error(
               errorData.message ||
@@ -166,7 +166,7 @@ export class ShrinkChatClient {
     options?: {
       userId?: string;
       memoryContext?: string;
-      enhancedContext?: any;
+      enhancedContext?: Record<string, unknown>;
       history?: Array<{ role: string; content: string }>;
       systemPrompt?: string;
       conversationType?: string;
@@ -317,13 +317,13 @@ export class ShrinkChatClient {
     threadId: string,
     options?: {
       memoryContext?: string;
-      enhancedContext?: any;
+      enhancedContext?: Record<string, unknown>;
       history?: Array<{ role: string; content: string }>;
       systemPrompt?: string;
       conversationType?: string;
       signal?: AbortSignal;
     }
-  ): AsyncGenerator<any> {
+  ): AsyncGenerator<ShrinkResponse> {
     const config = getConfig();
     const url = `${config.baseUrl}/api/shrink?stream=true`;
 
@@ -386,7 +386,7 @@ export class ShrinkChatClient {
   async getRecentMessages(
     threadId: string,
     limit: number = 10
-  ): Promise<any> {
+  ): Promise<unknown> {
     const params = new URLSearchParams({ threadId, limit: String(limit) });
     return this.request(`/api/messages/recent?${params}`, {
       method: 'GET',
@@ -401,7 +401,7 @@ export class ShrinkChatClient {
     role: 'user' | 'assistant',
     content: string,
     idempotencyKey?: string
-  ): Promise<any> {
+  ): Promise<unknown> {
     const headers: Record<string, string> = {};
     if (idempotencyKey) {
       headers['x-idempotency-key'] = idempotencyKey;
