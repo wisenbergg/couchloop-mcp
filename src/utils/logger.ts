@@ -7,6 +7,39 @@ const LOG_LEVELS = {
 
 type LogLevel = keyof typeof LOG_LEVELS;
 
+/** Patterns that indicate sensitive values to redact */
+const SENSITIVE_KEYS = /token|secret|password|authorization|api[_-]?key|cookie|credential/i;
+const REDACTED = '[REDACTED]';
+
+/**
+ * Deep-sanitize an object, redacting values whose keys match sensitive patterns.
+ * Handles nested objects, arrays, and stringified JSON.
+ */
+function sanitize(value: unknown): unknown {
+  if (value === null || value === undefined) return value;
+
+  if (typeof value === 'string') {
+    // Redact Bearer tokens that appear inline
+    const cleaned = value.replace(/Bearer\s+[A-Za-z0-9\-._~+/]+=*/g, `Bearer ${REDACTED}`);
+    // Redact JWTs (three base64 segments joined by dots)
+    return cleaned.replace(/eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, REDACTED);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(sanitize);
+  }
+
+  if (typeof value === 'object') {
+    const sanitized: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(value as Record<string, unknown>)) {
+      sanitized[key] = SENSITIVE_KEYS.test(key) ? REDACTED : sanitize(val);
+    }
+    return sanitized;
+  }
+
+  return value;
+}
+
 class Logger {
   private level: number;
   private isMCP: boolean;
@@ -27,13 +60,14 @@ class Logger {
     if (LOG_LEVELS[level] <= this.level) {
       const timestamp = new Date().toISOString();
       const prefix = `[${timestamp}] [${level}]`;
+      const sanitizedArgs = args.map(sanitize);
 
       if (level === 'ERROR') {
-        console.error(prefix, ...args);
+        console.error(prefix, ...sanitizedArgs);
       } else if (level === 'WARN') {
-        console.warn(prefix, ...args);
+        console.warn(prefix, ...sanitizedArgs);
       } else {
-        console.log(prefix, ...args);
+        console.log(prefix, ...sanitizedArgs);
       }
     }
   }

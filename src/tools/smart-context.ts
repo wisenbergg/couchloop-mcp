@@ -16,6 +16,8 @@ import { saveInsight } from './insight.js';
 import { storeContext } from './preserve-context.js';
 import { handleDetectBuildContext } from './detect-build-context.js';
 import { logger } from '../utils/logger.js';
+import { sanitizeText } from '../utils/inputSanitize.js';
+import { AuthContextSchema } from '../types/auth.js';
 
 const SmartContextInputSchema = z.object({
   // What to capture
@@ -39,7 +41,7 @@ const SmartContextInputSchema = z.object({
   detect_project: z.boolean().default(false).describe('Also detect and store build context'),
   
   // Auth
-  auth: z.any().optional(),
+  auth: AuthContextSchema.optional(),
 });
 
 export const smartContextTool = {
@@ -87,6 +89,8 @@ export const smartContextTool = {
 export async function handleSmartContext(args: unknown) {
   try {
     const input = SmartContextInputSchema.parse(args);
+    // Defense-in-depth: sanitize user text before storage
+    const content = sanitizeText(input.content);
     const key = input.key || input.type;
     
     logger.info(`Smart context capture: ${input.type}`);
@@ -104,7 +108,7 @@ export async function handleSmartContext(args: unknown) {
         // Save as checkpoint
         results.checkpoint = await saveCheckpoint({
           key,
-          value: { content: input.content, tags: input.tags },
+          value: { content, tags: input.tags },
           session_id: input.session_id,
           save_as_insight: false,
           preserve_context: false,
@@ -115,7 +119,7 @@ export async function handleSmartContext(args: unknown) {
       case 'insight':
         // Save as insight
         results.insight = await saveInsight({
-          content: input.content,
+          content,
           session_id: input.session_id,
           tags: input.tags || ['insight'],
           auth: input.auth,
@@ -135,12 +139,12 @@ export async function handleSmartContext(args: unknown) {
         };
         const category = categoryMap[input.type] || 'decisions';
         
-        await storeContext(category, `[${key}] ${input.content}`);
+        await storeContext(category, `[${key}] ${content}`);
         results.context = { category, stored: true };
         
         // Also save as insight for searchability
         results.insight = await saveInsight({
-          content: input.content,
+          content,
           session_id: input.session_id,
           tags: [input.type, ...(input.tags || [])],
           auth: input.auth,
@@ -153,14 +157,14 @@ export async function handleSmartContext(args: unknown) {
         if (input.session_id) {
           results.checkpoint = await saveCheckpoint({
             key: key || 'conversation',
-            value: { content: input.content, tags: input.tags },
+            value: { content, tags: input.tags },
             session_id: input.session_id,
             auth: input.auth,
           });
         }
         
         // Also preserve as context
-        await storeContext('project-metadata', `[conversation] ${input.content}`);
+        await storeContext('project-metadata', `[conversation] ${content}`);
         results.context = { category: 'project-metadata', stored: true };
         break;
     }

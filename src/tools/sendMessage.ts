@@ -5,6 +5,7 @@ import { getShrinkChatClient } from '../clients/shrinkChatClient.js';
 import { sessions, checkpoints, journeys, crisisEvents, governanceEvaluations } from '../db/schema.js';
 import { logger } from '../utils/logger.js';
 import { sanitizeResponse } from '../utils/sanitize.js';
+import { sanitizeText } from '../utils/inputSanitize.js';
 import { NotFoundError } from '../utils/errors.js';
 import { v4 as uuidv4 } from 'uuid';
 import type { ShrinkResponse } from '../clients/shrinkChatClient.js';
@@ -79,6 +80,8 @@ async function sendMessageInternal(args: unknown) {
 
   try {
     const input = SendMessageSchema.parse(args);
+    // Defense-in-depth: sanitize text input beyond Zod validation
+    const message = sanitizeText(input.message);
     const db = getDb();
 
     // Get or create session implicitly if not provided
@@ -138,7 +141,7 @@ async function sendMessageInternal(args: unknown) {
     // Send message
     let response = await client.sendMessage(
       threadId,
-      input.message,
+      message,
       {
         userId: session.userId,
         memoryContext,
@@ -173,7 +176,7 @@ async function sendMessageInternal(args: unknown) {
 
       // Ask LLM to revise based on shrink-chat's own assessment
       const revisionPrompt = `The previous response may escalate the user's distress (crisis level: ${response.crisis_level}).
-Please provide a safer, more supportive response to: "${input.message}"
+Please provide a safer, more supportive response to: "${message}"
 
 Suggested approach: ${response.crisis_suggested_actions?.join(', ') || 'De-escalate, validate, provide resources'}`;
 
@@ -186,7 +189,7 @@ Suggested approach: ${response.crisis_suggested_actions?.join(', ') || 'De-escal
           memoryContext,
           enhancedContext,
           history: [...history,
-            { role: 'user', content: input.message },
+            { role: 'user', content: message },
             { role: 'assistant', content: response.content || response.reply || '' }
           ],
           systemPrompt: 'Provide a supportive, safe response that de-escalates distress.',
@@ -215,7 +218,7 @@ Suggested approach: ${response.crisis_suggested_actions?.join(', ') || 'De-escal
         stepId: session.currentStep.toString(),
         key: input.checkpoint_key || 'message_response',
         value: {
-          message: input.message,
+          message: message,
           response: responseContent,
           selfCorrected,
           timestamp: new Date().toISOString(),
