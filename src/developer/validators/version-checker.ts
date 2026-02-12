@@ -10,6 +10,7 @@ import { CargoValidator } from './cargo.js';
 import { GemValidator } from './gem.js';
 import { NuGetValidator } from './nuget.js';
 import { GoValidator } from './go.js';
+import type { PackageInfo } from '../types/package.js';
 
 export interface VersionInfo {
   packageName: string;
@@ -126,7 +127,7 @@ export class VersionChecker {
         isOutdated: false,
         isDeprecated: false,
         securityVulnerabilities: [],
-        updateComplexity: 'unknown' as any,
+        updateComplexity: 'low',
         lastChecked: new Date(),
         registry: registry || 'unknown'
       };
@@ -140,7 +141,7 @@ export class VersionChecker {
     packages: Array<{ name: string; version?: string; registry?: string }>
   ): Promise<VersionInfo[]> {
     return Promise.all(
-      packages.map(pkg => this.checkVersion(pkg.name, pkg.version, pkg.registry as any))
+      packages.map(pkg => this.checkVersion(pkg.name, pkg.version, pkg.registry as PackageInfo['registry'] | undefined))
     );
   }
 
@@ -220,7 +221,7 @@ export class VersionChecker {
 
       if (packageInfo.securityIssues) {
         vulnerabilities.push(
-          ...packageInfo.securityIssues.map((issue: any) => ({
+          ...packageInfo.securityIssues.map((issue) => ({
             id: issue.cve || `${packageName}-${version}-${issue.severity}`,
             severity: issue.severity,
             description: issue.description,
@@ -462,7 +463,7 @@ export class VersionChecker {
       isDeprecated: packageInfo.deprecated || false,
       majorVersionsBehind,
       minorVersionsBehind,
-      securityVulnerabilities: vulnerabilities.map((v: any) => ({
+      securityVulnerabilities: vulnerabilities.map((v) => ({
         id: v.cve || `${packageName}-${v.severity}`,
         severity: v.severity,
         description: v.description,

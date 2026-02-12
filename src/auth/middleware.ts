@@ -50,7 +50,13 @@ export async function validateToken(authHeader?: string): Promise<AuthContext> {
   }
 }
 
-export function extractAuthHeader(args: any): string | undefined {
+interface MCPArgs {
+  _auth?: { authorization?: string };
+  authorization?: string;
+  headers?: { authorization?: string };
+}
+
+export function extractAuthHeader(args: MCPArgs): string | undefined {
   // MCP protocol might pass auth in various ways
   // Check common patterns
   if (args?._auth?.authorization) {

@@ -5,7 +5,7 @@ export class CouchLoopError extends Error {
     message: string,
     public readonly code: string,
     public readonly statusCode: number = 500,
-    public readonly details?: any
+    public readonly details?: Record<string, unknown>
   ) {
     super(message);
     this.name = 'CouchLoopError';
@@ -24,7 +24,7 @@ export class CouchLoopError extends Error {
 }
 
 export class ValidationError extends CouchLoopError {
-  constructor(message: string, details?: any) {
+  constructor(message: string, details?: Record<string, unknown>) {
     super(message, 'VALIDATION_ERROR', 400, details);
     this.name = 'ValidationError';
   }
@@ -55,20 +55,20 @@ export class NotFoundError extends CouchLoopError {
 }
 
 export class ConflictError extends CouchLoopError {
-  constructor(message: string, details?: any) {
+  constructor(message: string, details?: Record<string, unknown>) {
     super(message, 'CONFLICT', 409, details);
     this.name = 'ConflictError';
   }
 }
 
 export class DatabaseError extends CouchLoopError {
-  constructor(message: string, originalError?: any) {
+  constructor(message: string, originalError?: unknown) {
     super(message, 'DATABASE_ERROR', 500, { originalError });
     this.name = 'DatabaseError';
   }
 }
 
-export function handleError(error: any): { error: string; details?: any } {
+export function handleError(error: unknown): { error: string; details?: Record<string, unknown> } {
   if (error instanceof CouchLoopError) {
     return {
       error: error.message,
@@ -81,6 +81,8 @@ export function handleError(error: any): { error: string; details?: any } {
 
   return {
     error: 'An unexpected error occurred',
-    details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    details: process.env.NODE_ENV === 'development'
+      ? { message: error instanceof Error ? error.message : String(error) }
+      : undefined,
   };
 }

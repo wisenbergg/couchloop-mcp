@@ -87,14 +87,14 @@ export class PackageEvaluator {
     }
 
     // Check for security issues
-    if (packageInfo.securityIssues?.some((issue: any) =>
+    if (packageInfo.securityIssues?.some((issue) =>
       issue.severity === 'critical' || issue.severity === 'high'
     )) {
       return {
         package: packageInfo,
         blocked: true,
         reason: 'Package has known security vulnerabilities',
-        warning: `Security issues found: ${packageInfo.securityIssues.map((i: any) => i.description).join(', ')}`,
+        warning: `Security issues found: ${packageInfo.securityIssues.map((i) => i.description).join(', ')}`,
         suggestions: version && packageInfo.securityIssues[0]?.fixedIn
           ? [`Update to version ${packageInfo.securityIssues[0].fixedIn}`]
           : []

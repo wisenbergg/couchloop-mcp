@@ -2,10 +2,9 @@
 import { config } from 'dotenv';
 import crypto from 'crypto';
 
-// Only load .env files in non-production (Railway/Docker use env vars directly)
-if (process.env.NODE_ENV !== 'production') {
-  const envFile = process.env.NODE_ENV === 'staging' ? '.env.staging' : '.env.local';
-  config({ path: envFile });
+// Only load .env.local for local development — production & staging use platform env vars
+if (!process.env.NODE_ENV || process.env.NODE_ENV === 'development') {
+  config({ path: '.env.local' });
 }
 
 import express, { Request, Response, NextFunction } from 'express';
@@ -550,7 +549,7 @@ components:
  * Global error handler for request-level errors
  * Handles client disconnects, oversized payloads, malformed JSON
  */
-app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
+app.use((err: Error & { type?: string; status?: number }, _req: Request, res: Response, next: NextFunction) => {
   // Client disconnected before request completed (Smithery proxy timeout, etc.)
   if (err.type === 'request.aborted') {
     logger.debug('Client disconnected before request completed');

@@ -3,7 +3,7 @@
  * Validates package existence and retrieves metadata from npm registry
  */
 
-import type { PackageInfo, RegistryValidator } from '../types/package.js';
+import type { PackageInfo, RegistryValidator, NpmRegistryResponse, NpmSearchResponse } from '../types/package.js';
 
 export class NpmValidator implements RegistryValidator {
   private readonly registryUrl = 'https://registry.npmjs.org';
@@ -40,7 +40,7 @@ export class NpmValidator implements RegistryValidator {
         throw new Error(`Registry returned ${response.status}`);
       }
 
-      const data = await response.json() as any;
+      const data = await response.json() as NpmRegistryResponse;
 
       // Check if specific version exists
       if (version && !data.versions?.[version]) {
@@ -60,7 +60,7 @@ export class NpmValidator implements RegistryValidator {
         registry: 'npm',
         exists: true,
         latestVersion: data['dist-tags']?.latest,
-        deprecated: data.deprecated || data.versions?.[version || data['dist-tags']?.latest]?.deprecated,
+        deprecated: !!(data.deprecated || data.versions?.[version || data['dist-tags']?.latest || '']?.deprecated),
         lastChecked: new Date()
       };
 
@@ -93,9 +93,9 @@ export class NpmValidator implements RegistryValidator {
         return [];
       }
 
-      const data = await response.json() as any;
+      const data = await response.json() as NpmSearchResponse;
 
-      return data.objects.map((obj: any) => ({
+      return data.objects.map((obj) => ({
         name: obj.package.name,
         version: obj.package.version,
         registry: 'npm' as const,

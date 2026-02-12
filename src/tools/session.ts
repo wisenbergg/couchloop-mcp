@@ -6,7 +6,7 @@ import { extractUserFromContext } from '../types/auth.js';
 import { handleError, NotFoundError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 
-export async function createSession(args: any) {
+export async function createSession(args: unknown) {
   try {
     const input = CreateSessionSchema.parse(args);
     const db = getDb();
@@ -79,7 +79,7 @@ export async function createSession(args: any) {
   }
 }
 
-export async function resumeSession(args: any) {
+export async function resumeSession(args: unknown) {
   try {
     const input = ResumeSessionSchema.parse(args);
     const db = getDb();

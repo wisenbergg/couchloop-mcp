@@ -11,7 +11,7 @@ import { nanoid } from 'nanoid';
  * Prevents accidental deletion, overwriting, and data loss
  */
 
-export async function protectFiles(args: any) {
+export async function protectFiles(args: unknown) {
   try {
     // Validate input
     const input = ProtectFilesSchema.parse(args);
@@ -159,7 +159,7 @@ export async function protectFiles(args: any) {
 /**
  * Get file protection status
  */
-export async function getProtectionStatus(_args: any) {
+export async function getProtectionStatus(_args: unknown) {
   try {
     const config = fileGuardian.getProtectionConfig();
     const stats = await autoBackup.getBackupStats();
@@ -196,7 +196,7 @@ export async function getProtectionStatus(_args: any) {
 /**
  * Get operation history
  */
-export async function getOperationHistory(args: any) {
+export async function getOperationHistory(args: Record<string, unknown>) {
   try {
     const limit = (args.limit || 50) as number;
     const history = fileGuardian.getOperationHistory(limit);
@@ -225,7 +225,7 @@ export async function getOperationHistory(args: any) {
 /**
  * List available backups
  */
-export async function listBackups(_args: any) {
+export async function listBackups(_args: unknown) {
   try {
     const backups = await autoBackup.listBackups();
 
@@ -251,13 +251,13 @@ export async function listBackups(_args: any) {
 /**
  * Rollback a file from backup
  */
-export async function rollbackFile(args: any) {
+export async function rollbackFile(args: Record<string, unknown>) {
   try {
     if (!args.backup_id) {
       throw new ValidationError('backup_id is required for rollback operation');
     }
 
-    const result = await autoBackup.rollback(args.backup_id);
+    const result = await autoBackup.rollback(args.backup_id as string);
 
     if (!result.success) {
       return {
@@ -286,7 +286,7 @@ export async function rollbackFile(args: any) {
 /**
  * Enable code freeze mode (all operations require approval)
  */
-export async function enableCodeFreeze(_args: any) {
+export async function enableCodeFreeze(_args: unknown) {
   try {
     fileGuardian.enableCodeFreezeMode();
 
@@ -309,7 +309,7 @@ export async function enableCodeFreeze(_args: any) {
 /**
  * Disable code freeze mode
  */
-export async function disableCodeFreeze(_args: any) {
+export async function disableCodeFreeze(_args: unknown) {
   try {
     fileGuardian.disableCodeFreezeMode();
 

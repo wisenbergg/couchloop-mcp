@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { AuthContextSchema } from './auth.js';
+import type { Journey, Session, Checkpoint } from '../db/schema.js';
 
 export const SessionStatusSchema = z.enum(['active', 'paused', 'completed', 'abandoned']);
 export type SessionStatus = z.infer<typeof SessionStatusSchema>;
@@ -21,15 +22,15 @@ export type ResumeSessionInput = z.infer<typeof ResumeSessionSchema>;
 
 export interface SessionResponse {
   session_id: string;
-  journey: any | null;
-  current_step: any | null;
+  journey: Journey | null;
+  current_step: Journey['steps'][number] | null;
   message: string;
 }
 
 export interface SessionWithDetails {
-  session: any;
-  journey: any | null;
-  current_step: any | null;
-  checkpoints: any[];
+  session: Session;
+  journey: Journey | null;
+  current_step: Journey['steps'][number] | null;
+  checkpoints: Checkpoint[];
   message: string;
 }

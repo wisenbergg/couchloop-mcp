@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { AuthContextSchema } from './auth.js';
+import type { User, Insight, Session } from '../db/schema.js';
 
 export const SaveInsightSchema = z.object({
   content: z.string().describe('The insight to save'),
@@ -24,8 +25,8 @@ export interface InsightResponse {
 }
 
 export interface UserContextResponse {
-  user: any;
-  recent_insights: any[];
-  recent_sessions: any[];
-  active_session: any | null;
+  user: User;
+  recent_insights: Insight[];
+  recent_sessions: Session[];
+  active_session: Session | null;
 }

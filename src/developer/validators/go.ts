@@ -3,7 +3,7 @@
  * Validates Go packages from pkg.go.dev
  */
 
-import type { PackageInfo, RegistryValidator } from '../types/package.js';
+import type { PackageInfo, RegistryValidator, GoLatestResponse } from '../types/package.js';
 
 export class GoValidator implements RegistryValidator {
   private readonly proxyUrl = 'https://proxy.golang.org';
@@ -63,7 +63,7 @@ export class GoValidator implements RegistryValidator {
         }
 
         if (latestResponse.ok) {
-          const latestData = await latestResponse.json() as any;
+          const latestData = await latestResponse.json() as GoLatestResponse;
           const result: PackageInfo = {
             name: packageName,
             version: version || latestData.Version,

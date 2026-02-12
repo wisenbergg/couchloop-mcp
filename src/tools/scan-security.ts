@@ -182,9 +182,9 @@ export async function handleScanSecurity(input: unknown): Promise<SecurityScanRe
 /**
  * Format vulnerabilities from scanners to unified format
  */
-function formatVulnerabilities(vulns: any[], scannerName: string): SecurityVulnerability[] {
+function formatVulnerabilities<T extends object>(vulns: T[], scannerName: string): SecurityVulnerability[] {
   return vulns.map(vuln => ({
-    ...vuln,
+    ...(vuln as unknown as SecurityVulnerability),
     scanner: scannerName,
   }));
 }
@@ -296,7 +296,7 @@ function generateDeveloperNotes(vulnerabilities: SecurityVulnerability[], langua
 /**
  * Determine overall risk level
  */
-function determineRiskLevel(summary: any): 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'SAFE' {
+function determineRiskLevel(summary: SecurityScanResult['summary']): 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'SAFE' {
   if (summary.critical > 0) return 'CRITICAL';
   if (summary.high >= 3) return 'CRITICAL';
   if (summary.high > 0) return 'HIGH';

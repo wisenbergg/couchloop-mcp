@@ -6,7 +6,8 @@
 
 import { z } from 'zod';
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
-import { BloatDetector } from '../developer/analyzers/bloat-detector.js';
+import { BloatDetector, type BloatDetectionResult, type CodeSmellWarning } from '../developer/analyzers/bloat-detector.js';
+import type { ComplexityMetrics } from '../developer/metrics/complexity-calculator.js';
 
 const inputSchema = z.object({
   code: z.string().describe('Code snippet to analyze for bloat patterns'),
@@ -65,7 +66,16 @@ export async function handleDetectCodeSmell(input: unknown): Promise<object> {
     const result = detector.analyze(params.code, params.language);
 
     // Format response
-    const response: any = {
+    const response: {
+      status: string;
+      summary: { totalIssues: number; criticalIssues: number; complexityScore: number; recommendation: string };
+      metrics?: Record<string, unknown>;
+      issues?: Array<Record<string, unknown>>;
+      refactoringPriority?: string[];
+      issueBreakdown?: { high: number; medium: number; low: number };
+      message?: string;
+      analysis?: { complexity: string; keyFindings: string[]; actionItems: Array<{ priority: number; action: string; impact: string }> };
+    } = {
       status: result.summary.score > 75 ? 'warning' : result.summary.score > 50 ? 'caution' : 'ok',
       summary: {
         totalIssues: result.summary.totalIssues,
@@ -152,7 +162,7 @@ export async function handleDetectCodeSmell(input: unknown): Promise<object> {
 /**
  * Explain complexity metrics in human terms
  */
-function explainComplexity(metrics: any): string {
+function explainComplexity(metrics: ComplexityMetrics): string {
   const parts: string[] = [];
 
   if (metrics.cyclomaticComplexity > 15) {
@@ -183,7 +193,7 @@ function explainComplexity(metrics: any): string {
 /**
  * Generate key findings summary
  */
-function generateKeyFindings(issues: any[]): string[] {
+function generateKeyFindings(issues: CodeSmellWarning[]): string[] {
   const findings: string[] = [];
   const typeCounts = new Map<string, number>();
 
@@ -206,12 +216,12 @@ function generateKeyFindings(issues: any[]): string[] {
 /**
  * Generate prioritized action items
  */
-function generateActionItems(result: any): Array<{ priority: number; action: string; impact: string }> {
+function generateActionItems(result: BloatDetectionResult): Array<{ priority: number; action: string; impact: string }> {
   const actions: Array<{ priority: number; action: string; impact: string }> = [];
   let priority = 1;
 
   // High-priority issues first
-  const highIssues = result.issues.filter((i: any) => i.severity === 'high');
+  const highIssues = result.issues.filter((i: CodeSmellWarning) => i.severity === 'high');
   for (const issue of highIssues.slice(0, 3)) {
     actions.push({
       priority,
@@ -222,7 +232,7 @@ function generateActionItems(result: any): Array<{ priority: number; action: str
   }
 
   // Medium-priority issues
-  const mediumIssues = result.issues.filter((i: any) => i.severity === 'medium');
+  const mediumIssues = result.issues.filter((i: CodeSmellWarning) => i.severity === 'medium');
   for (const issue of mediumIssues.slice(0, 2)) {
     actions.push({
       priority,

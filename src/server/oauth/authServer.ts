@@ -1,19 +1,25 @@
-import { config } from 'dotenv';
-// Load environment variables before class initialization (skip in production)
-if (process.env.NODE_ENV !== 'production') {
-  config({ path: '.env.local' });
+import { config } from "dotenv";
+// Only load .env.local for local development — production & staging use platform env vars
+if (!process.env.NODE_ENV || process.env.NODE_ENV === "development") {
+  config({ path: ".env.local" });
 }
 
-import { v4 as uuidv4 } from 'uuid';
-import jwt from 'jsonwebtoken';
-import bcrypt from 'bcryptjs';
-import { getDb } from '../../db/client.js';
-import { users, oauthClients, oauthTokens, authorizationCodes } from '../../db/schema.js';
-import { eq, and } from 'drizzle-orm';
-import { logger } from '../../utils/logger.js';
+import bcrypt from "bcryptjs";
+import nodeCrypto from "crypto";
+import { and, eq } from "drizzle-orm";
+import jwt, { type SignOptions } from "jsonwebtoken";
+import { v4 as uuidv4 } from "uuid";
+import { getDb } from "../../db/client.js";
+import {
+  authorizationCodes,
+  oauthClients,
+  oauthTokens,
+  users,
+} from "../../db/schema.js";
+import { logger } from "../../utils/logger.js";
 
 interface TokenPayload {
-  sub: string;  // User ID
+  sub: string; // User ID
   client_id: string;
   scope: string;
   iat?: number;
@@ -26,14 +32,18 @@ export class OAuthServer {
 
   constructor() {
     const secret = process.env.JWT_SECRET;
-    if (!secret && process.env.NODE_ENV === 'production') {
-      throw new Error('JWT_SECRET environment variable is required in production');
+    if (!secret && process.env.NODE_ENV === "production") {
+      throw new Error(
+        "JWT_SECRET environment variable is required in production",
+      );
     }
-    this.jwtSecret = secret || require('crypto').randomBytes(32).toString('hex');
-    this.jwtExpiresIn = process.env.JWT_EXPIRES_IN || '24h';
+    this.jwtSecret = secret || nodeCrypto.randomBytes(32).toString("hex");
+    this.jwtExpiresIn = process.env.JWT_EXPIRES_IN || "24h";
 
     if (!process.env.JWT_SECRET) {
-      logger.warn('JWT_SECRET not set - using random secret (tokens will not persist across restarts)');
+      logger.warn(
+        "JWT_SECRET not set - using random secret (tokens will not persist across restarts)",
+      );
     }
   }
 
@@ -42,7 +52,7 @@ export class OAuthServer {
    */
   async validateClient(
     clientId: string,
-    clientSecret?: string
+    clientSecret?: string,
   ): Promise<{ clientId: string; redirectUris: string[] } | null> {
     const db = getDb();
 
@@ -60,7 +70,10 @@ export class OAuthServer {
 
       // If secret provided, verify it
       if (clientSecret) {
-        const validSecret = await bcrypt.compare(clientSecret, client.clientSecret);
+        const validSecret = await bcrypt.compare(
+          clientSecret,
+          client.clientSecret,
+        );
         if (!validSecret) {
           logger.warn(`Invalid client secret for client: ${clientId}`);
           return null;
@@ -72,7 +85,7 @@ export class OAuthServer {
         redirectUris: client.redirectUris,
       };
     } catch (error) {
-      logger.error('Error validating client:', error);
+      logger.error("Error validating client:", error);
       return null;
     }
   }
@@ -84,7 +97,7 @@ export class OAuthServer {
     clientId: string,
     userId: string,
     redirectUri: string,
-    scope: string = 'read write'
+    scope: string = "read write",
   ): Promise<string> {
     const db = getDb();
     const code = uuidv4();
@@ -104,8 +117,8 @@ export class OAuthServer {
       logger.info(`Generated auth code for user ${userId}, client ${clientId}`);
       return code;
     } catch (error) {
-      logger.error('Error generating auth code:', error);
-      throw new Error('Failed to generate authorization code');
+      logger.error("Error generating auth code:", error);
+      throw new Error("Failed to generate authorization code");
     }
   }
 
@@ -116,7 +129,7 @@ export class OAuthServer {
     code: string,
     clientId: string,
     clientSecret: string,
-    redirectUri: string
+    redirectUri: string,
   ): Promise<{
     access_token: string;
     refresh_token?: string;
@@ -130,7 +143,7 @@ export class OAuthServer {
       // Validate client
       const validClient = await this.validateClient(clientId, clientSecret);
       if (!validClient) {
-        throw new Error('Invalid client credentials');
+        throw new Error("Invalid client credentials");
       }
 
       // Get and validate auth code
@@ -140,28 +153,28 @@ export class OAuthServer {
         .where(
           and(
             eq(authorizationCodes.code, code),
-            eq(authorizationCodes.clientId, clientId)
-          )
+            eq(authorizationCodes.clientId, clientId),
+          ),
         )
         .limit(1);
 
       if (!authCode) {
-        throw new Error('Invalid authorization code');
+        throw new Error("Invalid authorization code");
       }
 
       // Check if code is expired
       if (new Date() > authCode.expiresAt) {
-        throw new Error('Authorization code expired');
+        throw new Error("Authorization code expired");
       }
 
       // Check if code was already used
       if (authCode.used) {
-        throw new Error('Authorization code already used');
+        throw new Error("Authorization code already used");
       }
 
       // Validate redirect URI
       if (authCode.redirectUri !== redirectUri) {
-        throw new Error('Redirect URI mismatch');
+        throw new Error("Redirect URI mismatch");
       }
 
       // Mark code as used
@@ -174,13 +187,13 @@ export class OAuthServer {
       const accessToken = this.generateAccessToken(
         authCode.userId,
         clientId,
-        authCode.scope || 'read write'
+        authCode.scope || "read write",
       );
 
       const refreshToken = this.generateRefreshToken(
         authCode.userId,
         clientId,
-        authCode.scope || 'read write'
+        authCode.scope || "read write",
       );
 
       // Store tokens in database
@@ -192,20 +205,22 @@ export class OAuthServer {
         refreshToken,
         expiresAt,
         scope: authCode.scope,
-        tokenType: 'Bearer',
+        tokenType: "Bearer",
       });
 
-      logger.info(`Issued tokens for user ${authCode.userId}, client ${clientId}`);
+      logger.info(
+        `Issued tokens for user ${authCode.userId}, client ${clientId}`,
+      );
 
       return {
         access_token: accessToken,
         refresh_token: refreshToken,
-        token_type: 'Bearer',
+        token_type: "Bearer",
         expires_in: 86400, // 24 hours in seconds
-        scope: authCode.scope || 'read write',
+        scope: authCode.scope || "read write",
       };
     } catch (error) {
-      logger.error('Error exchanging code for token:', error);
+      logger.error("Error exchanging code for token:", error);
       throw error;
     }
   }
@@ -213,7 +228,11 @@ export class OAuthServer {
   /**
    * Generate access token (JWT)
    */
-  private generateAccessToken(userId: string, clientId: string, scope: string): string {
+  private generateAccessToken(
+    userId: string,
+    clientId: string,
+    scope: string,
+  ): string {
     const payload: TokenPayload = {
       sub: userId,
       client_id: clientId,
@@ -221,14 +240,18 @@ export class OAuthServer {
     };
 
     return jwt.sign(payload, this.jwtSecret, {
-      expiresIn: this.jwtExpiresIn as any,
-    });
+      expiresIn: this.jwtExpiresIn,
+    } as SignOptions);
   }
 
   /**
    * Generate refresh token
    */
-  private generateRefreshToken(userId: string, clientId: string, scope: string): string {
+  private generateRefreshToken(
+    userId: string,
+    clientId: string,
+    scope: string,
+  ): string {
     const payload: TokenPayload = {
       sub: userId,
       client_id: clientId,
@@ -236,8 +259,8 @@ export class OAuthServer {
     };
 
     return jwt.sign(payload, this.jwtSecret, {
-      expiresIn: '30d' as any, // Refresh tokens last longer
-    });
+      expiresIn: "30d", // Refresh tokens last longer
+    } as SignOptions);
   }
 
   /**
@@ -262,7 +285,7 @@ export class OAuthServer {
 
       return decoded;
     } catch (error) {
-      logger.debug('Invalid access token:', error);
+      logger.debug("Invalid access token:", error);
       return null;
     }
   }
@@ -289,14 +312,14 @@ export class OAuthServer {
         .limit(1);
 
       if (!existingToken) {
-        throw new Error('Invalid refresh token');
+        throw new Error("Invalid refresh token");
       }
 
       // Generate new access token
       const newAccessToken = this.generateAccessToken(
         decoded.sub,
         decoded.client_id,
-        decoded.scope
+        decoded.scope,
       );
 
       // Update token in database
@@ -315,12 +338,12 @@ export class OAuthServer {
 
       return {
         access_token: newAccessToken,
-        token_type: 'Bearer',
+        token_type: "Bearer",
         expires_in: 86400,
       };
     } catch (error) {
-      logger.error('Error refreshing token:', error);
-      throw new Error('Failed to refresh token');
+      logger.error("Error refreshing token:", error);
+      throw new Error("Failed to refresh token");
     }
   }
 
@@ -331,14 +354,12 @@ export class OAuthServer {
     const db = getDb();
 
     try {
-      await db
-        .delete(oauthTokens)
-        .where(eq(oauthTokens.accessToken, token));
+      await db.delete(oauthTokens).where(eq(oauthTokens.accessToken, token));
 
-      logger.info('Revoked token');
+      logger.info("Revoked token");
     } catch (error) {
-      logger.error('Error revoking token:', error);
-      throw new Error('Failed to revoke token');
+      logger.error("Error revoking token:", error);
+      throw new Error("Failed to revoke token");
     }
   }
 
@@ -369,14 +390,14 @@ export class OAuthServer {
         .returning();
 
       if (!newUser) {
-        throw new Error('Failed to create user');
+        throw new Error("Failed to create user");
       }
 
       logger.info(`Created new user with external ID: ${externalId}`);
       return newUser.id;
     } catch (error) {
-      logger.error('Error getting/creating user:', error);
-      throw new Error('Failed to get or create user');
+      logger.error("Error getting/creating user:", error);
+      throw new Error("Failed to get or create user");
     }
   }
 }
