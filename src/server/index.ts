@@ -1,13 +1,12 @@
 // Load environment variables FIRST before any other imports
 import { config } from 'dotenv';
+import crypto from 'crypto';
 
-// Load environment based on NODE_ENV or default to .env.local
-const envFile = process.env.NODE_ENV === 'production' ? '.env.production' :
-                process.env.NODE_ENV === 'staging' ? '.env.staging' :
-                '.env.local';
-
-// Always load the environment file, override shell variables
-config({ path: envFile, override: true });
+// Only load .env files in non-production (Railway/Docker use env vars directly)
+if (process.env.NODE_ENV !== 'production') {
+  const envFile = process.env.NODE_ENV === 'staging' ? '.env.staging' : '.env.local';
+  config({ path: envFile });
+}
 
 import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
@@ -72,7 +71,7 @@ app.get('/use-cases/wellness', (_req: Request, res: Response) => {
  * GET /oauth/authorize
  * OAuth authorization endpoint - initiates the flow
  */
-app.get('/oauth/authorize', async (req: Request, res: Response) => {
+app.get('/oauth/authorize', rateLimit(10, 60000), async (req: Request, res: Response) => {
   try {
     const { client_id, redirect_uri, response_type, scope, state, consent } = req.query;
 
@@ -93,12 +92,22 @@ app.get('/oauth/authorize', async (req: Request, res: Response) => {
       return;
     }
 
-    // Validate client
-    const validClient = await oauthServer.validateClient(client_id as string);
-    if (!validClient) {
+    // Validate client and get registered redirect URIs
+    const client = await oauthServer.validateClient(client_id as string);
+    if (!client) {
       res.status(400).json({
         error: 'invalid_client',
         error_description: 'Unknown client',
+      });
+      return;
+    }
+
+    // Validate redirect URI against registered URIs (prevents open redirect attacks)
+    if (!client.redirectUris.includes(redirect_uri as string)) {
+      logger.warn(`Invalid redirect_uri attempted: ${redirect_uri} for client: ${client_id}`);
+      res.status(400).json({
+        error: 'invalid_request',
+        error_description: 'Invalid redirect_uri',
       });
       return;
     }
@@ -112,9 +121,10 @@ app.get('/oauth/authorize', async (req: Request, res: Response) => {
     }
 
     // Generate anonymous but persistent user ID based on client and state
-    // This creates a unique user per ChatGPT/Claude session but maintains anonymity
+    // Uses SHA-256 hash for cryptographic security (not reversible like base64)
     const anonymousId = `${client_id}_${state || 'default'}_${Date.now()}`;
-    const hashedId = Buffer.from(anonymousId).toString('base64').replace(/[^a-zA-Z0-9]/g, '').substring(0, 16);
+    const hash = crypto.createHash('sha256').update(anonymousId).digest('hex');
+    const hashedId = hash.substring(0, 16);
     const externalId = `anon_${hashedId}`;
 
     const userId = await oauthServer.getOrCreateUser(externalId);
@@ -146,7 +156,7 @@ app.get('/oauth/authorize', async (req: Request, res: Response) => {
  * POST /oauth/token
  * Exchange authorization code for access token
  */
-app.post('/oauth/token', async (req: Request, res: Response) => {
+app.post('/oauth/token', rateLimit(5, 60000), async (req: Request, res: Response) => {
   try {
     const { grant_type, code, client_id, client_secret, redirect_uri, refresh_token } = req.body;
 
@@ -197,7 +207,7 @@ app.post('/oauth/token', async (req: Request, res: Response) => {
  * POST /oauth/revoke
  * Revoke an access token
  */
-app.post('/oauth/revoke', validateToken, async (req: Request, res: Response) => {
+app.post('/oauth/revoke', validateToken, rateLimit(10, 60000), async (req: Request, res: Response) => {
   try {
     const authHeader = req.headers.authorization;
     const token = authHeader?.substring(7);
