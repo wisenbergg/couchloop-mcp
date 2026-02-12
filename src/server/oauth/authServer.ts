@@ -1,6 +1,8 @@
 import { config } from 'dotenv';
-// Load environment variables before class initialization
-config({ path: '.env.local' });
+// Load environment variables before class initialization (skip in production)
+if (process.env.NODE_ENV !== 'production') {
+  config({ path: '.env.local' });
+}
 
 import { v4 as uuidv4 } from 'uuid';
 import jwt from 'jsonwebtoken';
@@ -38,7 +40,10 @@ export class OAuthServer {
   /**
    * Validate client credentials
    */
-  async validateClient(clientId: string, clientSecret?: string): Promise<boolean> {
+  async validateClient(
+    clientId: string,
+    clientSecret?: string
+  ): Promise<{ clientId: string; redirectUris: string[] } | null> {
     const db = getDb();
 
     try {
@@ -50,7 +55,7 @@ export class OAuthServer {
 
       if (!client) {
         logger.warn(`Invalid client ID: ${clientId}`);
-        return false;
+        return null;
       }
 
       // If secret provided, verify it
@@ -58,14 +63,17 @@ export class OAuthServer {
         const validSecret = await bcrypt.compare(clientSecret, client.clientSecret);
         if (!validSecret) {
           logger.warn(`Invalid client secret for client: ${clientId}`);
-          return false;
+          return null;
         }
       }
 
-      return true;
+      return {
+        clientId: client.clientId,
+        redirectUris: client.redirectUris,
+      };
     } catch (error) {
       logger.error('Error validating client:', error);
-      return false;
+      return null;
     }
   }
 
