@@ -65,9 +65,8 @@ export const sessions = pgTable('sessions', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => ({
   userIdIdx: index('idx_sessions_user_id').on(table.userId),
-  statusIdx: index('idx_sessions_status').on(table.status),
-  journeyIdIdx: index('idx_sessions_journey_id').on(table.journeyId),
-  threadIdIdx: index('idx_sessions_thread_id').on(table.threadId),
+  // Compound index for the hottest query: WHERE user_id=? AND status=? ORDER BY last_active_at DESC
+  userStatusActiveIdx: index('idx_sessions_user_status_active').on(table.userId, table.status, table.lastActiveAt),
 }));
 
 // Checkpoint table
@@ -79,8 +78,8 @@ export const checkpoints = pgTable('checkpoints', {
   value: jsonb('value').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => ({
-  sessionIdIdx: index('idx_checkpoints_session_id').on(table.sessionId),
-  keyIdx: index('idx_checkpoints_key').on(table.key),
+  // Covering index: every query filters sessionId + orders by createdAt
+  sessionCreatedIdx: index('idx_checkpoints_session_created').on(table.sessionId, table.createdAt),
 }));
 
 // Insight table
@@ -92,7 +91,8 @@ export const insights = pgTable('insights', {
   tags: text('tags').array().notNull().default(sql`ARRAY[]::text[]`),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => ({
-  userIdIdx: index('idx_insights_user_id').on(table.userId),
+  // Covering index: all queries filter userId + order by createdAt DESC
+  userCreatedIdx: index('idx_insights_user_created').on(table.userId, table.createdAt),
   sessionIdIdx: index('idx_insights_session_id').on(table.sessionId),
 }));
 
@@ -144,12 +144,8 @@ export const oauthTokens = pgTable('oauth_tokens', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => ({
-  userIdIdx: index('idx_oauth_tokens_user_id').on(table.userId),
+  // Only indexes for actively-used columns
   accessTokenIdx: index('idx_oauth_tokens_access_token').on(table.accessToken),
-  accessTokenHashIdx: index('idx_oauth_tokens_access_hash').on(table.accessTokenHash),
-  refreshTokenHashIdx: index('idx_oauth_tokens_refresh_hash').on(table.refreshTokenHash),
-  tokenFamilyIdIdx: index('idx_oauth_tokens_family_id').on(table.tokenFamilyId),
-  revokedAtIdx: index('idx_oauth_tokens_revoked_at').on(table.revokedAt),
 }));
 
 // Authorization codes for OAuth flow
@@ -178,8 +174,6 @@ export const threadMappings = pgTable('thread_mappings', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => ({
   sessionIdIdx: index('idx_thread_mappings_session_id').on(table.sessionId),
-  threadIdIdx: index('idx_thread_mappings_thread_id').on(table.threadId),
-  createdAtIdx: index('idx_thread_mappings_created_at').on(table.createdAt),
 }));
 
 // Crisis events table for tracking crisis detections
@@ -195,8 +189,6 @@ export const crisisEvents = pgTable('crisis_events', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => ({
   sessionIdIdx: index('idx_crisis_events_session_id').on(table.sessionId),
-  crisisLevelIdx: index('idx_crisis_events_crisis_level').on(table.crisisLevel),
-  createdAtIdx: index('idx_crisis_events_created_at').on(table.createdAt),
 }));
 
 // Governance evaluations table - tracks all governance checks and interventions
@@ -219,8 +211,6 @@ export const governanceEvaluations = pgTable('governance_evaluations', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => ({
   sessionIdIdx: index('idx_governance_evaluations_session_id').on(table.sessionId),
-  interventionIdx: index('idx_governance_evaluations_intervention').on(table.interventionApplied),
-  createdAtIdx: index('idx_governance_evaluations_created_at').on(table.createdAt),
 }));
 
 // Governance rules configuration table
@@ -235,10 +225,8 @@ export const governanceRules = pgTable('governance_rules', {
   metadata: jsonb('metadata').default({}),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
-}, (table) => ({
-  ruleTypeIdx: index('idx_governance_rules_rule_type').on(table.ruleType),
-  activeIdx: index('idx_governance_rules_active').on(table.active),
-  priorityIdx: index('idx_governance_rules_priority').on(table.priority),
+}, (_table) => ({
+  // Only 8 rows — full table scan is fine, no indexes needed
 }));
 
 // Governance audit log table - detailed record of all governance actions
@@ -250,10 +238,8 @@ export const governanceAuditLog = pgTable('governance_audit_log', {
   confidenceScore: integer('confidence_score'), // 0-100
   metadata: jsonb('metadata').default({}),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (table) => ({
-  evaluationIdIdx: index('idx_governance_audit_evaluation_id').on(table.evaluationId),
-  actionTypeIdx: index('idx_governance_audit_action_type').on(table.actionType),
-  createdAtIdx: index('idx_governance_audit_created_at').on(table.createdAt),
+}, (_table) => ({
+  // Insert-only table — no query indexes needed
 }));
 
 // Type exports for TypeScript
