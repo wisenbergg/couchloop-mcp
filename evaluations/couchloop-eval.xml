@@ -1,0 +1,51 @@
+<evaluation>
+  <qa_pair>
+    <question>Use the status tool to check all available status categories. How many distinct top-level check options does the status tool accept? Respond with just the number.</question>
+    <answer>6</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>Use the verify tool to check if the npm package "left-pad" exists. Is the package valid or invalid? Respond with exactly "valid" or "invalid".</question>
+    <answer>valid</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>Use the verify tool to check if the npm package "reakt-dom-utils-xyz" exists. Is the package valid or invalid? Respond with exactly "valid" or "invalid".</question>
+    <answer>invalid</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>Use the code_review tool to analyze this JavaScript code: `eval(userInput)`. What is the most critical security issue category detected? Respond with exactly one of: "SQL injection", "XSS", "command injection", "code injection", or "insecure eval".</question>
+    <answer>code injection</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>Use the package_audit tool to validate these npm packages: ["express", "fastify", "koa"]. How many of the three packages are valid (exist on npm)? Respond with just the number.</question>
+    <answer>3</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>Use the verify tool with type "code" to check this TypeScript code: `import { readFile } from 'node:fs/promises';`. Does the verification pass without issues? Respond with exactly "yes" or "no".</question>
+    <answer>yes</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>Use the couchloop intent router with the intent "end session". Which tool does it route to? Respond with the exact tool name.</question>
+    <answer>conversation</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>Use the couchloop intent router with the intent "find bugs in my code". Which tool does it route to? Respond with the exact tool name.</question>
+    <answer>code_review</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>Use the protect tool with action "status" to check the current protection state. Is code freeze currently enabled? Respond with exactly "yes" or "no".</question>
+    <answer>no</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>Use the couchloop intent router with the intent "brainstorm a caching layer". Which tool does it route to? Respond with the exact tool name.</question>
+    <answer>brainstorm</answer>
+  </qa_pair>
+</evaluation>

@@ -31,6 +31,7 @@ export const verifyTool = {
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
+      idempotentHint: true,
       openWorldHint: true,
     },
     inputSchema: {

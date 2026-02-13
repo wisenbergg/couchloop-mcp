@@ -87,6 +87,7 @@ const conversationTool = {
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
+      idempotentHint: false,
       openWorldHint: true,
     },
     inputSchema: {
@@ -150,6 +151,7 @@ const brainstormTool = {
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
+      idempotentHint: false,
       openWorldHint: true,
     },
     inputSchema: {
@@ -185,6 +187,7 @@ const codeReviewTool = {
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
+      idempotentHint: true,
       openWorldHint: false,
     },
     inputSchema: {
@@ -216,6 +219,7 @@ const packageAuditTool = {
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
+      idempotentHint: true,
       openWorldHint: true,
     },
     inputSchema: {
@@ -245,6 +249,7 @@ const rememberTool = {
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
+      idempotentHint: false,
       openWorldHint: false,
     },
     inputSchema: {
@@ -314,6 +319,7 @@ const protectTool = {
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
+      idempotentHint: false,
       openWorldHint: false,
     },
     inputSchema: {

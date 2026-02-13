@@ -70,8 +70,16 @@ async function createMCPServer(): Promise<Server> {
       if (!tool) {
         throw new Error(`Tool not found: ${request.params.name}`);
       }
-      const result = await tool.handler(request.params.arguments || {});
-      return result as { content: Array<{ type: string; text: string }> };
+      try {
+        const result = await tool.handler(request.params.arguments || {});
+        return result as { content: Array<{ type: string; text: string }> };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Tool execution failed";
+        return {
+          isError: true,
+          content: [{ type: "text", text: `Error: ${message}` }],
+        };
+      }
     },
   );
 
