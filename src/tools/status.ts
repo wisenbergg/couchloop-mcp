@@ -8,7 +8,7 @@
 import { z } from 'zod';
 import { getDb } from '../db/client.js';
 import { sessions, checkpoints, insights } from '../db/schema.js';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, count } from 'drizzle-orm';
 import { WorkflowEngine } from '../workflows/engine.js';
 import { ContextManager } from '../developer/managers/context-manager.js';
 import { ContextMetadata, ContextEntry } from '../types/context.js';
@@ -218,8 +218,9 @@ async function getHistoryStatus(): Promise<HistoryStatus> {
       .orderBy(desc(sessions.startedAt))
       .limit(5);
 
-    // Get total session count
-    const allSessions = await db.select().from(sessions);
+    // Get total session count efficiently
+    const sessionCountResult = await db.select({ value: count() }).from(sessions);
+    const sessionCount = sessionCountResult[0]?.value ?? 0;
 
     // Get recent insights
     const recentInsights = await db
@@ -228,12 +229,13 @@ async function getHistoryStatus(): Promise<HistoryStatus> {
       .orderBy(desc(insights.createdAt))
       .limit(5);
 
-    // Get all insights for pattern detection
-    const allInsights = await db.select().from(insights);
+    // Get only tags for pattern detection (not full rows)
+    const allInsightTags = await db.select({ tags: insights.tags }).from(insights);
+    const insightCount = allInsightTags.length;
 
     // Detect patterns from insight tags
     const tagCounts: Record<string, number> = {};
-    for (const insight of allInsights) {
+    for (const insight of allInsightTags) {
       const tags = insight.tags as string[] | null;
       if (tags) {
         for (const tag of tags) {
@@ -256,8 +258,8 @@ async function getHistoryStatus(): Promise<HistoryStatus> {
         status: s.status,
         started_at: s.startedAt.toISOString(),
       })),
-      total_sessions: allSessions.length,
-      total_insights: allInsights.length,
+      total_sessions: sessionCount,
+      total_insights: insightCount,
       recent_insights: recentInsights.map(i => ({
         content: i.content.substring(0, 100) + (i.content.length > 100 ? '...' : ''),
         tags: i.tags as string[] | undefined,
