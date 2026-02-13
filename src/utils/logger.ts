@@ -90,3 +90,6 @@ class Logger {
 }
 
 export const logger = new Logger();
+
+// Exported for testing
+export { sanitize as sanitizeLogValue };
