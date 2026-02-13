@@ -4,15 +4,16 @@
  * This module exports only the PRIMARY tools that users should see.
  * All granular tools are internal engines used by these primary tools.
  * 
- * PUBLIC TOOLS (8):
+ * PUBLIC TOOLS (9):
  * 0. couchloop        - Intent router (discoverability layer for loose commands)
  * 1. verify           - Pre-delivery verification (catches AI hallucinations, validates packages)
  * 2. status           - Dashboard (session progress, history, context, protection)
  * 3. conversation     - Therapeutic AI conversation with governance
- * 4. code_review      - Complete code analysis (security, quality, AI errors)
- * 5. package_audit    - Complete dependency audit (validation, versions, upgrades)
- * 6. remember         - Smart context capture (checkpoints, insights, decisions)
- * 7. protect          - File protection and safety features
+ * 4. brainstorm       - Dev thinking partner (reflective questioning, architecture, trade-offs)
+ * 5. code_review      - Complete code analysis (security, quality, AI errors)
+ * 6. package_audit    - Complete dependency audit (validation, versions, upgrades)
+ * 7. remember         - Smart context capture (checkpoints, insights, decisions)
+ * 8. protect          - File protection and safety features
  */
 
 import { intentRouterTool, registerTools } from './intent-router.js';
@@ -97,8 +98,8 @@ const conversationTool = {
         },
         action: {
           type: 'string',
-          enum: ['send', 'start', 'end', 'resume', 'status', 'brainstorm'],
-          description: 'Action: send (default), start new session, end session, resume previous, get status, or brainstorm (dev thinking partner)',
+          enum: ['send', 'start', 'end', 'resume', 'status'],
+          description: 'Action: send (default), start new session, end session, resume previous, or get status',
         },
         journey: {
           type: 'string',
@@ -130,15 +131,6 @@ const conversationTool = {
           return getJourneyStatus({ session_id: args.session_id as string });
         }
         return listJourneys({});
-      case 'brainstorm':
-        // Dev thinking partner - reflective questioning mode
-        return sendMessage({
-          message: args.message,
-          session_id: args.session_id,
-          system_prompt: BRAINSTORM_SYSTEM_PROMPT,
-          conversation_type: 'brainstorm',
-          save_checkpoint: true,
-        });
       case 'send':
       default:
         return sendMessage({
@@ -148,6 +140,41 @@ const conversationTool = {
           include_memory: true,
         });
     }
+  },
+};
+
+const brainstormTool = {
+  definition: {
+    name: 'brainstorm',
+    description: 'Dev thinking partner for architecture decisions, feature design, trade-offs, and technical exploration. Asks reflective questions to help you arrive at your own best solution, then provides concrete analysis when you\'ve narrowed options. Triggers: "brainstorm", "think through", "map out", "help me design", "I have an idea", "flesh out", "trade-offs", "pros and cons", "should I use X or Y".',
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        message: {
+          type: 'string',
+          description: 'What you want to think through — a feature idea, architecture question, technology comparison, or any decision',
+        },
+        session_id: {
+          type: 'string',
+          description: 'Session ID to maintain brainstorm context across messages',
+        },
+      },
+      required: ['message'],
+    },
+  },
+  handler: async (args: Record<string, unknown>) => {
+    return sendMessage({
+      message: args.message,
+      session_id: args.session_id,
+      system_prompt: BRAINSTORM_SYSTEM_PROMPT,
+      conversation_type: 'brainstorm',
+      save_checkpoint: true,
+    });
   },
 };
 
@@ -355,6 +382,7 @@ export async function setupTools() {
     verifyTool,     // Pre-delivery verification (critical for catching AI errors)
     statusTool,     // Dashboard and status checks
     conversationTool,
+    brainstormTool,  // Standalone dev thinking partner
     codeReviewTool,
     packageAuditTool,
     rememberTool,

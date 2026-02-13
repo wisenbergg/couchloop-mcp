@@ -163,8 +163,7 @@ const INTENT_MAPPINGS: IntentMapping[] = [
       /\b(spike|prototype|poc|proof\s+of\s+concept)\b/i,
       /\b(trade[\s-]?offs?|pros\s+and\s+cons|options)\b/i,
     ],
-    tool: 'conversation',
-    action: 'brainstorm',
+    tool: 'brainstorm',
   },
 
   // Status/Dashboard - NEW
@@ -342,8 +341,8 @@ This tool should be invoked for ANY ambiguous or loose command related to sessio
           couchloop: 'Universal entry point - routes any command to the right tool',
           verify: 'Pre-delivery verification - catches AI hallucinations, validates packages, checks code',
           status: 'Dashboard - session progress, history, context, protection, preferences',
-          conversation: 'Therapeutic AI conversation with crisis detection and session memory. Actions: start, send, end, resume, status, brainstorm',
-          brainstorm: 'Dev thinking partner - reflective questions to help map out features, components, architecture decisions',
+          conversation: 'Therapeutic AI conversation with crisis detection and session memory. Actions: start, send, end, resume, status',
+          brainstorm: 'Dev thinking partner - reflective questions to help map out features, components, architecture decisions (standalone tool)',
           remember: 'Save and recall context, checkpoints, insights. Actions: save, recall, list, preferences',
           code_review: 'Complete code analysis - security vulnerabilities, code smells, AI errors. Modes: full, security, quality, ai_errors, verify_before_presenting',
           package_audit: 'Dependency audit - validates packages exist, checks versions, finds vulnerabilities. Modes: full, security, validate, validate_before_recommending',
@@ -388,6 +387,10 @@ This tool should be invoked for ANY ambiguous or loose command related to sessio
     switch (classification.tool) {
       case 'conversation':
         targetArgs.action = classification.action || 'send';
+        targetArgs.message = context || intent;
+        break;
+
+      case 'brainstorm':
         targetArgs.message = context || intent;
         break;
 
