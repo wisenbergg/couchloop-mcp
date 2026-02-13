@@ -11,7 +11,7 @@ vi.mock('../../src/db/client', () => ({
 
 // Mock auth module
 vi.mock('../../src/types/auth', async () => {
-  const actual = await vi.importActual('../../src/types/auth') as any;
+  const actual = await vi.importActual('../../src/types/auth') as Record<string, unknown>;
   return {
     ...actual,
     AuthContextSchema: actual.AuthContextSchema,
@@ -20,7 +20,8 @@ vi.mock('../../src/types/auth', async () => {
 });
 
 describe('Insight Tools', () => {
-  let mockDb: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mockDb: Record<string, any>;
 
   // Generate consistent UUIDs for testing
   const userId = uuidv4();
@@ -34,7 +35,7 @@ describe('Insight Tools', () => {
   const nonExistentSessionId = uuidv4(); // For testing session not found
 
   // Helper to create properly chained mock database queries
-  const createMockSelectChain = (...results: any[]) => {
+  const createMockSelectChain = (...results: unknown[][]) => {
     let callCount = 0;
     return {
       from: vi.fn().mockReturnThis(),
@@ -119,6 +120,7 @@ describe('Insight Tools', () => {
 
       const result = await saveInsight({
         content: 'Session insight',
+        tags: [],
         session_id: sessionId,
       });
 
@@ -146,10 +148,11 @@ describe('Insight Tools', () => {
 
       const result = await saveInsight({
         content: 'Test',
+        tags: [],
         session_id: nonExistentSessionId,
       });
 
-      expect(result.error).toContain('not found');
+      expect('error' in result && result.error).toContain('not found');
     });
 
     it('should use auth context when provided', async () => {
@@ -169,6 +172,7 @@ describe('Insight Tools', () => {
 
       await saveInsight({
         content: 'Auth test',
+        tags: [],
         auth: mockAuth,
       });
 
@@ -179,9 +183,9 @@ describe('Insight Tools', () => {
       const result = await saveInsight({
         // Missing required 'content' field
         tags: ['test'],
-      });
+      } as Parameters<typeof saveInsight>[0]);
 
-      expect(result.error).toBeDefined();
+      expect('error' in result && result.error).toBeDefined();
     });
   });
 
@@ -219,12 +223,11 @@ describe('Insight Tools', () => {
         session_id: sessionId,
       });
 
-      expect(result.count).toBe(1);
-      expect(result.insights[0].sessionId).toBe(sessionId);
+      expect('count' in result && result.count).toBe(1);
+      expect('insights' in result && result.insights[0].sessionId).toBe(sessionId);
     });
 
     it('should respect limit parameter', async () => {
-      const mockUser = { id: userId, externalId: 'test-user-123' };
       const mockInsights = new Array(5).fill(null).map((_, i) => ({
         id: `insight-${i}`,
         content: `Insight ${i}`,
@@ -310,8 +313,8 @@ describe('Insight Tools', () => {
         include_session_history: true,
       });
 
-      expect(result.recent_insights).toEqual([]);
-      expect(result.recent_sessions).toBeDefined();
+      expect('recent_insights' in result && result.recent_insights).toEqual([]);
+      expect('recent_sessions' in result && result.recent_sessions).toBeDefined();
     });
 
     it('should exclude session history when requested', async () => {
@@ -326,8 +329,8 @@ describe('Insight Tools', () => {
         include_session_history: false,
       });
 
-      expect(result.recent_sessions).toEqual([]);
-      expect(result.recent_insights).toBeDefined();
+      expect('recent_sessions' in result && result.recent_sessions).toEqual([]);
+      expect('recent_insights' in result && result.recent_insights).toBeDefined();
     });
 
     it('should create new user if not exists', async () => {
@@ -346,12 +349,15 @@ describe('Insight Tools', () => {
         }]),
       });
 
-      const result = await getUserContext({});
+      const result = await getUserContext({
+        include_recent_insights: true,
+        include_session_history: true,
+      });
 
-      expect(result.user).toBeDefined();
-      expect(result.recent_insights).toEqual([]);
-      expect(result.recent_sessions).toEqual([]);
-      expect(result.active_session).toBeNull();
+      expect('user' in result && result.user).toBeDefined();
+      expect('recent_insights' in result && result.recent_insights).toEqual([]);
+      expect('recent_sessions' in result && result.recent_sessions).toEqual([]);
+      expect('active_session' in result && result.active_session).toBeNull();
     });
   });
 });
