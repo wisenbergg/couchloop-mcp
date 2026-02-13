@@ -1,590 +1,733 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Developer Use Cases – CouchLoop EQ</title>
-  <meta name="description" content="Real developer use cases for CouchLoop EQ: brainstorm architecture, review code, audit packages, and preserve context across sessions.">
-  <link rel="icon" href="https://couchloop.com/favicon.ico">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --primary: #6366f1;
-      --primary-dark: #4f46e5;
-      --secondary: #10b981;
-      --background: #0f172a;
-      --surface: #1e293b;
-      --surface-light: #334155;
-      --text: #f8fafc;
-      --text-muted: #94a3b8;
-      --border: #475569;
-      --gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
-    }
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Developer Use Cases – CouchLoop EQ</title>
+    <meta
+      name="description"
+      content="Real developer use cases for CouchLoop EQ: brainstorm architecture, review code, audit packages, and preserve context across sessions."
+    />
+    <link rel="icon" href="https://couchloop.com/favicon.ico" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --primary: #6366f1;
+        --primary-dark: #4f46e5;
+        --secondary: #10b981;
+        --background: #0f172a;
+        --surface: #1e293b;
+        --surface-light: #334155;
+        --text: #f8fafc;
+        --text-muted: #94a3b8;
+        --border: #475569;
+        --gradient: linear-gradient(
+          135deg,
+          #6366f1 0%,
+          #8b5cf6 50%,
+          #a855f7 100%
+        );
+      }
 
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
 
-    body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      background: var(--background);
-      color: var(--text);
-      line-height: 1.6;
-      min-height: 100vh;
-    }
+      body {
+        font-family:
+          "Inter",
+          -apple-system,
+          BlinkMacSystemFont,
+          sans-serif;
+        background: var(--background);
+        color: var(--text);
+        line-height: 1.6;
+        min-height: 100vh;
+      }
 
-    .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 24px;
+      }
 
-    header {
-      padding: 24px 0;
-      border-bottom: 1px solid var(--border);
-    }
+      header {
+        padding: 24px 0;
+        border-bottom: 1px solid var(--border);
+      }
 
-    .header-content {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
+      .header-content {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
 
-    .logo {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      text-decoration: none;
-      color: var(--text);
-    }
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        text-decoration: none;
+        color: var(--text);
+      }
 
-    .logo-icon { width: 40px; height: 40px; border-radius: 10px; overflow: hidden; }
-    .logo-icon img { width: 100%; height: 100%; object-fit: contain; }
-    .logo-text { font-size: 1.5rem; font-weight: 700; }
-    .logo-text span { color: var(--primary); }
+      .logo-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      .logo-icon img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+      .logo-text {
+        font-size: 1.5rem;
+        font-weight: 700;
+      }
+      .logo-text span {
+        color: var(--primary);
+      }
 
-    nav a {
-      color: var(--text-muted);
-      text-decoration: none;
-      margin-left: 32px;
-      font-weight: 500;
-      transition: color 0.2s;
-    }
-    nav a:hover { color: var(--text); }
-    nav a.active { color: var(--primary); }
+      nav a {
+        color: var(--text-muted);
+        text-decoration: none;
+        margin-left: 32px;
+        font-weight: 500;
+        transition: color 0.2s;
+      }
+      nav a:hover {
+        color: var(--text);
+      }
+      nav a.active {
+        color: var(--primary);
+      }
 
-    .hero {
-      padding: 80px 0 60px;
-      text-align: center;
-    }
+      .hero {
+        padding: 80px 0 60px;
+        text-align: center;
+      }
 
-    .badge {
-      display: inline-block;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      padding: 8px 16px;
-      border-radius: 50px;
-      font-size: 0.875rem;
-      color: var(--text-muted);
-      margin-bottom: 24px;
-    }
-    .badge strong { color: var(--secondary); }
+      .badge {
+        display: inline-block;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        padding: 8px 16px;
+        border-radius: 50px;
+        font-size: 0.875rem;
+        color: var(--text-muted);
+        margin-bottom: 24px;
+      }
+      .badge strong {
+        color: var(--secondary);
+      }
 
-    h1 {
-      font-size: 3rem;
-      font-weight: 700;
-      line-height: 1.1;
-      margin-bottom: 24px;
-      background: var(--gradient);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
+      h1 {
+        font-size: 3rem;
+        font-weight: 700;
+        line-height: 1.1;
+        margin-bottom: 24px;
+        background: var(--gradient);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
 
-    .hero p {
-      font-size: 1.25rem;
-      color: var(--text-muted);
-      max-width: 700px;
-      margin: 0 auto;
-    }
+      .hero p {
+        font-size: 1.25rem;
+        color: var(--text-muted);
+        max-width: 700px;
+        margin: 0 auto;
+      }
 
-    .section { padding: 60px 0; }
+      .section {
+        padding: 60px 0;
+      }
 
-    .section-header {
-      text-align: center;
-      margin-bottom: 48px;
-    }
-    .section-header h2 {
-      font-size: 2rem;
-      margin-bottom: 12px;
-    }
-    .section-header p {
-      color: var(--text-muted);
-      font-size: 1.1rem;
-    }
+      .section-header {
+        text-align: center;
+        margin-bottom: 48px;
+      }
+      .section-header h2 {
+        font-size: 2rem;
+        margin-bottom: 12px;
+      }
+      .section-header p {
+        color: var(--text-muted);
+        font-size: 1.1rem;
+      }
 
-    /* Use case card */
-    .use-case {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 40px;
-      margin-bottom: 32px;
-      transition: border-color 0.2s;
-    }
-    .use-case:hover { border-color: var(--primary); }
+      /* Use case card */
+      .use-case {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 40px;
+        margin-bottom: 32px;
+        transition: border-color 0.2s;
+      }
+      .use-case:hover {
+        border-color: var(--primary);
+      }
 
-    .use-case-header {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      margin-bottom: 24px;
-    }
+      .use-case-header {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 24px;
+      }
 
-    .use-case-icon {
-      width: 48px;
-      height: 48px;
-      background: var(--gradient);
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 24px;
-      flex-shrink: 0;
-    }
+      .use-case-icon {
+        width: 48px;
+        height: 48px;
+        background: var(--gradient);
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        flex-shrink: 0;
+      }
 
-    .use-case-header h3 { font-size: 1.4rem; }
-    .use-case-header .tool-badge {
-      background: var(--surface-light);
-      border: 1px solid var(--border);
-      padding: 4px 12px;
-      border-radius: 50px;
-      font-size: 0.75rem;
-      color: var(--secondary);
-      font-family: 'SF Mono', 'Fira Code', monospace;
-      margin-left: auto;
-    }
+      .use-case-header h3 {
+        font-size: 1.4rem;
+      }
+      .use-case-header .tool-badge {
+        background: var(--surface-light);
+        border: 1px solid var(--border);
+        padding: 4px 12px;
+        border-radius: 50px;
+        font-size: 0.75rem;
+        color: var(--secondary);
+        font-family: "SF Mono", "Fira Code", monospace;
+        margin-left: auto;
+      }
 
-    .use-case-scenario {
-      color: var(--text-muted);
-      font-size: 0.95rem;
-      margin-bottom: 20px;
-      font-style: italic;
-      border-left: 3px solid var(--primary);
-      padding-left: 16px;
-    }
+      .use-case-scenario {
+        color: var(--text-muted);
+        font-size: 0.95rem;
+        margin-bottom: 20px;
+        font-style: italic;
+        border-left: 3px solid var(--primary);
+        padding-left: 16px;
+      }
 
-    .use-case-body { color: var(--text-muted); font-size: 0.95rem; }
-    .use-case-body p { margin-bottom: 12px; }
-    .use-case-body strong { color: var(--text); }
+      .use-case-body {
+        color: var(--text-muted);
+        font-size: 0.95rem;
+      }
+      .use-case-body p {
+        margin-bottom: 12px;
+      }
+      .use-case-body strong {
+        color: var(--text);
+      }
 
-    .conversation {
-      background: var(--background);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 24px;
-      margin: 20px 0;
-    }
+      .conversation {
+        background: var(--background);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 24px;
+        margin: 20px 0;
+      }
 
-    .msg {
-      margin-bottom: 16px;
-      padding: 12px 16px;
-      border-radius: 12px;
-      font-size: 0.9rem;
-      line-height: 1.5;
-    }
-    .msg:last-child { margin-bottom: 0; }
+      .msg {
+        margin-bottom: 16px;
+        padding: 12px 16px;
+        border-radius: 12px;
+        font-size: 0.9rem;
+        line-height: 1.5;
+      }
+      .msg:last-child {
+        margin-bottom: 0;
+      }
 
-    .msg-user {
-      background: var(--primary-dark);
-      color: white;
-      margin-left: 40px;
-      border-bottom-right-radius: 4px;
-    }
+      .msg-user {
+        background: var(--primary-dark);
+        color: white;
+        margin-left: 40px;
+        border-bottom-right-radius: 4px;
+      }
 
-    .msg-ai {
-      background: var(--surface-light);
-      color: var(--text);
-      margin-right: 40px;
-      border-bottom-left-radius: 4px;
-    }
+      .msg-ai {
+        background: var(--surface-light);
+        color: var(--text);
+        margin-right: 40px;
+        border-bottom-left-radius: 4px;
+      }
 
-    .msg-label {
-      font-size: 0.7rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--text-muted);
-      margin-bottom: 6px;
-      font-weight: 600;
-    }
+      .msg-label {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+        margin-bottom: 6px;
+        font-weight: 600;
+      }
 
-    .outcome {
-      background: rgba(16, 185, 129, 0.1);
-      border: 1px solid rgba(16, 185, 129, 0.3);
-      border-radius: 12px;
-      padding: 20px;
-      margin-top: 20px;
-    }
+      .outcome {
+        background: rgba(16, 185, 129, 0.1);
+        border: 1px solid rgba(16, 185, 129, 0.3);
+        border-radius: 12px;
+        padding: 20px;
+        margin-top: 20px;
+      }
 
-    .outcome h4 {
-      color: var(--secondary);
-      margin-bottom: 8px;
-      font-size: 0.9rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
+      .outcome h4 {
+        color: var(--secondary);
+        margin-bottom: 8px;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
 
-    .outcome ul {
-      list-style: none;
-      padding: 0;
-    }
-    .outcome li {
-      color: var(--text-muted);
-      font-size: 0.9rem;
-      padding: 4px 0;
-      padding-left: 20px;
-      position: relative;
-    }
-    .outcome li::before {
-      content: '✓';
-      color: var(--secondary);
-      position: absolute;
-      left: 0;
-    }
+      .outcome ul {
+        list-style: none;
+        padding: 0;
+      }
+      .outcome li {
+        color: var(--text-muted);
+        font-size: 0.9rem;
+        padding: 4px 0;
+        padding-left: 20px;
+        position: relative;
+      }
+      .outcome li::before {
+        content: "✓";
+        color: var(--secondary);
+        position: absolute;
+        left: 0;
+      }
 
-    .cta-section {
-      text-align: center;
-      padding: 80px 0;
-    }
+      .cta-section {
+        text-align: center;
+        padding: 80px 0;
+      }
 
-    .btn {
-      padding: 14px 28px;
-      border-radius: 8px;
-      font-size: 1rem;
-      font-weight: 600;
-      text-decoration: none;
-      transition: all 0.2s;
-      cursor: pointer;
-      border: none;
-      display: inline-block;
-    }
+      .btn {
+        padding: 14px 28px;
+        border-radius: 8px;
+        font-size: 1rem;
+        font-weight: 600;
+        text-decoration: none;
+        transition: all 0.2s;
+        cursor: pointer;
+        border: none;
+        display: inline-block;
+      }
 
-    .btn-primary {
-      background: var(--gradient);
-      color: white;
-    }
-    .btn-primary:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 10px 40px rgba(99, 102, 241, 0.3);
-    }
+      .btn-primary {
+        background: var(--gradient);
+        color: white;
+      }
+      .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 40px rgba(99, 102, 241, 0.3);
+      }
 
-    .btn-secondary {
-      background: var(--surface);
-      color: var(--text);
-      border: 1px solid var(--border);
-      margin-left: 12px;
-    }
-    .btn-secondary:hover { background: var(--surface-light); }
+      .btn-secondary {
+        background: var(--surface);
+        color: var(--text);
+        border: 1px solid var(--border);
+        margin-left: 12px;
+      }
+      .btn-secondary:hover {
+        background: var(--surface-light);
+      }
 
-    footer {
-      padding: 40px 0;
-      text-align: center;
-      border-top: 1px solid var(--border);
-    }
-    footer p { color: var(--text-muted); }
-    .footer-links {
-      display: flex;
-      gap: 24px;
-      justify-content: center;
-      margin-top: 12px;
-    }
-    .footer-links a {
-      color: var(--text-muted);
-      text-decoration: none;
-      transition: color 0.2s;
-    }
-    .footer-links a:hover { color: var(--text); }
+      footer {
+        padding: 40px 0;
+        text-align: center;
+        border-top: 1px solid var(--border);
+      }
+      footer p {
+        color: var(--text-muted);
+      }
+      .footer-links {
+        display: flex;
+        gap: 24px;
+        justify-content: center;
+        margin-top: 12px;
+      }
+      .footer-links a {
+        color: var(--text-muted);
+        text-decoration: none;
+        transition: color 0.2s;
+      }
+      .footer-links a:hover {
+        color: var(--text);
+      }
 
-    @media (max-width: 768px) {
-      h1 { font-size: 2.2rem; }
-      .use-case { padding: 24px; }
-      .msg-user { margin-left: 16px; }
-      .msg-ai { margin-right: 16px; }
-      nav { display: none; }
-      .use-case-header { flex-wrap: wrap; }
-      .use-case-header .tool-badge { margin-left: 0; }
-    }
-  </style>
-</head>
-<body>
-  <header>
-    <div class="container header-content">
-      <a href="/" class="logo">
-        <div class="logo-icon"><img src="/logo.png" alt="CouchLoop EQ"></div>
-        <div class="logo-text">CouchLoop <span>EQ</span></div>
-      </a>
-      <nav>
-        <a href="/">Home</a>
-        <a href="/use-cases/dev" class="active">Dev Use Cases</a>
-        <a href="/use-cases/wellness">Wellness Use Cases</a>
-        <a href="https://github.com/wisenbergg/couchloop-mcp">GitHub</a>
-      </nav>
-    </div>
-  </header>
+      @media (max-width: 768px) {
+        h1 {
+          font-size: 2.2rem;
+        }
+        .use-case {
+          padding: 24px;
+        }
+        .msg-user {
+          margin-left: 16px;
+        }
+        .msg-ai {
+          margin-right: 16px;
+        }
+        nav {
+          display: none;
+        }
+        .use-case-header {
+          flex-wrap: wrap;
+        }
+        .use-case-header .tool-badge {
+          margin-left: 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="container header-content">
+        <a href="/" class="logo">
+          <div class="logo-icon">
+            <img src="/logo.png" alt="CouchLoop EQ" />
+          </div>
+          <div class="logo-text">CouchLoop <span>EQ</span></div>
+        </a>
+        <nav>
+          <a href="/">Home</a>
+          <a href="/use-cases/dev" class="active">Dev Use Cases</a>
+          <a href="/use-cases/wellness">Wellness Use Cases</a>
+          <a href="https://github.com/wisenbergg/couchloop-mcp">GitHub</a>
+        </nav>
+      </div>
+    </header>
 
-  <main>
-    <section class="hero">
+    <main>
+      <section class="hero">
+        <div class="container">
+          <div class="badge">9 tools · <strong>intent-routed</strong></div>
+          <h1>Developer Use Cases</h1>
+          <p>
+            Real examples of CouchLoop EQ helping developers brainstorm
+            architecture, catch bad packages, review code, and preserve context
+            across sessions.
+          </p>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="container">
+          <!-- USE CASE 1: Brainstorm -->
+          <div class="use-case">
+            <div class="use-case-header">
+              <div class="use-case-icon">💡</div>
+              <h3>Brainstorm: Data Export UX in a Privacy-First App</h3>
+              <span class="tool-badge">conversation(brainstorm)</span>
+            </div>
+            <div class="use-case-scenario">
+              "We need an 'Export Your Data' feature, but all emails are hashed
+              on the backend. How do we collect an email to send the export to?"
+            </div>
+            <div class="use-case-body">
+              <div class="conversation">
+                <div class="msg msg-user">
+                  <div class="msg-label">Developer</div>
+                  I'm building an Export Data screen for a therapeutic iOS app.
+                  Key constraint: all emails are hashed on the backend — we
+                  never store plaintext. SSO users (Google, Apple) may not have
+                  an email stored locally. How should we handle collecting an
+                  email for data export?
+                </div>
+                <div class="msg msg-ai">
+                  <div class="msg-label">CouchLoop EQ</div>
+                  Let me ask a few things before recommending:
+                  <br /><br />
+                  <strong
+                    >1. When do you first have the plaintext email?</strong
+                  >
+                  At login/registration, before hashing — are you already saving
+                  it to SecureStore for email+password users? <br /><br />
+                  <strong>2. SSO tokens:</strong> Google and Apple Sign In
+                  tokens include the user's email. Are you extracting it during
+                  the auth flow? <br /><br />
+                  <strong>3. What if the user types a different email?</strong>
+                  Is that a security issue, or acceptable since they're already
+                  authenticated on the device?
+                </div>
+                <div class="msg msg-user">
+                  <div class="msg-label">Developer</div>
+                  Yes, email+password users already have it in SecureStore.
+                  We're not extracting from SSO tokens yet. And yeah, a
+                  different email should be fine — they're authenticated.
+                </div>
+                <div class="msg msg-ai">
+                  <div class="msg-label">CouchLoop EQ</div>
+                  <strong>Recommended approach:</strong>
+                  <br /><br />
+                  1. <strong>Capture SSO email at login</strong> — extract from
+                  Google/Apple token, save to SecureStore alongside
+                  email+password users<br />
+                  2. <strong>Export screen: editable email field</strong> —
+                  pre-filled from SecureStore, user can change it. Label: "Where
+                  should we send your data?"<br />
+                  3. <strong>Re-auth before export</strong> — require
+                  FaceID/passcode confirmation to prevent someone borrowing the
+                  phone<br />
+                  4. <strong>Email never stored on backend</strong> — used only
+                  for delivery, then discarded server-side
+                </div>
+              </div>
+              <div class="outcome">
+                <h4>Outcome</h4>
+                <ul>
+                  <li>Privacy-first approach: email stays on-device only</li>
+                  <li>Works for both email+password and SSO users</li>
+                  <li>User can export to any email they want</li>
+                  <li>FaceID gate prevents unauthorized exports</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <!-- USE CASE 2: Brainstorm comparison -->
+          <div class="use-case">
+            <div class="use-case-header">
+              <div class="use-case-icon">⚖️</div>
+              <h3>Compare: Vercel vs Railway for a Next.js App</h3>
+              <span class="tool-badge">conversation(brainstorm)</span>
+            </div>
+            <div class="use-case-scenario">
+              "I need to pick a hosting platform for a Next.js app with Postgres
+              and background jobs. Vercel or Railway?"
+            </div>
+            <div class="use-case-body">
+              <div class="conversation">
+                <div class="msg msg-user">
+                  <div class="msg-label">Developer</div>
+                  What hosting platform should I use — Vercel or Railway? It's a
+                  Next.js app.
+                </div>
+                <div class="msg msg-ai">
+                  <div class="msg-label">CouchLoop EQ</div>
+                  Before I compare — what does your stack look like beyond
+                  Next.js? Database? Background jobs? Websockets? That changes
+                  the recommendation significantly.
+                </div>
+                <div class="msg msg-user">
+                  <div class="msg-label">Developer</div>
+                  Next.js with Postgres and background jobs for sending emails.
+                </div>
+                <div class="msg msg-ai">
+                  <div class="msg-label">CouchLoop EQ</div>
+                  <strong>Go with Railway.</strong> Here's why: <br /><br />
+                  Vercel is optimized for serverless — great for Next.js
+                  frontend and API routes, but background jobs (email queues)
+                  and persistent Postgres connections are awkward on serverless.
+                  You'd need a separate service for the job runner.
+                  <br /><br />
+                  Railway gives you a single platform for Next.js + Postgres + a
+                  worker process for background jobs. One deploy, one dashboard,
+                  native Postgres.
+                  <br /><br />
+                  <strong>Exception:</strong> If your app is mostly static/SSR
+                  with occasional emails (use a third-party like Resend), Vercel
+                  is simpler.
+                </div>
+              </div>
+              <div class="outcome">
+                <h4>Outcome</h4>
+                <ul>
+                  <li>
+                    Asked the right clarifying question before recommending
+                  </li>
+                  <li>Concrete recommendation based on actual stack</li>
+                  <li>
+                    Identified the exception case instead of blanket advice
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <!-- USE CASE 3: Code Review -->
+          <div class="use-case">
+            <div class="use-case-header">
+              <div class="use-case-icon">🔍</div>
+              <h3>Code Review: Catch Security Issues Before They Ship</h3>
+              <span class="tool-badge">code_review</span>
+            </div>
+            <div class="use-case-scenario">
+              "Review this auth middleware before I merge it."
+            </div>
+            <div class="use-case-body">
+              <div class="conversation">
+                <div class="msg msg-user">
+                  <div class="msg-label">Developer</div>
+                  Review this code:<br />
+                  <code style="font-size: 0.85rem; color: var(--secondary)">
+                    const query = `SELECT * FROM users WHERE email =
+                    '${req.body.email}'`;<br />
+                    const token = jwt.sign({ id: user.id }, 'mysecret123');<br />
+                    console.log('User logged in:', user.email, token);
+                  </code>
+                </div>
+                <div class="msg msg-ai">
+                  <div class="msg-label">CouchLoop EQ</div>
+                  <strong>3 critical issues found:</strong>
+                  <br /><br />
+                  🔴 <strong>SQL Injection</strong> — String interpolation in
+                  SQL query. Use parameterized queries:
+                  <code
+                    >db.query('SELECT * FROM users WHERE email = $1',
+                    [email])</code
+                  >
+                  <br /><br />
+                  🔴 <strong>Hardcoded Secret</strong> — JWT secret
+                  <code>'mysecret123'</code> in source code. Move to environment
+                  variable. <br /><br />
+                  🟡 <strong>Sensitive Data in Logs</strong> — Logging email and
+                  JWT token to console. Remove before production.
+                </div>
+              </div>
+              <div class="outcome">
+                <h4>Outcome</h4>
+                <ul>
+                  <li>SQL injection caught before it reached production</li>
+                  <li>Hardcoded secret flagged with fix</li>
+                  <li>Console.log with PII identified</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <!-- USE CASE 4: Package Audit -->
+          <div class="use-case">
+            <div class="use-case-header">
+              <div class="use-case-icon">📦</div>
+              <h3>Package Audit: Catch Hallucinated Dependencies</h3>
+              <span class="tool-badge">verify + package_audit</span>
+            </div>
+            <div class="use-case-scenario">
+              "An AI suggested I install 'react-native-secure-keychain'. Does it
+              actually exist?"
+            </div>
+            <div class="use-case-body">
+              <div class="conversation">
+                <div class="msg msg-user">
+                  <div class="msg-label">Developer</div>
+                  Verify this package: react-native-secure-keychain
+                </div>
+                <div class="msg msg-ai">
+                  <div class="msg-label">CouchLoop EQ</div>
+                  ⚠️ <strong>Package does not exist on npm.</strong>
+                  <br /><br />
+                  This is likely an AI hallucination. The real package is
+                  <code>react-native-keychain</code> (1.2M weekly downloads,
+                  maintained, MIT license). <br /><br />
+                  Installing non-existent packages can lead to typosquatting
+                  attacks — malicious packages with similar names.
+                </div>
+              </div>
+              <div class="outcome">
+                <h4>Outcome</h4>
+                <ul>
+                  <li>Prevented install of a non-existent package</li>
+                  <li>Identified the correct real package</li>
+                  <li>Warned about typosquatting risk</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <!-- USE CASE 5: Context Preservation -->
+          <div class="use-case">
+            <div class="use-case-header">
+              <div class="use-case-icon">🧠</div>
+              <h3>Context Preservation: Pick Up Where You Left Off</h3>
+              <span class="tool-badge">remember</span>
+            </div>
+            <div class="use-case-scenario">
+              "I spent 2 hours debugging a payment race condition. I need to
+              save this context before the AI forgets everything."
+            </div>
+            <div class="use-case-body">
+              <div class="conversation">
+                <div class="msg msg-user">
+                  <div class="msg-label">Developer</div>
+                  Save this: Payment flow bug — race condition between frontend
+                  state and backend data during payment retry. Root cause is
+                  state sync gap across 5 components. Fix: defense-in-depth
+                  combining data cleanup + frontend validation.
+                </div>
+                <div class="msg msg-ai">
+                  <div class="msg-label">CouchLoop EQ</div>
+                  ✅ Saved as insight with tags: <code>payment</code>,
+                  <code>race-condition</code>, <code>debugging</code>
+                  <br /><br />
+                  You can retrieve this later with:
+                  <em>"Recall my payment insights"</em>
+                </div>
+                <div class="msg msg-user" style="margin-top: 16px">
+                  <div class="msg-label">
+                    Developer (3 days later, new session)
+                  </div>
+                  What did we figure out about the payment bug?
+                </div>
+                <div class="msg msg-ai">
+                  <div class="msg-label">CouchLoop EQ</div>
+                  Found 1 insight tagged <code>payment</code>: <br /><br />
+                  <em
+                    >"Payment flow bug — race condition between frontend state
+                    and backend data during payment retry. Root cause is state
+                    sync gap across 5 components. Fix: defense-in-depth
+                    combining data cleanup + frontend validation."</em
+                  >
+                  <br /><br />
+                  Saved on Feb 3, 2026.
+                </div>
+              </div>
+              <div class="outcome">
+                <h4>Outcome</h4>
+                <ul>
+                  <li>2 hours of debugging context preserved in 10 seconds</li>
+                  <li>Retrieved 3 days later in a completely new session</li>
+                  <li>No context window wasted re-explaining the problem</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="cta-section">
+        <div class="container">
+          <h2 style="margin-bottom: 16px">Try it now</h2>
+          <p style="color: var(--text-muted); margin-bottom: 32px">
+            Add CouchLoop EQ to your IDE in 60 seconds. No signup required.
+          </p>
+          <a href="/#setup" class="btn btn-primary">Get Started</a>
+          <a href="/use-cases/wellness" class="btn btn-secondary"
+            >See Wellness Use Cases →</a
+          >
+        </div>
+      </section>
+    </main>
+
+    <footer>
       <div class="container">
-        <div class="badge">8 tools · <strong>intent-routed</strong></div>
-        <h1>Developer Use Cases</h1>
-        <p>Real examples of CouchLoop EQ helping developers brainstorm architecture, catch bad packages, review code, and preserve context across sessions.</p>
+        <p>Built with care by the CouchLoop team</p>
+        <div class="footer-links">
+          <a href="https://couchloop.com">CouchLoop.com</a>
+          <a href="https://couchloopchat.com">CouchLoop Chat</a>
+          <a href="https://github.com/wisenbergg/couchloop-mcp">GitHub</a>
+          <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
+        </div>
       </div>
-    </section>
-
-    <section class="section">
-      <div class="container">
-
-        <!-- USE CASE 1: Brainstorm -->
-        <div class="use-case">
-          <div class="use-case-header">
-            <div class="use-case-icon">💡</div>
-            <h3>Brainstorm: Data Export UX in a Privacy-First App</h3>
-            <span class="tool-badge">conversation(brainstorm)</span>
-          </div>
-          <div class="use-case-scenario">
-            "We need an 'Export Your Data' feature, but all emails are hashed on the backend. How do we collect an email to send the export to?"
-          </div>
-          <div class="use-case-body">
-            <div class="conversation">
-              <div class="msg msg-user">
-                <div class="msg-label">Developer</div>
-                I'm building an Export Data screen for a therapeutic iOS app. Key constraint: all emails are hashed on the backend — we never store plaintext. SSO users (Google, Apple) may not have an email stored locally. How should we handle collecting an email for data export?
-              </div>
-              <div class="msg msg-ai">
-                <div class="msg-label">CouchLoop EQ</div>
-                Let me ask a few things before recommending:
-                <br><br>
-                <strong>1. When do you first have the plaintext email?</strong> At login/registration, before hashing — are you already saving it to SecureStore for email+password users?
-                <br><br>
-                <strong>2. SSO tokens:</strong> Google and Apple Sign In tokens include the user's email. Are you extracting it during the auth flow?
-                <br><br>
-                <strong>3. What if the user types a different email?</strong> Is that a security issue, or acceptable since they're already authenticated on the device?
-              </div>
-              <div class="msg msg-user">
-                <div class="msg-label">Developer</div>
-                Yes, email+password users already have it in SecureStore. We're not extracting from SSO tokens yet. And yeah, a different email should be fine — they're authenticated.
-              </div>
-              <div class="msg msg-ai">
-                <div class="msg-label">CouchLoop EQ</div>
-                <strong>Recommended approach:</strong>
-                <br><br>
-                1. <strong>Capture SSO email at login</strong> — extract from Google/Apple token, save to SecureStore alongside email+password users<br>
-                2. <strong>Export screen: editable email field</strong> — pre-filled from SecureStore, user can change it. Label: "Where should we send your data?"<br>
-                3. <strong>Re-auth before export</strong> — require FaceID/passcode confirmation to prevent someone borrowing the phone<br>
-                4. <strong>Email never stored on backend</strong> — used only for delivery, then discarded server-side
-              </div>
-            </div>
-            <div class="outcome">
-              <h4>Outcome</h4>
-              <ul>
-                <li>Privacy-first approach: email stays on-device only</li>
-                <li>Works for both email+password and SSO users</li>
-                <li>User can export to any email they want</li>
-                <li>FaceID gate prevents unauthorized exports</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        <!-- USE CASE 2: Brainstorm comparison -->
-        <div class="use-case">
-          <div class="use-case-header">
-            <div class="use-case-icon">⚖️</div>
-            <h3>Compare: Vercel vs Railway for a Next.js App</h3>
-            <span class="tool-badge">conversation(brainstorm)</span>
-          </div>
-          <div class="use-case-scenario">
-            "I need to pick a hosting platform for a Next.js app with Postgres and background jobs. Vercel or Railway?"
-          </div>
-          <div class="use-case-body">
-            <div class="conversation">
-              <div class="msg msg-user">
-                <div class="msg-label">Developer</div>
-                What hosting platform should I use — Vercel or Railway? It's a Next.js app.
-              </div>
-              <div class="msg msg-ai">
-                <div class="msg-label">CouchLoop EQ</div>
-                Before I compare — what does your stack look like beyond Next.js? Database? Background jobs? Websockets? That changes the recommendation significantly.
-              </div>
-              <div class="msg msg-user">
-                <div class="msg-label">Developer</div>
-                Next.js with Postgres and background jobs for sending emails.
-              </div>
-              <div class="msg msg-ai">
-                <div class="msg-label">CouchLoop EQ</div>
-                <strong>Go with Railway.</strong> Here's why:
-                <br><br>
-                Vercel is optimized for serverless — great for Next.js frontend and API routes, but background jobs (email queues) and persistent Postgres connections are awkward on serverless. You'd need a separate service for the job runner.
-                <br><br>
-                Railway gives you a single platform for Next.js + Postgres + a worker process for background jobs. One deploy, one dashboard, native Postgres.
-                <br><br>
-                <strong>Exception:</strong> If your app is mostly static/SSR with occasional emails (use a third-party like Resend), Vercel is simpler.
-              </div>
-            </div>
-            <div class="outcome">
-              <h4>Outcome</h4>
-              <ul>
-                <li>Asked the right clarifying question before recommending</li>
-                <li>Concrete recommendation based on actual stack</li>
-                <li>Identified the exception case instead of blanket advice</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        <!-- USE CASE 3: Code Review -->
-        <div class="use-case">
-          <div class="use-case-header">
-            <div class="use-case-icon">🔍</div>
-            <h3>Code Review: Catch Security Issues Before They Ship</h3>
-            <span class="tool-badge">code_review</span>
-          </div>
-          <div class="use-case-scenario">
-            "Review this auth middleware before I merge it."
-          </div>
-          <div class="use-case-body">
-            <div class="conversation">
-              <div class="msg msg-user">
-                <div class="msg-label">Developer</div>
-                Review this code:<br>
-                <code style="font-size: 0.85rem; color: var(--secondary);">
-                const query = `SELECT * FROM users WHERE email = '${req.body.email}'`;<br>
-                const token = jwt.sign({ id: user.id }, 'mysecret123');<br>
-                console.log('User logged in:', user.email, token);
-                </code>
-              </div>
-              <div class="msg msg-ai">
-                <div class="msg-label">CouchLoop EQ</div>
-                <strong>3 critical issues found:</strong>
-                <br><br>
-                🔴 <strong>SQL Injection</strong> — String interpolation in SQL query. Use parameterized queries: <code>db.query('SELECT * FROM users WHERE email = $1', [email])</code>
-                <br><br>
-                🔴 <strong>Hardcoded Secret</strong> — JWT secret <code>'mysecret123'</code> in source code. Move to environment variable.
-                <br><br>
-                🟡 <strong>Sensitive Data in Logs</strong> — Logging email and JWT token to console. Remove before production.
-              </div>
-            </div>
-            <div class="outcome">
-              <h4>Outcome</h4>
-              <ul>
-                <li>SQL injection caught before it reached production</li>
-                <li>Hardcoded secret flagged with fix</li>
-                <li>Console.log with PII identified</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        <!-- USE CASE 4: Package Audit -->
-        <div class="use-case">
-          <div class="use-case-header">
-            <div class="use-case-icon">📦</div>
-            <h3>Package Audit: Catch Hallucinated Dependencies</h3>
-            <span class="tool-badge">verify + package_audit</span>
-          </div>
-          <div class="use-case-scenario">
-            "An AI suggested I install 'react-native-secure-keychain'. Does it actually exist?"
-          </div>
-          <div class="use-case-body">
-            <div class="conversation">
-              <div class="msg msg-user">
-                <div class="msg-label">Developer</div>
-                Verify this package: react-native-secure-keychain
-              </div>
-              <div class="msg msg-ai">
-                <div class="msg-label">CouchLoop EQ</div>
-                ⚠️ <strong>Package does not exist on npm.</strong>
-                <br><br>
-                This is likely an AI hallucination. The real package is <code>react-native-keychain</code> (1.2M weekly downloads, maintained, MIT license).
-                <br><br>
-                Installing non-existent packages can lead to typosquatting attacks — malicious packages with similar names.
-              </div>
-            </div>
-            <div class="outcome">
-              <h4>Outcome</h4>
-              <ul>
-                <li>Prevented install of a non-existent package</li>
-                <li>Identified the correct real package</li>
-                <li>Warned about typosquatting risk</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        <!-- USE CASE 5: Context Preservation -->
-        <div class="use-case">
-          <div class="use-case-header">
-            <div class="use-case-icon">🧠</div>
-            <h3>Context Preservation: Pick Up Where You Left Off</h3>
-            <span class="tool-badge">remember</span>
-          </div>
-          <div class="use-case-scenario">
-            "I spent 2 hours debugging a payment race condition. I need to save this context before the AI forgets everything."
-          </div>
-          <div class="use-case-body">
-            <div class="conversation">
-              <div class="msg msg-user">
-                <div class="msg-label">Developer</div>
-                Save this: Payment flow bug — race condition between frontend state and backend data during payment retry. Root cause is state sync gap across 5 components. Fix: defense-in-depth combining data cleanup + frontend validation.
-              </div>
-              <div class="msg msg-ai">
-                <div class="msg-label">CouchLoop EQ</div>
-                ✅ Saved as insight with tags: <code>payment</code>, <code>race-condition</code>, <code>debugging</code>
-                <br><br>
-                You can retrieve this later with: <em>"Recall my payment insights"</em>
-              </div>
-              <div class="msg msg-user" style="margin-top: 16px;">
-                <div class="msg-label">Developer (3 days later, new session)</div>
-                What did we figure out about the payment bug?
-              </div>
-              <div class="msg msg-ai">
-                <div class="msg-label">CouchLoop EQ</div>
-                Found 1 insight tagged <code>payment</code>:
-                <br><br>
-                <em>"Payment flow bug — race condition between frontend state and backend data during payment retry. Root cause is state sync gap across 5 components. Fix: defense-in-depth combining data cleanup + frontend validation."</em>
-                <br><br>
-                Saved on Feb 3, 2026.
-              </div>
-            </div>
-            <div class="outcome">
-              <h4>Outcome</h4>
-              <ul>
-                <li>2 hours of debugging context preserved in 10 seconds</li>
-                <li>Retrieved 3 days later in a completely new session</li>
-                <li>No context window wasted re-explaining the problem</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-      </div>
-    </section>
-
-    <section class="cta-section">
-      <div class="container">
-        <h2 style="margin-bottom: 16px;">Try it now</h2>
-        <p style="color: var(--text-muted); margin-bottom: 32px;">Add CouchLoop EQ to your IDE in 60 seconds. No signup required.</p>
-        <a href="/#setup" class="btn btn-primary">Get Started</a>
-        <a href="/use-cases/wellness" class="btn btn-secondary">See Wellness Use Cases →</a>
-      </div>
-    </section>
-  </main>
-
-  <footer>
-    <div class="container">
-      <p>Built with care by the CouchLoop team</p>
-      <div class="footer-links">
-        <a href="https://couchloop.com">CouchLoop.com</a>
-        <a href="https://couchloopchat.com">CouchLoop Chat</a>
-        <a href="https://github.com/wisenbergg/couchloop-mcp">GitHub</a>
-        <a href="/privacy">Privacy</a>
-        <a href="/terms">Terms</a>
-      </div>
-    </div>
-  </footer>
-</body>
+    </footer>
+  </body>
 </html>

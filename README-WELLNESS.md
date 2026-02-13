@@ -56,6 +56,7 @@ Restart Claude and try:
 ## Available Journeys
 
 ### Daily Reflection (5 min)
+
 A brief check-in to process your day.
 
 ```
@@ -63,12 +64,14 @@ A brief check-in to process your day.
 ```
 
 Steps through:
+
 1. How are you feeling right now?
 2. What's on your mind today?
 3. What would make today successful?
 4. Any insights to capture?
 
 ### Gratitude Practice (3 min)
+
 Notice and name three things you appreciate.
 
 ```
@@ -76,6 +79,7 @@ Notice and name three things you appreciate.
 ```
 
 ### Weekly Review (10 min)
+
 Look back on your week and set intentions.
 
 ```
@@ -83,6 +87,7 @@ Look back on your week and set intentions.
 ```
 
 Steps through:
+
 1. Highlights from the week
 2. Challenges faced
 3. Lessons learned
@@ -90,11 +95,12 @@ Steps through:
 
 ---
 
-## Core Features (v1.2.0)
+## Core Features (v1.3.1)
 
-CouchLoop EQ now uses 8 primary tools. Just say what you want—the `couchloop` intent router handles the rest.
+CouchLoop EQ now uses 9 primary tools. Just say what you want—the `couchloop` intent router handles the rest.
 
 ### Quick Commands
+
 ```
 "end session"            → ends and saves current session
 "save this insight"      → captures to remember tool
@@ -113,6 +119,7 @@ Use CouchLoop as a reflective thinking partner—not just for technical decision
 ```
 
 CouchLoop asks clarifying questions to help you think through what's really going on, rather than jumping to solutions. Great for:
+
 - Exploring feelings or patterns you've noticed
 - Thinking through life decisions
 - Processing something that happened
@@ -166,6 +173,7 @@ CouchLoop EQ learns your patterns over time:
 ```
 
 Returns:
+
 - Recent session summaries
 - Common themes in your insights
 - Patterns in your check-ins
@@ -178,19 +186,19 @@ Returns:
 
 **You:** Start a daily reflection session
 
-**AI:** *Creates session, begins guided check-in*
+**AI:** _Creates session, begins guided check-in_
 
 How are you feeling this morning?
 
 **You:** A bit anxious about the presentation today
 
-**AI:** *Acknowledges, asks follow-up*
+**AI:** _Acknowledges, asks follow-up_
 
 That makes sense. What would help you feel more prepared?
 
 **You:** Actually, I realized I know this material well. Save that insight.
 
-**AI:** *Saves insight with context*
+**AI:** _Saves insight with context_
 
 Captured: "Realized I know the presentation material well - anxiety was unfounded"
 
@@ -198,7 +206,7 @@ Captured: "Realized I know the presentation material well - anxiety was unfounde
 
 **You:** Resume my session
 
-**AI:** *Restores context*
+**AI:** _Restores context_
 
 Welcome back. Earlier today you were feeling anxious about your presentation but realized you knew the material well. How did it go?
 
@@ -206,18 +214,18 @@ Welcome back. Earlier today you were feeling anxious about your presentation but
 
 ## Tool Reference
 
-| Tool | Purpose |
-|------|---------|
-| `create_session` | Start a new guided session |
-| `resume_session` | Continue where you left off |
-| `send_message` | Send a message through the therapeutic stack |
-| `save_checkpoint` | Capture progress at a key moment |
-| `get_checkpoints` | Retrieve all checkpoints for a session |
-| `list_journeys` | See available guided journeys |
-| `get_journey_status` | Check progress in current journey |
-| `save_insight` | Capture a meaningful realization |
-| `get_insights` | Retrieve saved insights |
-| `get_user_context` | Get personalization context |
+| Tool                 | Purpose                                      |
+| -------------------- | -------------------------------------------- |
+| `create_session`     | Start a new guided session                   |
+| `resume_session`     | Continue where you left off                  |
+| `send_message`       | Send a message through the therapeutic stack |
+| `save_checkpoint`    | Capture progress at a key moment             |
+| `get_checkpoints`    | Retrieve all checkpoints for a session       |
+| `list_journeys`      | See available guided journeys                |
+| `get_journey_status` | Check progress in current journey            |
+| `save_insight`       | Capture a meaningful realization             |
+| `get_insights`       | Retrieve saved insights                      |
+| `get_user_context`   | Get personalization context                  |
 
 ---
 
@@ -226,6 +234,7 @@ Welcome back. Earlier today you were feeling anxious about your presentation but
 ### Crisis Detection
 
 CouchLoop EQ monitors for signs of distress and can:
+
 - Acknowledge difficult emotions
 - Suggest appropriate resources
 - Maintain supportive boundaries
@@ -233,6 +242,7 @@ CouchLoop EQ monitors for signs of distress and can:
 ### Behavioral Guardrails
 
 The system prevents:
+
 - Clinical overreach (not a replacement for therapy)
 - Dependency-forming language
 - Harmful advice
@@ -242,12 +252,12 @@ The system prevents:
 
 **CouchLoop EQ stores zero personal data.**
 
-| What We Store | What We Don't |
-|---------------|---------------|
-| Session IDs (anonymous) | ❌ Emails |
-| Your saved insights | ❌ Names |
-| Checkpoint progress | ❌ Passwords |
-| Journey state | ❌ API keys / secrets |
+| What We Store           | What We Don't         |
+| ----------------------- | --------------------- |
+| Session IDs (anonymous) | ❌ Emails             |
+| Your saved insights     | ❌ Names              |
+| Checkpoint progress     | ❌ Passwords          |
+| Journey state           | ❌ API keys / secrets |
 
 - **No authentication required** — sessions are completely anonymous
 - **No tracking** — no analytics, no telemetry, no cookies
@@ -260,9 +270,11 @@ The system prevents:
 ## Tips for Best Use
 
 ### Be Consistent
+
 Regular check-ins build better context. Even a 3-minute daily reflection compounds over time.
 
 ### Tag Your Insights
+
 Tags make retrieval easier:
 
 ```
@@ -270,9 +282,11 @@ Tags make retrieval easier:
 ```
 
 ### Use Journeys for Structure
+
 When you're not sure what to reflect on, journeys provide guided prompts.
 
 ### Review Periodically
+
 ```
 "Get my insights from the past week"
 ```

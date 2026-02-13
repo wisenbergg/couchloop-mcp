@@ -1,7 +1,7 @@
 {
   "name": "couchloop_eq-mcp",
   "namespace": "io.github.wisenbergg",
-  "version": "1.0.0",
+  "version": "1.3.1",
   "description": "Turn conversations into guided journeys that remember where you left off - MCP server for stateful AI experiences with ChatGPT and Claude",
   "author": {
     "name": "Greg Wisenberg",
