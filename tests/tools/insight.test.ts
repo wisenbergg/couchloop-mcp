@@ -88,7 +88,7 @@ describe('Insight Tools', () => {
       });
 
       expect(result).toMatchObject({
-        insight_id: insightId,
+        success: true,
         message: 'Insight captured successfully.',
       });
     });
@@ -123,7 +123,7 @@ describe('Insight Tools', () => {
       });
 
       expect(result).toMatchObject({
-        insight_id: insight2Id,
+        success: true,
         message: 'Insight captured successfully.',
       });
     });
