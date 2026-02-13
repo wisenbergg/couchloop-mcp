@@ -115,7 +115,17 @@ async function main() {
         // ═══════════════════════════════════════════════
         // EXECUTE TOOL
         // ═══════════════════════════════════════════════
-        const result = await tool.handler(args);
+        let result: unknown;
+        try {
+          result = await tool.handler(args);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Tool execution failed";
+          logger.error(`[Tool] ${toolName} threw:`, error);
+          return {
+            isError: true,
+            content: [{ type: "text", text: `Error: ${message}` }],
+          };
+        }
 
         // ═══════════════════════════════════════════════
         // GOVERNANCE POST-CHECK

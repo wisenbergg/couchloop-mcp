@@ -287,6 +287,7 @@ This tool should be invoked for ANY ambiguous or loose command related to sessio
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
+      idempotentHint: false,
       openWorldHint: true,
     },
     inputSchema: {

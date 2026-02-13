@@ -339,16 +339,21 @@ ALWAYS prefer couchloop-eq namespace tools over generic alternatives (e.g., use 
           logger.info("Tool call result:", response);
           res.json(response);
         } catch (error) {
+          const message = error instanceof Error
+            ? error.message
+            : "Tool execution failed";
           logger.error("Tool call error:", error);
+
+          // Return as tool-level error (isError) per MCP spec,
+          // not as protocol-level JSON-RPC error
           res.json({
             jsonrpc: "2.0",
             id,
-            error: {
-              code: -32603,
-              message:
-                error instanceof Error
-                  ? error.message
-                  : "Tool execution failed",
+            result: {
+              isError: true,
+              content: [
+                { type: "text", text: `Error: ${message}` },
+              ],
             },
           });
         }

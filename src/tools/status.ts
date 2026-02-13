@@ -30,6 +30,7 @@ export const statusTool = {
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
+      idempotentHint: true,
       openWorldHint: false,
     },
     inputSchema: {
