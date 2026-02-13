@@ -4,6 +4,7 @@
  */
 
 import type { PackageInfo, RegistryValidator, PyPiRegistryResponse, SecurityIssue } from '../types/package.js';
+import { logger } from '../../utils/logger.js';
 
 export class PyPiValidator implements RegistryValidator {
   private readonly registryUrl = 'https://pypi.org/pypi';
@@ -70,7 +71,7 @@ export class PyPiValidator implements RegistryValidator {
       return result;
 
     } catch (error) {
-      console.error(`Failed to validate PyPI package ${packageName}:`, error);
+      logger.error(`Failed to validate PyPI package ${packageName}:`, error);
 
       return {
         name: packageName,
@@ -125,7 +126,7 @@ export class PyPiValidator implements RegistryValidator {
       return results.slice(0, limit);
 
     } catch (error) {
-      console.error(`Failed to search PyPI registry:`, error);
+      logger.error(`Failed to search PyPI registry:`, error);
       return [];
     }
   }

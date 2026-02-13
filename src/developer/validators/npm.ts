@@ -4,6 +4,7 @@
  */
 
 import type { PackageInfo, RegistryValidator, NpmRegistryResponse, NpmSearchResponse } from '../types/package.js';
+import { logger } from '../../utils/logger.js';
 
 export class NpmValidator implements RegistryValidator {
   private readonly registryUrl = 'https://registry.npmjs.org';
@@ -69,7 +70,7 @@ export class NpmValidator implements RegistryValidator {
       return result;
 
     } catch (error) {
-      console.error(`Failed to validate npm package ${packageName}:`, error);
+      logger.error(`Failed to validate npm package ${packageName}:`, error);
 
       // Return unknown state rather than false positive
       return {
@@ -104,7 +105,7 @@ export class NpmValidator implements RegistryValidator {
         lastChecked: new Date()
       }));
     } catch (error) {
-      console.error(`Failed to search npm registry for ${query}:`, error);
+      logger.error(`Failed to search npm registry for ${query}:`, error);
       return [];
     }
   }

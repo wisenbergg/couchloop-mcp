@@ -4,6 +4,7 @@
  */
 
 import type { PackageInfo, RegistryValidator, NuGetIndexResponse, NuGetSearchResponse } from '../types/package.js';
+import { logger } from '../../utils/logger.js';
 
 export class NuGetValidator implements RegistryValidator {
   private readonly registryUrl = 'https://api.nuget.org/v3-flatcontainer';
@@ -83,7 +84,7 @@ export class NuGetValidator implements RegistryValidator {
       return result;
 
     } catch (error) {
-      console.error(`Failed to validate NuGet package ${packageName}:`, error);
+      logger.error(`Failed to validate NuGet package ${packageName}:`, error);
 
       return {
         name: packageName,
@@ -118,7 +119,7 @@ export class NuGetValidator implements RegistryValidator {
       }));
 
     } catch (error) {
-      console.error(`Failed to search NuGet for ${query}:`, error);
+      logger.error(`Failed to search NuGet for ${query}:`, error);
       return [];
     }
   }

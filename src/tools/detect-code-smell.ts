@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { BloatDetector, type BloatDetectionResult, type CodeSmellWarning } from '../developer/analyzers/bloat-detector.js';
 import type { ComplexityMetrics } from '../developer/metrics/complexity-calculator.js';
+import { logger } from '../utils/logger.js';
 
 const inputSchema = z.object({
   code: z.string().describe('Code snippet to analyze for bloat patterns'),
@@ -151,7 +152,7 @@ export async function handleDetectCodeSmell(input: unknown): Promise<object> {
     return response;
 
   } catch (error) {
-    console.error('Code smell detection error:', error);
+    logger.error('Code smell detection error:', error);
     return {
       error: error instanceof Error ? error.message : 'Failed to analyze code',
       status: 'error'

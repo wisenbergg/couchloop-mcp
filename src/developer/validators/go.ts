@@ -4,6 +4,7 @@
  */
 
 import type { PackageInfo, RegistryValidator, GoLatestResponse } from '../types/package.js';
+import { logger } from '../../utils/logger.js';
 
 export class GoValidator implements RegistryValidator {
   private readonly proxyUrl = 'https://proxy.golang.org';
@@ -103,7 +104,7 @@ export class GoValidator implements RegistryValidator {
       return result;
 
     } catch (error) {
-      console.error(`Failed to validate Go module ${packageName}:`, error);
+      logger.error(`Failed to validate Go module ${packageName}:`, error);
 
       return {
         name: packageName,
@@ -152,7 +153,7 @@ export class GoValidator implements RegistryValidator {
       return results.slice(0, limit);
 
     } catch (error) {
-      console.error(`Failed to search Go modules for ${query}:`, error);
+      logger.error(`Failed to search Go modules for ${query}:`, error);
       return [];
     }
   }

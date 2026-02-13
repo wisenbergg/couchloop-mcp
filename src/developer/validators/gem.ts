@@ -4,6 +4,7 @@
  */
 
 import type { PackageInfo, RegistryValidator, GemRegistryResponse, GemSearchResponse } from '../types/package.js';
+import { logger } from '../../utils/logger.js';
 
 export class GemValidator implements RegistryValidator {
   private readonly registryUrl = 'https://rubygems.org/api/v1';
@@ -59,7 +60,7 @@ export class GemValidator implements RegistryValidator {
       return result;
 
     } catch (error) {
-      console.error(`Failed to validate Ruby gem ${packageName}:`, error);
+      logger.error(`Failed to validate Ruby gem ${packageName}:`, error);
 
       return {
         name: packageName,
@@ -94,7 +95,7 @@ export class GemValidator implements RegistryValidator {
       }));
 
     } catch (error) {
-      console.error(`Failed to search RubyGems for ${query}:`, error);
+      logger.error(`Failed to search RubyGems for ${query}:`, error);
       return [];
     }
   }

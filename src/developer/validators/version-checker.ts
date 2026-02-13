@@ -11,6 +11,7 @@ import { GemValidator } from './gem.js';
 import { NuGetValidator } from './nuget.js';
 import { GoValidator } from './go.js';
 import type { PackageInfo } from '../types/package.js';
+import { logger } from '../../utils/logger.js';
 
 export interface VersionInfo {
   packageName: string;
@@ -119,7 +120,7 @@ export class VersionChecker {
       return versionInfo;
 
     } catch (error) {
-      console.error(`Failed to check version for ${packageName}:`, error);
+      logger.error(`Failed to check version for ${packageName}:`, error);
 
       return {
         packageName,
@@ -200,7 +201,7 @@ export class VersionChecker {
 
       return path;
     } catch (error) {
-      console.error('Failed to get migration path:', error);
+      logger.error('Failed to get migration path:', error);
       return [];
     }
   }
@@ -232,7 +233,7 @@ export class VersionChecker {
         );
       }
     } catch (error) {
-      console.error('Failed to check security vulnerabilities:', error);
+      logger.error('Failed to check security vulnerabilities:', error);
     }
 
     return vulnerabilities;
@@ -268,7 +269,7 @@ export class VersionChecker {
 
       return packageInfo.latestVersion;
     } catch (error) {
-      console.error('Failed to get recommended version:', error);
+      logger.error('Failed to get recommended version:', error);
       return null;
     }
   }
@@ -421,7 +422,7 @@ export class VersionChecker {
       // For now, return null to indicate manual review needed
       return null;
     } catch (error) {
-      console.error('Failed to find safe version:', error);
+      logger.error('Failed to find safe version:', error);
       return null;
     }
   }

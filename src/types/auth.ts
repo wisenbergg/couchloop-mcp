@@ -3,6 +3,7 @@ import { createHash } from 'crypto';
 import { homedir, hostname } from 'os';
 import { join } from 'path';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { logger } from '../utils/logger.js';
 
 /**
  * Authentication context that can be passed through MCP tool calls
@@ -64,11 +65,11 @@ function getOrCreateLocalIdentity(): string {
     };
 
     writeFileSync(IDENTITY_FILE, JSON.stringify(newIdentity, null, 2));
-    console.log('Created local identity: ' + newIdentity.user_id + ' at ' + IDENTITY_FILE);
+    logger.info('Created local identity: ' + newIdentity.user_id + ' at ' + IDENTITY_FILE);
     
     return newIdentity.user_id;
   } catch (error) {
-    console.warn('Failed to create/read local identity file:', error);
+    logger.warn('Failed to create/read local identity file:', error);
     return '';
   }
 }
@@ -114,7 +115,7 @@ export async function extractUserFromContext(authContext?: AuthContext): Promise
   }
 
   // Fallback: Create ephemeral user with warning
-  console.warn('Creating ephemeral user - no stable identity provided', {
+  logger.warn('Creating ephemeral user - no stable identity provided', {
     client_id: authContext?.client_id,
     has_conversation_id: !!authContext?.conversation_id,
     timestamp: new Date().toISOString()

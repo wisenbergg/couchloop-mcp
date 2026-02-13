@@ -4,6 +4,7 @@
  */
 
 import type { PackageInfo, RegistryValidator, CargoRegistryResponse, CargoVersionResponse, CargoSearchResponse } from '../types/package.js';
+import { logger } from '../../utils/logger.js';
 
 export class CargoValidator implements RegistryValidator {
   private readonly registryUrl = 'https://crates.io/api/v1';
@@ -110,7 +111,7 @@ export class CargoValidator implements RegistryValidator {
       return result;
 
     } catch (error) {
-      console.error(`Failed to validate Cargo package ${packageName}:`, error);
+      logger.error(`Failed to validate Cargo package ${packageName}:`, error);
 
       return {
         name: packageName,
@@ -151,7 +152,7 @@ export class CargoValidator implements RegistryValidator {
       }));
 
     } catch (error) {
-      console.error(`Failed to search Cargo registry for ${query}:`, error);
+      logger.error(`Failed to search Cargo registry for ${query}:`, error);
       return [];
     }
   }

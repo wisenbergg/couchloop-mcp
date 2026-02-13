@@ -10,6 +10,7 @@ import { InconsistencyChecker } from './detectors/inconsistency.js';
 import { ToneDriftMonitor } from './detectors/toneDrift.js';
 import { UnsafeReasoningDetector } from './detectors/unsafeReasoning.js';
 import { GovernanceConfig, loadConfig } from './config.js';
+import { logger } from '../utils/logger.js';
 
 // Core types for governance evaluations
 export enum InterventionAction {
@@ -135,7 +136,7 @@ export class EvaluationEngine {
     // Log evaluation time for performance monitoring
     const evaluationTime = Date.now() - startTime;
     if (evaluationTime > 1000) {
-      console.warn(`[Governance] Evaluation took ${evaluationTime}ms (target: <1000ms)`);
+      logger.warn(`[Governance] Evaluation took ${evaluationTime}ms (target: <1000ms)`);
     }
 
     return result;
