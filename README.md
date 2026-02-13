@@ -22,10 +22,10 @@ Behavioral governance layer for safer, more consistent AI conversations.
 
 ## 📖 Choose Your Guide
 
-| Use Case | Guide | Description |
-|----------|-------|-------------|
+| Use Case          | Guide                                      | Description                                                              |
+| ----------------- | ------------------------------------------ | ------------------------------------------------------------------------ |
 | 💻 **Developers** | [README-DEVELOPER.md](README-DEVELOPER.md) | Package validation, security scanning, code review, context preservation |
-| 🧘 **Wellness** | [README-WELLNESS.md](README-WELLNESS.md) | Guided sessions, journeys, insights, reflection tools |
+| 🧘 **Wellness**   | [README-WELLNESS.md](README-WELLNESS.md)   | Guided sessions, journeys, insights, reflection tools                    |
 
 ---
 
@@ -37,32 +37,35 @@ CouchLoop EQ is an MCP (Model Context Protocol) server that provides behavioral 
 
 Unlike raw LLMs that can hallucinate packages, generate insecure code, and lose context mid-conversation, CouchLoop EQ catches problems before they ship:
 
-| Problem | CouchLoop EQ Solution |
-|---------|----------------------|
-| 🎭 **Hallucinated packages** | `verify` + `package_audit` catch fake npm/PyPI/Maven before install |
-| 🔓 **Insecure code** | `code_review` detects SQLi, XSS, hardcoded secrets |
-| 📉 **Code bloat** | `code_review` flags over-engineering, console.logs, missing error handling |
-| 🧠 **Lost context** | `remember` stores architecture decisions and checkpoints across sessions |
-| 🗂️ **Accidental deletion** | `protect` with automatic backups, freeze mode, and rollback |
-| 📚 **Deprecated APIs** | `package_audit` warns about outdated versions and breaking changes |
-| 🔍 **Sloppy AI code** | `verify` pre-checks AI responses for hallucinated APIs and bad imports |
-| 💡 **Unstructured thinking** | `conversation(brainstorm)` helps think through trade-offs, compare options, decompose ideas |
+| Problem                      | CouchLoop EQ Solution                                                         |
+| ---------------------------- | ----------------------------------------------------------------------------- |
+| 🎭 **Hallucinated packages** | `verify` + `package_audit` catch fake npm/PyPI/Maven before install           |
+| 🔓 **Insecure code**         | `code_review` detects SQLi, XSS, hardcoded secrets                            |
+| 📉 **Code bloat**            | `code_review` flags over-engineering, console.logs, missing error handling    |
+| 🧠 **Lost context**          | `remember` stores architecture decisions and checkpoints across sessions      |
+| 🗂️ **Accidental deletion**   | `protect` with automatic backups, freeze mode, and rollback                   |
+| 📚 **Deprecated APIs**       | `package_audit` warns about outdated versions and breaking changes            |
+| 🔍 **Sloppy AI code**        | `verify` pre-checks AI responses for hallucinated APIs and bad imports        |
+| 💡 **Unstructured thinking** | `brainstorm` helps think through trade-offs, compare options, decompose ideas |
 
 ## Key Safety Features
 
 ### Behavioral Governance
+
 - **Hallucination Detection**: Monitors for fabricated facts and unsupported claims
 - **Consistency Checking**: Identifies contradictions and logical incoherence across turns
 - **Tone Monitoring**: Detects emotional escalation, manipulation, or dependency-forming language
 - **Safety Guardrails**: Prevents harmful advice, clinical overreach, and inappropriate moralizing
 
 ### Session Management
+
 - **Stateful Conversations**: Maintains context across multiple interactions
 - **Progress Tracking**: Remember where users left off in guided journeys
 - **Crisis Detection**: Integration with therapeutic AI for emotional support
 - **Memory Context**: Preserves important insights and checkpoints
 
 ### Privacy by Design
+
 - **No personal data stored**: No emails, names, passwords, or API keys
 - **Session-based isolation**: Each session is anonymous and isolated
 - **Your data stays yours**: Insights and context are tied to session IDs, not identities
@@ -121,6 +124,7 @@ ChatGPT supports MCP servers through Developer Mode. See [CHATGPT_SETUP.md](CHAT
 ### For Other MCP Clients
 
 Any MCP-compatible client (Cursor, Windsurf, Continue, etc.) can connect using:
+
 - **URL:** `https://mcp.couchloop.com/mcp`
 - **Transport:** `streamable-http`
 - **Auth:** None required (session-based isolation)
@@ -128,33 +132,38 @@ Any MCP-compatible client (Cursor, Windsurf, Continue, etc.) can connect using:
 **Production Server Available:** `https://mcp.couchloop.com/mcp`
 
 Quick steps:
+
 1. Enable Developer Mode in ChatGPT Settings
 2. Add as MCP connector with URL: `https://mcp.couchloop.com/mcp`
 3. No authentication required - uses session-based isolation
 
 For local development:
+
 - Use ngrok or deploy your own server
 - Follow setup in [CHATGPT_SETUP.md](CHATGPT_SETUP.md)
 
-## Available Tools (8 Primary)
+## Available Tools (9 Primary)
 
-CouchLoop EQ v1.2.0 uses an 8-tool architecture. The `couchloop` meta-tool acts as an intelligent router—just say what you want in natural language.
+CouchLoop EQ v1.3.1 uses a 9-tool architecture. The `couchloop` meta-tool acts as an intelligent router—just say what you want in natural language.
 
 ### Universal Entry Point
-| Tool | Description |
-|------|-------------|
+
+| Tool        | Description                                                                                                                                            |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `couchloop` | **Intent router** — Routes any loose command to the right tool. Use for: "end session", "save this", "review code", "brainstorm this", "help me", etc. |
 
 ### Core Tools
-| Tool | Description |
-|------|-------------|
-| `verify` | **Pre-delivery verification** — Catches AI hallucinations, validates packages, checks code before presenting to users |
-| `status` | **Dashboard** — Session progress, history, context window usage, protection status, preferences |
-| `conversation` | AI conversation with crisis detection and session memory. Actions: start, send, end, resume, status, **brainstorm** |
-| `code_review` | Complete code analysis — security vulnerabilities, code smells, AI-generated errors |
-| `package_audit` | Dependency audit — validates packages exist, checks versions, finds vulnerabilities |
-| `remember` | Save and recall context, checkpoints, insights across sessions |
-| `protect` | File protection — backup, freeze, rollback, restore |
+
+| Tool            | Description                                                                                                           |
+| --------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `verify`        | **Pre-delivery verification** — Catches AI hallucinations, validates packages, checks code before presenting to users |
+| `status`        | **Dashboard** — Session progress, history, context window usage, protection status, preferences                       |
+| `conversation`  | AI conversation with crisis detection and session memory. Actions: start, send, end, resume, status                   |
+| `brainstorm`    | **Standalone dev thinking partner** — trade-off analysis, feature design, architecture decisions                      |
+| `code_review`   | Complete code analysis — security vulnerabilities, code smells, AI-generated errors                                   |
+| `package_audit` | Dependency audit — validates packages exist, checks versions, finds vulnerabilities                                   |
+| `remember`      | Save and recall context, checkpoints, insights across sessions                                                        |
+| `protect`       | File protection — backup, freeze, rollback, restore                                                                   |
 
 ### Usage Examples
 
@@ -163,12 +172,12 @@ CouchLoop EQ v1.2.0 uses an 8-tool architecture. The `couchloop` meta-tool acts 
 "end session"          → couchloop routes to conversation(action: end)
 "save this for later"  → couchloop routes to remember(action: save)
 "review my code"       → couchloop routes to code_review
-"brainstorm a feature" → couchloop routes to conversation(action: brainstorm)
+"brainstorm a feature" → couchloop routes to brainstorm
 "what can you do"      → couchloop returns capabilities list
 
 # Direct tool calls (for precise control)
 conversation(action: "start", message: "Begin daily reflection")
-conversation(action: "brainstorm", message: "Design a caching layer")  # Dev ideation
+brainstorm(message: "Design a caching layer")  # Dev ideation
 remember(action: "recall")  # Get saved context
 verify(type: "packages", content: "lodash-utils")  # Validate before install
 code_review(code: "function foo()...")  # Analyze code
@@ -179,32 +188,33 @@ code_review(code: "function foo()...")  # Analyze code
 CouchLoop EQ is actively used in production development. Here's what 2 weeks of actual usage looks like:
 
 ### Usage Statistics
-| Metric | Value |
-|--------|-------|
-| Insights captured | 49 |
-| Active sessions | 5 |
-| Unique tags | 85+ |
-| Date range | Jan 19 - Feb 2, 2026 |
+
+| Metric            | Value                |
+| ----------------- | -------------------- |
+| Insights captured | 49                   |
+| Active sessions   | 5                    |
+| Unique tags       | 85+                  |
+| Date range        | Jan 19 - Feb 2, 2026 |
 
 ### Development Areas Tracked
 
-| Category | Insights | Example |
-|----------|----------|---------|
-| 🔐 Security fixes | 12 | Auth flow hardening, validation improvements |
-| 💳 Payment integration | 8 | Payment flow patterns, webhook handling |
-| 📱 Mobile development | 15 | State management, navigation guards |
-| 🗄️ Database operations | 6 | Data cleanup, schema optimization |
-| 🏗️ Architecture decisions | 8 | Caching strategies, event patterns |
+| Category                  | Insights | Example                                      |
+| ------------------------- | -------- | -------------------------------------------- |
+| 🔐 Security fixes         | 12       | Auth flow hardening, validation improvements |
+| 💳 Payment integration    | 8        | Payment flow patterns, webhook handling      |
+| 📱 Mobile development     | 15       | State management, navigation guards          |
+| 🗄️ Database operations    | 6        | Data cleanup, schema optimization            |
+| 🏗️ Architecture decisions | 8        | Caching strategies, event patterns           |
 
 ### Featured Insight: Complex Bug Resolution
 
 ```
 PAYMENT FLOW BUG ROOT CAUSE IDENTIFIED:
 
-Issue: Race condition between frontend state and backend data caused 
+Issue: Race condition between frontend state and backend data caused
 inconsistent user experience during payment retry flows.
 
-Analysis: Traced through 5 components across iOS and backend to find 
+Analysis: Traced through 5 components across iOS and backend to find
 the state synchronization gap.
 
 FIX OPTIONS:
@@ -220,16 +230,17 @@ This insight was captured mid-debugging session, preserved across context window
 ### Best Practices for Sprint Development
 
 **Start of sprint:** Create a session to establish context
+
 ```
 "Create a session for Sprint 42 - user authentication overhaul"
 ```
 
 **After completing a feature:** Save insights, context, or checkpoints depending on complexity
 
-| Feature Size | Recommended Actions |
-|--------------|---------------------|
-| **Small fix** | `save_insight` — Quick note of what was done and why |
-| **Medium feature** | `save_insight` + `save_checkpoint` — Capture decisions and state |
+| Feature Size          | Recommended Actions                                                                          |
+| --------------------- | -------------------------------------------------------------------------------------------- |
+| **Small fix**         | `save_insight` — Quick note of what was done and why                                         |
+| **Medium feature**    | `save_insight` + `save_checkpoint` — Capture decisions and state                             |
 | **Large feature set** | `preserve_context` + `save_checkpoint` + multiple `save_insight` — Full architecture context |
 
 **Why this matters:** When you need to review or debug later, you can retrieve the exact context of what was just built—even weeks later, across different AI sessions.
@@ -248,16 +259,19 @@ This insight was captured mid-debugging session, preserved across context window
 ## Example Usage
 
 Start a daily reflection:
+
 ```
 "Start a daily reflection session"
 ```
 
 Resume where you left off:
+
 ```
 "Resume my last session"
 ```
 
 Save an insight:
+
 ```
 "Save this insight: I notice I'm more energized in the mornings"
 ```

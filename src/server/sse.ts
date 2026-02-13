@@ -5,15 +5,15 @@
 import { Server } from "@modelcontextprotocol/sdk/server";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import {
-  CallToolRequest,
-  CallToolRequestSchema,
-  GetPromptRequest,
-  GetPromptRequestSchema,
-  ListPromptsRequestSchema,
-  ListResourcesRequestSchema,
-  ListToolsRequestSchema,
-  ReadResourceRequest,
-  ReadResourceRequestSchema,
+    CallToolRequest,
+    CallToolRequestSchema,
+    GetPromptRequest,
+    GetPromptRequestSchema,
+    ListPromptsRequestSchema,
+    ListResourcesRequestSchema,
+    ListToolsRequestSchema,
+    ReadResourceRequest,
+    ReadResourceRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import crypto from "crypto";
 import { Request, Response } from "express";
@@ -30,7 +30,9 @@ interface SessionEntry {
 }
 
 const activeSessions = new Map<string, SessionEntry>();
-const SESSION_TTL_MS: number = parseInt(process.env.SESSION_TTL_MS || '1800000'); // 30 minutes
+const SESSION_TTL_MS: number = parseInt(
+  process.env.SESSION_TTL_MS || "1800000",
+); // 30 minutes
 
 /**
  * Create and configure an MCP server instance
@@ -40,7 +42,7 @@ async function createMCPServer(): Promise<Server> {
   const server = new Server(
     {
       name: "couchloop-mcp",
-      version: "1.2.0",
+      version: "1.3.1",
     },
     {
       capabilities: {
@@ -549,7 +551,9 @@ function cleanupExpiredSessions(): void {
   }
 
   if (cleaned > 0) {
-    logger.info(`Cleaned up ${cleaned} expired sessions. Active: ${activeSessions.size}`);
+    logger.info(
+      `Cleaned up ${cleaned} expired sessions. Active: ${activeSessions.size}`,
+    );
   }
 }
 

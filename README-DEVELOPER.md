@@ -17,15 +17,15 @@
 
 AI coding assistants hallucinate. They suggest packages that don't exist, generate insecure code, and lose context mid-conversation. CouchLoop EQ catches these problems before they hit production.
 
-| Problem | What Happens | CouchLoop EQ Solution |
-|---------|--------------|----------------------|
-| 🎭 **Hallucinated packages** | `npm install ai-super-validator` → package doesn't exist | `validate_packages` verifies against real registries |
-| 🔓 **Insecure code** | SQL injection, XSS, hardcoded secrets | `scan_security` detects vulnerabilities with CWE codes |
-| 📉 **Code bloat** | Over-engineered, verbose patterns | `detect_code_smell` flags complexity issues |
-| 🧠 **Lost context** | Re-explain architecture every session | `preserve_context` stores decisions permanently |
-| 🗂️ **Accidental deletion** | `rm -rf` the wrong directory | `protect_files` + `rollback_file` with auto-backups |
-| 📚 **Deprecated APIs** | Using outdated patterns | `check_versions` warns about breaking changes |
-| 🔍 **Sloppy AI code** | Console.logs, TODOs, missing error handling | `pre_review_code` catches before commit |
+| Problem                      | What Happens                                             | CouchLoop EQ Solution                                  |
+| ---------------------------- | -------------------------------------------------------- | ------------------------------------------------------ |
+| 🎭 **Hallucinated packages** | `npm install ai-super-validator` → package doesn't exist | `validate_packages` verifies against real registries   |
+| 🔓 **Insecure code**         | SQL injection, XSS, hardcoded secrets                    | `scan_security` detects vulnerabilities with CWE codes |
+| 📉 **Code bloat**            | Over-engineered, verbose patterns                        | `detect_code_smell` flags complexity issues            |
+| 🧠 **Lost context**          | Re-explain architecture every session                    | `preserve_context` stores decisions permanently        |
+| 🗂️ **Accidental deletion**   | `rm -rf` the wrong directory                             | `protect_files` + `rollback_file` with auto-backups    |
+| 📚 **Deprecated APIs**       | Using outdated patterns                                  | `check_versions` warns about breaking changes          |
+| 🔍 **Sloppy AI code**        | Console.logs, TODOs, missing error handling              | `pre_review_code` catches before commit                |
 
 ---
 
@@ -82,6 +82,7 @@ Catch hallucinated packages before `npm install` fails:
 ```
 
 **Output:**
+
 ```
 ✅ axios — verified on npm
 ❌ react-native-super-auth — NOT FOUND (did you mean react-native-auth?)
@@ -98,6 +99,7 @@ const query = `SELECT * FROM users WHERE id = ${userId}`"
 ```
 
 **Output:**
+
 ```
 🔴 CRITICAL: SQL Injection (CWE-89)
    Line 1: String interpolation in SQL query
@@ -113,6 +115,7 @@ Catch sloppy code before committing:
 ```
 
 **Detects:**
+
 - Console.log statements left in
 - TODO/FIXME comments
 - Missing error handling
@@ -129,6 +132,7 @@ Find over-engineering and bloat:
 ```
 
 **Metrics:**
+
 - Cyclomatic complexity
 - Nesting depth
 - Function length
@@ -139,11 +143,12 @@ Find over-engineering and bloat:
 Store architecture decisions across sessions:
 
 ```
-"Store this context: We're using event sourcing for the order system 
+"Store this context: We're using event sourcing for the order system
 because we need full audit trails and replay capability"
 ```
 
 **Later, in a new session:**
+
 ```
 "Get my architecture context for the order system"
 ```
@@ -167,17 +172,19 @@ Prevent accidental destructive operations:
 ## Best Practices for Sprint Development
 
 ### Start of Sprint
+
 Create a session to establish context:
+
 ```
 "Create a session for Sprint 42 - user authentication overhaul"
 ```
 
 ### After Completing Features
 
-| Feature Size | Recommended Actions |
-|--------------|---------------------|
-| **Small fix** | `save_insight` — Quick note of what was done and why |
-| **Medium feature** | `save_insight` + `save_checkpoint` — Capture decisions and state |
+| Feature Size          | Recommended Actions                                              |
+| --------------------- | ---------------------------------------------------------------- |
+| **Small fix**         | `save_insight` — Quick note of what was done and why             |
+| **Medium feature**    | `save_insight` + `save_checkpoint` — Capture decisions and state |
 | **Large feature set** | `preserve_context` + `save_checkpoint` + multiple `save_insight` |
 
 ### Why This Matters
@@ -191,37 +198,41 @@ When you need to review or debug later, retrieve exact context of what was built
 
 ---
 
-## Tool Reference (v1.2.0)
+## Tool Reference (v1.3.1)
 
-CouchLoop EQ now uses 8 primary tools. The `couchloop` meta-tool routes natural language to the correct tool.
+CouchLoop EQ now uses 9 primary tools. The `couchloop` meta-tool routes natural language to the correct tool.
 
 ### Universal Entry Point
-| Tool | Purpose |
-|------|---------|  
+
+| Tool        | Purpose                                                                                      |
+| ----------- | -------------------------------------------------------------------------------------------- |
 | `couchloop` | Routes any loose command: "review code", "audit packages", "brainstorm feature", "save this" |
 
 ### Developer Tools
-| Tool | Purpose |
-|------|---------|  
-| `verify` | Pre-delivery verification — catches AI hallucinations before presenting to users |
-| `status` | Dashboard — session progress, context window, saved insights |
-| `conversation` | AI conversation with **brainstorm** mode for dev ideation |
-| `code_review` | Security scan + code quality + AI error detection in one call |
-| `package_audit` | Validate packages exist, check versions, find vulnerabilities |
-| `remember` | Store/recall context, checkpoints, insights |
-| `protect` | File backup, freeze, rollback, restore |
+
+| Tool            | Purpose                                                                                          |
+| --------------- | ------------------------------------------------------------------------------------------------ |
+| `verify`        | Pre-delivery verification — catches AI hallucinations before presenting to users                 |
+| `status`        | Dashboard — session progress, context window, saved insights                                     |
+| `conversation`  | AI conversation with crisis detection and session memory                                         |
+| `brainstorm`    | **Standalone dev thinking partner** — trade-off analysis, feature design, architecture decisions |
+| `code_review`   | Security scan + code quality + AI error detection in one call                                    |
+| `package_audit` | Validate packages exist, check versions, find vulnerabilities                                    |
+| `remember`      | Store/recall context, checkpoints, insights                                                      |
+| `protect`       | File backup, freeze, rollback, restore                                                           |
 
 ### Usage Examples
+
 ```
 # Via couchloop (natural language)
 "review this code"       → routes to code_review
-"audit my dependencies"  → routes to package_audit  
-"brainstorm a caching layer" → routes to conversation(action: brainstorm)
+"audit my dependencies"  → routes to package_audit
+"brainstorm a caching layer" → routes to brainstorm
 "save this context"      → routes to remember
 "backup src/core/"       → routes to protect
 
 # Direct calls (precise control)
-conversation(action: "brainstorm", message: "Redis vs Memcached for sessions?")
+brainstorm(message: "Redis vs Memcached for sessions?")
 verify(type: "packages", content: "lodash-utils-pro")  # Catches hallucinated packages
 code_review(code: "...", auto_fix: true)
 package_audit(packages: ["axios", "lodash"])
@@ -240,15 +251,17 @@ Use CouchLoop as a **thinking partner** for architecture decisions, feature desi
 ```
 
 **How it works:**
+
 1. Asks 1-2 clarifying questions about your context (scale, team, existing stack)
 2. Provides structured comparison with trade-offs
 3. Gives a direct recommendation with reasoning
 
 **Example flow:**
+
 ```
 You: "brainstorm a caching layer for my API"
 
-CouchLoop: "What's your expected request volume, and do you need 
+CouchLoop: "What's your expected request volume, and do you need
 cache invalidation when data changes?"
 
 You: "~1000 req/s, and yes invalidation matters"
@@ -259,7 +272,7 @@ CouchLoop: "Redis is your best bet. Here's why:
 - Supports data structures you'll likely need later
 - Use Redis Cluster if you grow past single-node limits
 
-Alternative: If you're already on AWS, ElastiCache 
+Alternative: If you're already on AWS, ElastiCache
 with Redis engine simplifies operations."
 ```
 
@@ -269,16 +282,17 @@ with Redis engine simplifies operations."
 
 From 2 weeks of production development:
 
-| Category | Insights Saved | Examples |
-|----------|----------------|----------|
-| 🔐 Security | 12 | Auth flow improvements, validation fixes |
-| 💳 Payments | 8 | Payment patterns, webhook handling |
-| 📱 Mobile | 15 | State management, navigation guards |
-| 🏗️ Architecture | 8 | Caching strategies, event patterns |
+| Category        | Insights Saved | Examples                                 |
+| --------------- | -------------- | ---------------------------------------- |
+| 🔐 Security     | 12             | Auth flow improvements, validation fixes |
+| 💳 Payments     | 8              | Payment patterns, webhook handling       |
+| 📱 Mobile       | 15             | State management, navigation guards      |
+| 🏗️ Architecture | 8              | Caching strategies, event patterns       |
 
 **Example: Complex Bug Resolution**
 
 A payment flow race condition was tracked across 5 debugging sessions:
+
 1. Initial symptom → saved as insight
 2. Client-side investigation → checkpoint
 3. Root cause found → architecture context stored
@@ -293,11 +307,11 @@ Each piece persisted across context window resets, enabling continuous progress.
 
 **CouchLoop EQ stores zero personal data.**
 
-| What We Store | What We Don't |
-|---------------|---------------|
-| Session IDs (anonymous) | ❌ Emails |
-| Your saved insights | ❌ Names |
-| Checkpoint progress | ❌ Passwords |
+| What We Store               | What We Don't         |
+| --------------------------- | --------------------- |
+| Session IDs (anonymous)     | ❌ Emails             |
+| Your saved insights         | ❌ Names              |
+| Checkpoint progress         | ❌ Passwords          |
 | Context you explicitly save | ❌ API keys / secrets |
 
 - **No authentication required** — sessions are anonymous
