@@ -4,6 +4,7 @@
  */
 
 import type { PackageInfo, RegistryValidator, MavenSearchResponse } from '../types/package.js';
+import { logger } from '../../utils/logger.js';
 
 export class MavenValidator implements RegistryValidator {
   private readonly registryUrl = 'https://search.maven.org/solrsearch/select';
@@ -90,7 +91,7 @@ export class MavenValidator implements RegistryValidator {
       return result;
 
     } catch (error) {
-      console.error(`Failed to validate Maven package ${packageName}:`, error);
+      logger.error(`Failed to validate Maven package ${packageName}:`, error);
 
       return {
         name: packageName,
@@ -125,7 +126,7 @@ export class MavenValidator implements RegistryValidator {
       }));
 
     } catch (error) {
-      console.error(`Failed to search Maven registry for ${query}:`, error);
+      logger.error(`Failed to search Maven registry for ${query}:`, error);
       return [];
     }
   }

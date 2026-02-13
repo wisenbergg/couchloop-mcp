@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { Tool } from '@modelcontextprotocol/sdk/types.js';
 import { PackageBlocker } from '../developer/blockers/package-blocker.js';
 import { PackageEvaluator } from '../developer/evaluators/package-evaluator.js';
+import { logger } from '../utils/logger.js';
 
 const inputSchema = z.object({
   code: z.string().optional().describe('Code snippet containing package imports/requires'),
@@ -157,7 +158,7 @@ export async function handleValidatePackages(input: unknown): Promise<object> {
     };
 
   } catch (error) {
-    console.error('Package validation error:', error);
+    logger.error('Package validation error:', error);
     return {
       error: error instanceof Error ? error.message : 'Failed to validate packages'
     };
