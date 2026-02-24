@@ -198,7 +198,7 @@ const INTENT_MAPPINGS: IntentMapping[] = [
     defaultArgs: { type: 'all' },
   },
 
-  // Wellness/Emotional Support - LOWEST PRIORITY (catch-all for emotional content)
+  // Journeys/Check-in - LOWEST PRIORITY (catch-all for emotional content)
   {
     patterns: [
       /\b(stressed|anxious|worried|overwhelmed|sad|depressed|angry|frustrated|scared|lonely)\b/i,
@@ -279,11 +279,11 @@ export const intentRouterTool = {
 - Code: "review code", "check this", "find bugs", "is this safe"
 - Packages: "audit dependencies", "outdated", "npm audit", "upgrade"
 - Protection: "backup", "freeze code", "rollback", "undo", "restore"
-- Wellness: "I'm stressed", "feeling anxious", "help me", "need to talk"
+- Journeys: "I'm stressed", "feeling anxious", "help me", "need to talk"
 - Verification: "verify this", "check my response", "is this correct", "does this package exist"
 - Brainstorm: "brainstorm", "think through", "map out feature", "help me design", "I have an idea", "flesh out", "trade-offs"
 
-This tool should be invoked for ANY ambiguous or loose command related to sessions, memory, code quality, verification, brainstorming, or emotional support.`,
+This tool should be invoked for ANY ambiguous or loose command related to sessions, memory, code quality, verification, brainstorming, or guided self-reflection.`,
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -342,7 +342,7 @@ This tool should be invoked for ANY ambiguous or loose command related to sessio
           couchloop: 'Universal entry point - routes any command to the right tool',
           verify: 'Pre-delivery verification - catches AI hallucinations, validates packages, checks code',
           status: 'Dashboard - session progress, history, context, protection, preferences',
-          conversation: 'Therapeutic AI conversation with crisis detection and session memory. Actions: start, send, end, resume, status',
+          conversation: 'AI conversation with guided self-reflection journeys, crisis detection and session memory. Actions: start, send, end, resume, status',
           brainstorm: 'Dev thinking partner - reflective questions to help map out features, components, architecture decisions (standalone tool)',
           remember: 'Save and recall context, checkpoints, insights. Actions: save, recall, list, preferences',
           code_review: 'Complete code analysis - security vulnerabilities, code smells, AI errors. Modes: full, security, quality, ai_errors, verify_before_presenting',

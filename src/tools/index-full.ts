@@ -58,7 +58,7 @@ export async function setupTools() {
     {
       definition: {
         name: 'send_message',
-        description: 'Send a message through the therapeutic AI stack with crisis detection and emotional support. Session is created automatically if not provided.',
+        description: 'Send a message through the AI stack with crisis detection and guided self-reflection support. Session is created automatically if not provided.',
         annotations: {
           readOnlyHint: false,
           destructiveHint: false,
@@ -97,7 +97,7 @@ export async function setupTools() {
             },
             conversation_type: {
               type: 'string',
-              description: 'Type of conversation (e.g., "therapeutic", "crisis", "casual")',
+              description: 'Type of conversation (e.g., "reflection", "crisis", "casual")',
             },
           },
           required: ['message'],
