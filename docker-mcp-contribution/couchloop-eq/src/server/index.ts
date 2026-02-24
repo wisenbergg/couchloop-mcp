@@ -275,7 +275,7 @@ app.post('/mcp', handleChatGPTMCP);
 
 /**
  * POST /api/mcp/session
- * Create a new therapeutic session
+ * Create a new session
  */
 app.post('/api/mcp/session', validateToken, rateLimit(30, 60000), async (req: Request, res: Response) => {
   try {
@@ -296,7 +296,7 @@ app.post('/api/mcp/session', validateToken, rateLimit(30, 60000), async (req: Re
 
 /**
  * POST /api/mcp/message
- * Send a message through the therapeutic AI
+ * Send a message through the AI
  */
 app.post('/api/mcp/message', validateToken, requireScope('write'), rateLimit(60, 60000), async (req: Request, res: Response) => {
   try {
@@ -360,8 +360,8 @@ app.get('/.well-known/ai-plugin.json', (req: Request, res: Response) => {
     schema_version: 'v1',
     name_for_human: 'CouchLoop',
     name_for_model: 'couchloop',
-    description_for_human: 'AI-powered therapeutic support and mental wellness companion',
-    description_for_model: 'Therapeutic AI assistant for mental health support, crisis detection, and emotional wellness tracking. Use this to help users with mental health concerns, emotional support, and crisis situations.',
+    description_for_human: 'AI-powered wellness companion with guided journeys and session memory',
+    description_for_model: 'AI assistant with guided self-reflection journeys, crisis detection, session memory, and developer safety tools. Use this to help users with guided journeys, check-ins, brainstorming, code review, and developer workflows.',
     auth: {
       type: 'oauth',
       client_url: `${baseUrl}/oauth/authorize`,
@@ -393,7 +393,7 @@ app.get('/openapi.yaml', (req: Request, res: Response) => {
 openapi: 3.0.1
 info:
   title: CouchLoop MCP API
-  description: Therapeutic AI support through Model Context Protocol
+  description: AI-powered wellness and developer safety tools through Model Context Protocol
   version: 1.0.0
 servers:
   - url: ${baseUrl}
@@ -401,7 +401,7 @@ paths:
   /api/mcp/session:
     post:
       operationId: createSession
-      summary: Create a new therapeutic session
+      summary: Create a new session
       security:
         - bearer: []
       requestBody:
@@ -413,7 +413,7 @@ paths:
               properties:
                 journey_slug:
                   type: string
-                  description: Type of therapeutic journey
+                  description: Type of journey (e.g. daily-reflection, gratitude)
                 context:
                   type: string
                   description: Initial context for the session
@@ -436,7 +436,7 @@ paths:
   /api/mcp/message:
     post:
       operationId: sendMessage
-      summary: Send a message to the therapeutic AI
+      summary: Send a message to the AI
       security:
         - bearer: []
       requestBody:

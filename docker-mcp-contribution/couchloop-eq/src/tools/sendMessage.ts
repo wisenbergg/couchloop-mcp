@@ -251,7 +251,7 @@ async function handleLocalFallback(args: unknown): Promise<any> {
     return { success: false, error: 'Session not found' };
   }
 
-  const fallbackContent = "I understand you're trying to communicate. The therapeutic service is temporarily unavailable, but your message has been noted. Please try again shortly.";
+  const fallbackContent = "I understand you're trying to communicate. The service is temporarily unavailable, but your message has been noted. Please try again shortly.";
 
   return {
     success: true,

@@ -61,7 +61,7 @@ Unlike raw LLMs that can hallucinate packages, generate insecure code, and lose 
 
 - **Stateful Conversations**: Maintains context across multiple interactions
 - **Progress Tracking**: Remember where users left off in guided journeys
-- **Crisis Detection**: Integration with therapeutic AI for emotional support
+- **Crisis Detection**: Integrated crisis detection with guided self-reflection journeys
 - **Memory Context**: Preserves important insights and checkpoints
 
 ### Privacy by Design
