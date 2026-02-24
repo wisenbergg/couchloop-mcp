@@ -248,7 +248,7 @@ Call `verify` before presenting code, packages, or factual claims.
 - **Legacy code maintenance**: Detect deprecated APIs and version incompatibilities
 - **Critical file protection**: Automatic backups before AI-driven refactoring
 
-> **Building wellness or therapeutic apps?** See our [wellness integration guide](https://couchloop.com/docs/wellness) for purpose-built journeys and crisis detection features.
+> **Building wellness apps?** See our [wellness integration guide](https://couchloop.com/docs/wellness) for purpose-built journeys and crisis detection features.
 
 ## Support
 

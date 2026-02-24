@@ -110,7 +110,7 @@ CouchLoop provides a behavioral governance layer for LLMs with:
 - Hallucination and tone drift detection
 - Stateful session management
 - Progress checkpoints and guided journeys
-- Crisis detection for mental health safety"
+- Crisis detection and safety guardrails"
 ```
 
 2. **Push to Your Fork**:
@@ -133,7 +133,7 @@ CouchLoop is a behavioral governance layer for LLMs that monitors for hallucinat
 ### Key Features
 - 🛡️ Behavioral governance and safety monitoring
 - 💾 Persistent session management across interruptions
-- 🎯 Guided therapeutic journeys
+- 🎯 Guided journeys and self-reflection workflows
 - 🧠 User context and insight capture
 
 ### Testing
@@ -181,7 +181,7 @@ SUPABASE_ANON_KEY=your-anon-key
 JWT_SECRET=minimum-32-character-secret-key
 
 # Optional
-SHRINK_CHAT_API_KEY=api-key-for-therapeutic-features
+SHRINK_CHAT_API_KEY=api-key-for-journey-features
 NODE_ENV=production
 LOG_LEVEL=info
 ```

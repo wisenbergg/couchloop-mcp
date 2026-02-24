@@ -74,7 +74,7 @@
   },
   {
     "name": "conversation",
-    "description": "Therapeutic AI conversation with crisis detection, emotional support, and session memory. Auto-manages sessions. Use for emotional/wellness topics. Triggers: \"I'm stressed\", \"feeling overwhelmed\", \"anxious\", \"need to talk\", \"help me\", \"how are you\", \"let's chat\". NOT for code questions. Session actions: 'start' new, 'end' current, 'resume' previous, 'status' check.",
+    "description": "AI conversation with guided self-reflection journeys, crisis detection, and session memory. Auto-manages sessions. Use for wellness/journeys topics. Triggers: \"I'm stressed\", \"feeling overwhelmed\", \"anxious\", \"need to talk\", \"help me\", \"how are you\", \"let's chat\". NOT for code questions. Session actions: 'start' new, 'end' current, 'resume' previous, 'status' check.",
     "inputSchema": {
       "type": "object",
       "properties": {

@@ -36,7 +36,7 @@ configuration:
       description: Supabase anonymous key
       required: true
     - name: SHRINK_CHAT_API_KEY
-      description: API key for shrink-chat backend integration (for therapeutic features)
+      description: API key for shrink-chat backend integration (for guided journey features)
       required: false
     - name: JWT_SECRET
       description: Secret key for JWT token generation (min 32 characters)
