@@ -334,13 +334,13 @@ return isValidUser(user) ? true : false;`
     const functions = this.extractFunctionBlocks(code, _language);
 
     for (const func of functions) {
-      if (func.length > 50) {
+      if (func.length > 75) {
         issues.push({
           type: 'function_too_long',
-          severity: func.length > 100 ? 'high' : 'medium',
+          severity: func.length > 150 ? 'high' : 'medium',
           line: func.startLine,
           pattern: `Function "${func.name}" is ${func.length} lines long`,
-          suggestion: `Break down "${func.name}" into smaller, focused functions. Ideal length is 20-30 lines.`
+          suggestion: `Consider breaking "${func.name}" into smaller functions. Functions over 75 lines are harder to follow.`
         });
       }
     }
@@ -518,15 +518,15 @@ const result = isXInRange ? (a ? b : c) : (d ? e : f);`
     const criticalCount = issues.filter(i => i.severity === 'high').length;
 
     if (criticalCount >= 5) {
-      return 'Critical: Major refactoring needed. Multiple serious code smells detected.';
+      return 'Multiple code quality issues detected. Refactoring would improve maintainability.';
     }
 
     if (metrics.score > 75) {
-      return 'High complexity. Recommend extracting functions and reducing nesting depth.';
+      return 'High complexity. Consider extracting functions and reducing nesting depth.';
     }
 
     if (metrics.score > 50) {
-      return 'Moderate complexity. Consider breaking down long functions and simplifying conditionals.';
+      return 'Moderate complexity. Some areas could be simplified.';
     }
 
     if (issues.length > 0) {

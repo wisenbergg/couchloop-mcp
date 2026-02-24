@@ -76,12 +76,12 @@ export class ReviewSummaryGenerator {
     const typeToCategory: Record<string, { category: string; severity: 'low' | 'medium' | 'high' }> = {
       'console_log': { category: 'Debug Statements', severity: 'low' },
       'commented_code': { category: 'Code Cleanup', severity: 'low' },
-      'todo': { category: 'Incomplete Work', severity: 'medium' },
-      'fixme': { category: 'Urgent Fixes', severity: 'high' },
-      'missing_error_handling': { category: 'Error Handling', severity: 'high' },
-      'hardcoded_value': { category: 'Configuration', severity: 'high' },
-      'missing_types': { category: 'Type Safety', severity: 'medium' },
-      'unreachable_code': { category: 'Dead Code', severity: 'medium' },
+      'todo': { category: 'Incomplete Work', severity: 'low' },
+      'fixme': { category: 'FIXME Items', severity: 'medium' },
+      'missing_error_handling': { category: 'Error Handling', severity: 'medium' },
+      'hardcoded_value': { category: 'Configuration', severity: 'medium' },
+      'missing_types': { category: 'Type Safety', severity: 'low' },
+      'unreachable_code': { category: 'Dead Code', severity: 'low' },
       'nested_complexity': { category: 'Code Complexity', severity: 'medium' }
     };
 
@@ -179,9 +179,9 @@ export class ReviewSummaryGenerator {
   private determineRiskLevel(): 'low' | 'medium' | 'high' {
     const { high, medium } = this.scanResult.issuesBySeverity;
 
-    if ((high || 0) > 0) return 'high';
-    if ((medium || 0) > 3) return 'high';
-    if ((medium || 0) > 0) return 'medium';
+    if ((high || 0) >= 3) return 'high';
+    if ((high || 0) > 0) return 'medium';
+    if ((medium || 0) > 5) return 'medium';
     return 'low';
   }
 
@@ -189,15 +189,15 @@ export class ReviewSummaryGenerator {
     const items: string[] = [];
 
     groups.forEach((group, _index) => {
-      const priority = group.severity === 'high' ? 'MUST' : group.severity === 'medium' ? 'SHOULD' : 'CONSIDER';
+      const priority = group.severity === 'high' ? 'FIX' : group.severity === 'medium' ? 'REVIEW' : 'CONSIDER';
 
       items.push(
-        `${priority} fix ${group.count} ${group.category.toLowerCase()} issue(s)`
+        `${priority}: ${group.count} ${group.category.toLowerCase()} issue(s)`
       );
 
-      // Add specific guidance for critical categories
-      if (group.category === 'Urgent Fixes') {
-        items.push(`  → Required before merge: ${group.issues.map(i => `Line ${i.line}`).join(', ')}`);
+      // Add specific guidance for important categories
+      if (group.category === 'FIXME Items') {
+        items.push(`  → Check before merge: ${group.issues.map(i => `Line ${i.line}`).join(', ')}`);
       }
 
       if (group.category === 'Configuration') {
@@ -210,7 +210,7 @@ export class ReviewSummaryGenerator {
     });
 
     if (items.length === 0) {
-      items.push('✓ No action items - code is clean');
+      items.push('No action items - code is clean');
     }
 
     return items;
@@ -241,10 +241,8 @@ export class ReviewSummaryGenerator {
     const total = this.scanResult.totalIssues;
 
     // Code quality score: 100 - (issues with weighted penalty)
-    // High severity issues (security, critical bugs) have steep penalty
-    // Medium issues (code quality) have moderate penalty
-    // Low issues (style, minor) have small penalty
-    const qualityPenalty = ((high || 0) * 20) + ((medium || 0) * 8) + ((low || 0) * 2);
+    // Penalty is proportional but not overwhelming for minor items
+    const qualityPenalty = ((high || 0) * 10) + ((medium || 0) * 4) + ((low || 0) * 1);
     const codeQualityScore = Math.max(0, 100 - qualityPenalty);
 
     return {
@@ -278,11 +276,11 @@ export class ReviewSummaryGenerator {
     ];
 
     if (metrics.criticalCount > 0) {
-      parts.push(`Action Required: ${metrics.criticalCount} critical issue(s) must be fixed before merge`);
+      parts.push(`${metrics.criticalCount} item(s) worth reviewing before merge`);
     }
 
     if (metrics.warningCount > 0) {
-      parts.push(`Review Needed: ${metrics.warningCount} warning(s) should be addressed`);
+      parts.push(`${metrics.warningCount} suggestion(s) to consider`);
     }
 
     return parts.join(' | ');

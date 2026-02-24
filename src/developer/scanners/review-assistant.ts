@@ -47,7 +47,9 @@ export class ReviewAssistant {
 
   private findConsoleLogs(): CodeIssue[] {
     const issues: CodeIssue[] = [];
-    const consolePattern = /\bconsole\.(log|debug|info|warn|error)\s*\(/gi;
+    // Only flag console.log and console.debug as debug statements.
+    // console.warn, console.error, and console.info are legitimate logging.
+    const consolePattern = /\bconsole\.(log|debug)\s*\(/gi;
 
     this.lines.forEach((line, index) => {
       if (line.trim().startsWith('//')) return; // Skip comments
@@ -59,9 +61,9 @@ export class ReviewAssistant {
           column: match.index + 1,
           type: 'console_log',
           severity: 'low',
-          message: `Remove debug statement: console.${match[1]}()`,
+          message: `Debug statement: console.${match[1]}(). Consider removing before production.`,
           code: line.trim(),
-          suggestion: `Remove this line before merging to production`
+          suggestion: `Use a logger instead, or remove before merging`
         });
       }
     });
@@ -134,10 +136,10 @@ export class ReviewAssistant {
           line: index + 1,
           column: match.index + 1,
           type: 'todo',
-          severity: 'medium',
+          severity: 'low',
           message: `TODO: ${match[2]?.trim() || 'Item left incomplete'}`,
           code: line.trim(),
-          suggestion: 'Complete this task before merge or create an issue'
+          suggestion: 'Complete this task or create a tracking issue'
         });
       }
 
@@ -146,10 +148,10 @@ export class ReviewAssistant {
           line: index + 1,
           column: match.index + 1,
           type: 'fixme',
-          severity: 'high',
+          severity: 'medium',
           message: `FIXME: ${match[2]?.trim() || 'Issue needs to be fixed'}`,
           code: line.trim(),
-          suggestion: 'This must be fixed before merge'
+          suggestion: 'Address this before merge if possible'
         });
       }
     });
@@ -214,17 +216,23 @@ export class ReviewAssistant {
     const issues: CodeIssue[] = [];
 
     const patterns = [
-      { regex: /['"]sk-[a-zA-Z0-9]+['"]/, type: 'API key' },
-      { regex: /['"]pk_[a-zA-Z0-9]+['"]/, type: 'API key' },
-      { regex: /auth[_-]?token\s*[:=]\s*['"][^'"]+['"]/, type: 'Auth token' },
-      { regex: /password\s*[:=]\s*['"][^'"]*['"]/, type: 'Password' },
-      { regex: /secret\s*[:=]\s*['"][^'"]+['"]/, type: 'Secret' },
-      { regex: /(['"]https?:\/\/[^'"]+['"])\s*;/, type: 'Hardcoded URL' },
-      { regex: /api[_-]?key\s*[:=]\s*['"][^'"]+['"]/, type: 'API key' }
+      { regex: /['"]sk-[a-zA-Z0-9]{20,}['"]/, type: 'API key' },
+      { regex: /['"]pk_live_[a-zA-Z0-9]+['"]/, type: 'API key' },
+      { regex: /auth[_-]?token\s*[:=]\s*['"][^'"]{10,}['"]/, type: 'Auth token' },
+      { regex: /password\s*[:=]\s*['"][^'"]{4,}['"]/, type: 'Password' },
+      { regex: /(?:api[_-]?)?secret\s*[:=]\s*['"][^'"]{8,}['"]/, type: 'Secret' },
+      { regex: /api[_-]?key\s*[:=]\s*['"][^'"]{8,}['"]/, type: 'API key' },
+      { regex: /['"]https?:\/\/[^'"]*[:@][^'"]+['"]/, type: 'URL with credentials' }
     ];
 
     this.lines.forEach((line, index) => {
       if (line.trim().startsWith('//')) return;
+      // Skip lines that reference environment variables (they're doing the right thing)
+      if (line.includes('process.env') || line.includes('import.meta.env')) return;
+      // Skip type definitions and interfaces
+      if (/^\s*(type|interface|export\s+type|export\s+interface)\b/.test(line)) return;
+      // Skip .env example patterns
+      if (line.includes('YOUR_') || line.includes('your_') || line.includes('xxx') || line.includes('changeme')) return;
 
       for (const pattern of patterns) {
         if (pattern.regex.test(line)) {
@@ -232,10 +240,10 @@ export class ReviewAssistant {
             line: index + 1,
             column: 1,
             type: 'hardcoded_value',
-            severity: 'high',
-            message: `Hardcoded ${pattern.type} detected`,
+            severity: 'medium',
+            message: `Possible hardcoded ${pattern.type}`,
             code: line.trim(),
-            suggestion: `Use environment variable instead (e.g., process.env.${pattern.type.replace(/[^A-Z0-9]/gi, '_').toUpperCase()})`
+            suggestion: `Consider using an environment variable instead (e.g., process.env.${pattern.type.replace(/[^A-Z0-9]/gi, '_').toUpperCase()})`
           });
         }
       }
@@ -251,45 +259,27 @@ export class ReviewAssistant {
       return issues;
     }
 
+    // Only flag function parameters without types, not variables.
+    // TypeScript's type inference handles variable types well.
     this.lines.forEach((line, index) => {
-      // Check for function parameters without types
-      const funcParamPattern = /function\s+\w+\s*\(\s*(\w+)\s*[,\)]/;
-      const arrowFuncPattern = /(\w+)\s*=>\s*/;
-
-      if (funcParamPattern.test(line) || arrowFuncPattern.test(line)) {
-        const match = line.match(/\(([^)]*)\)/);
-        if (match && match[1]) {
-          const params = match[1].split(',').map(p => p.trim());
-          for (const param of params) {
-            if (param && !param.includes(':') && !param.includes('?') && param !== '...rest') {
-              issues.push({
-                line: index + 1,
-                column: 1,
-                type: 'missing_types',
-                severity: 'medium',
-                message: `Parameter "${param}" missing type annotation`,
-                code: line.trim(),
-                suggestion: `Add type: (${param}: ParameterType) or enable implicit any`
-              });
-              break;
-            }
+      // Check for exported function parameters without types (public API surface)
+      const exportedFuncPattern = /export\s+(?:async\s+)?function\s+\w+\s*\(([^)]+)\)/;
+      const match = line.match(exportedFuncPattern);
+      if (match && match[1]) {
+        const params = match[1].split(',').map(p => p.trim());
+        for (const param of params) {
+          if (param && !param.includes(':') && !param.includes('?') && param !== '...rest' && !param.startsWith('...')) {
+            issues.push({
+              line: index + 1,
+              column: 1,
+              type: 'missing_types',
+              severity: 'low',
+              message: `Exported function parameter "${param}" missing type annotation`,
+              code: line.trim(),
+              suggestion: `Add type annotation for public API: (${param}: Type)`
+            });
+            break;
           }
-        }
-      }
-
-      // Check for variables without types
-      if (/^\s*(const|let|var)\s+\w+\s*=/.test(line) && !line.includes(':')) {
-        const match = line.match(/^\s*(const|let|var)\s+(\w+)\s*=/);
-        if (match && !this.isObviouslyTyped(line)) {
-          issues.push({
-            line: index + 1,
-            column: 1,
-            type: 'missing_types',
-            severity: 'low',
-            message: `Variable "${match[2]}" could have explicit type annotation`,
-            code: line.trim(),
-            suggestion: `Add type: const ${match[2]}: Type = ...`
-          });
         }
       }
     });
@@ -402,10 +392,6 @@ export class ReviewAssistant {
       depth -= (line.match(/\}/g) || []).length;
     }
     return Math.max(0, depth);
-  }
-
-  private isObviouslyTyped(line: string): boolean {
-    return /= (true|false|\d+|['"]|null|undefined|\[|\{)/.test(line);
   }
 
   private compileScanResult(issues: CodeIssue[]): ScanResult {

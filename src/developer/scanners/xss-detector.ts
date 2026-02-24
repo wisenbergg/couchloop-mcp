@@ -59,15 +59,18 @@ export class XssDetector {
         const code = match[0];
         if (this.isCommentOrString(line, line.indexOf(code))) continue;
 
-        // Check if it's using a template literal or variable
-        if (code.includes('${') || code.includes('"') || code.includes("'") || code.includes('`')) {
+        // Check if it's using a template literal with variables (actual risk) vs static string
+        const hasDynamicContent = code.includes('${');
+        const hasVariable = /=\s*[a-zA-Z_$][a-zA-Z0-9_$]*\s*[;,]?$/.test(code);
+        
+        if (hasDynamicContent || hasVariable) {
           const column = line.indexOf(code) + 1;
 
           // Extract what's being assigned
           const assignmentMatch = code.match(/=\s*(.+)/);
           const assignedValue = assignmentMatch?.[1]?.trim() || 'untrustedData';
 
-          const severity = code.includes('$') ? 'CRITICAL' : 'HIGH';
+          const severity = hasDynamicContent ? 'CRITICAL' : 'HIGH';
 
           this.vulnerabilities.push({
             type: 'INNERHTML_XSS',
@@ -157,26 +160,32 @@ export class XssDetector {
       for (const match of matches) {
         const code = match[0];
         if (this.isCommentOrString(line, line.indexOf(code))) continue;
+        // Skip if the content is already being sanitized
+        if (line.includes('DOMPurify') || line.includes('sanitize') || line.includes('escape')) continue;
 
         const column = line.indexOf(code) + 1;
 
         let issue = '';
         let fix = '';
+        let severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' = 'HIGH';
 
         if (code.includes('insertAdjacentHTML')) {
-          issue = `insertAdjacentHTML with untrusted data: ${code}. Can lead to XSS if data isn't sanitized.`;
-          fix = `Use insertAdjacentElement instead:\n  const element = document.createElement('div');\n  element.textContent = userInput;\n  target.insertAdjacentElement('beforeend', element);\n\nOr sanitize the HTML:\n  target.insertAdjacentHTML('beforeend', DOMPurify.sanitize(userInput));`;
+          severity = 'MEDIUM';
+          issue = `insertAdjacentHTML usage: ${code}. Ensure data is sanitized before insertion.`;
+          fix = `Sanitize the HTML before inserting:\n  target.insertAdjacentHTML('beforeend', DOMPurify.sanitize(userInput));\n\nOr use DOM methods for plain text:\n  const el = document.createElement('div');\n  el.textContent = userInput;\n  target.appendChild(el);`;
         } else if (code.includes('document.write') || code.includes('writeln')) {
-          issue = `document.write() detected: ${code}. This is dangerous and can cause DOM issues and XSS vulnerabilities.`;
-          fix = `Use DOM methods instead:\n  const div = document.createElement('div');\n  div.textContent = content;\n  document.body.appendChild(div);\n\nOr use:\n  document.getElementById('target').textContent = content;`;
+          severity = 'HIGH';
+          issue = `document.write() detected: ${code}. Avoid using document.write in modern code.`;
+          fix = `Use DOM methods instead:\n  const div = document.createElement('div');\n  div.textContent = content;\n  document.body.appendChild(div);`;
         } else if (code.includes('outerHTML')) {
-          issue = `Direct outerHTML assignment: ${code}. Allows XSS if assigned value contains user input.`;
+          severity = 'MEDIUM';
+          issue = `outerHTML assignment: ${code}. Sanitize if assigned value includes user input.`;
           fix = `Use safer methods:\n  element.replaceWith(newElement);\n  Or sanitize before:\n  element.outerHTML = DOMPurify.sanitize(userInput);`;
         }
 
         this.vulnerabilities.push({
           type: 'UNESCAPED_DOM',
-          severity: 'CRITICAL',
+          severity,
           line: lineNum,
           column: column,
           code: code,
