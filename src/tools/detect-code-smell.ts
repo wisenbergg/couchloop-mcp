@@ -227,7 +227,7 @@ function generateActionItems(result: BloatDetectionResult): Array<{ priority: nu
     actions.push({
       priority,
       action: `Fix ${issue.type}: ${issue.suggestion}`,
-      impact: 'Critical - prevents bugs and improves security'
+      impact: 'High impact on maintainability'
     });
     priority++;
   }
@@ -238,7 +238,7 @@ function generateActionItems(result: BloatDetectionResult): Array<{ priority: nu
     actions.push({
       priority,
       action: `Address ${issue.type}: ${issue.suggestion}`,
-      impact: 'Important - improves maintainability'
+      impact: 'Improves readability'
     });
     priority++;
   }

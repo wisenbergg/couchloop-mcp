@@ -76,11 +76,11 @@ export async function handleComprehensiveCodeReview(args: unknown) {
     const results: Record<string, unknown> = {};
     const allIssues: Array<{ category: string; severity: string; message: string; location?: string }> = [];
     
-    // Run all relevant checks in parallel
+    // Run all relevant checks in parallel, passing context for project-aware review
     const checks = await Promise.allSettled([
-      focus.includes('security') ? handleScanSecurity({ code, language: input.language }) : null,
-      focus.includes('quality') ? handlePreReviewCode({ code, language: input.language }) : null,
-      focus.includes('smell') ? handleDetectCodeSmell({ code, language: input.language }) : null,
+      focus.includes('security') ? handleScanSecurity({ code, language: input.language, context: input.context }) : null,
+      focus.includes('quality') ? handlePreReviewCode({ code, language: input.language, context: input.context }) : null,
+      focus.includes('smell') ? handleDetectCodeSmell({ code, language: input.language, context: input.context }) : null,
       focus.includes('ai-errors') ? handlePreventAIErrors({ 
         code, 
         language: input.language, 
@@ -151,37 +151,47 @@ export async function handleComprehensiveCodeReview(args: unknown) {
       }
     }
 
-    // Calculate summary
-    const criticalCount = allIssues.filter(i => i.severity === 'critical').length;
-    const highCount = allIssues.filter(i => i.severity === 'high').length;
-    const mediumCount = allIssues.filter(i => i.severity === 'medium' || i.severity === 'low').length;
-    
-    const overallRisk = criticalCount > 0 ? 'critical' 
-      : highCount > 0 ? 'high'
-      : mediumCount > 0 ? 'medium'
-      : 'low';
+    // Deduplicate issues that overlap between scanners (e.g. hardcoded values found by both security and quality)
+    const deduped = deduplicateIssues(allIssues);
 
-    const recommendation = criticalCount > 0 
-      ? '🚨 DO NOT USE - Critical issues found. Fix before proceeding.'
+    // Calculate summary
+    const criticalCount = deduped.filter(i => i.severity === 'critical').length;
+    const highCount = deduped.filter(i => i.severity === 'high').length;
+    const mediumCount = deduped.filter(i => i.severity === 'medium').length;
+    const lowCount = deduped.filter(i => i.severity === 'low').length;
+    
+    const overallRisk = criticalCount >= 3 ? 'critical' 
+      : criticalCount > 0 ? 'high'
+      : highCount >= 5 ? 'high'
+      : highCount > 0 ? 'medium'
+      : mediumCount > 0 ? 'low'
+      : 'clean';
+
+    const recommendation = criticalCount >= 3 
+      ? 'Critical issues found that should be fixed before deployment.'
+      : criticalCount > 0
+      ? 'Some critical issues to address. Review the flagged items.'
       : highCount > 0
-      ? '⚠️ CAUTION - High severity issues found. Review and fix recommended.'
+      ? 'Issues worth reviewing before merge.'
       : mediumCount > 0
-      ? '📝 Minor issues found. Consider addressing before merge.'
-      : '✅ Code looks good!';
+      ? 'Minor improvements suggested.'
+      : 'Code looks good.';
 
     return {
       success: true,
       summary: {
-        total_issues: allIssues.length,
+        total_issues: deduped.length,
         critical: criticalCount,
         high: highCount,
-        medium_low: mediumCount,
+        medium: mediumCount,
+        low: lowCount,
         overall_risk: overallRisk,
         recommendation,
       },
-      issues: allIssues,
+      issues: deduped,
       details: results,
       checks_performed: focus,
+      context: input.context || undefined,
     };
   } catch (error) {
     logger.error('Error in comprehensive_code_review:', error);
@@ -190,4 +200,26 @@ export async function handleComprehensiveCodeReview(args: unknown) {
       error: error instanceof Error ? error.message : 'Unknown error',
     };
   }
+}
+
+/**
+ * Remove duplicate issues that are flagged by multiple scanners for the same line/problem.
+ * Keeps the most specific finding when two scanners flag the same thing.
+ */
+function deduplicateIssues(issues: Array<{ category: string; severity: string; message: string; location?: string }>) {
+  const seen = new Map<string, typeof issues[0]>();
+  
+  for (const issue of issues) {
+    // Create a key from the location, category, and a normalized message fragment
+    const locationKey = issue.location || 'unknown';
+    const messageKey = issue.message.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 40);
+    const key = `${locationKey}:${issue.category}:${messageKey}`;
+    
+    if (!seen.has(key)) {
+      seen.set(key, issue);
+    }
+    // If duplicate, keep the first one (skip)
+  }
+  
+  return Array.from(seen.values());
 }

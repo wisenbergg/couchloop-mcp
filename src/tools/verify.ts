@@ -212,14 +212,20 @@ async function verifyPackages(content: string, registry: string): Promise<Packag
   const blocker = new PackageBlocker(true);
   const evaluator = new PackageEvaluator();
 
-  // Extract package names from content
-  const packages = extractPackageNames(content);
-  
+  // Extract package names from content (code patterns first)
+  let packages = extractPackageNames(content);
+
+  // If no packages found via code patterns, treat content as direct package names
+  // Handles bare names like "left-pad" or lists like "express, fastify, koa"
+  if (packages.length === 0) {
+    packages = parseDirectPackageNames(content);
+  }
+
   // Determine language from registry
-  const language = registry === 'npm' ? 'javascript' : 
-                   registry === 'pypi' ? 'python' : 
+  const language = registry === 'npm' ? 'javascript' :
+                   registry === 'pypi' ? 'python' :
                    registry === 'maven' ? 'java' : 'unknown';
-  
+
   const result: PackageVerificationResult = {
     packages_checked: packages,
     valid: [],
@@ -229,41 +235,40 @@ async function verifyPackages(content: string, registry: string): Promise<Packag
     deprecated: [],
   };
 
-  // Use interceptCode to validate the content
-  const blockResult = await blocker.interceptCode(content, language as 'javascript' | 'python' | 'java' | 'unknown');
-  
-  if (!blockResult.allowed) {
-    result.invalid.push(...blockResult.blockedPackages);
-    result.suggestions.push(...blockResult.warnings);
-    
-    // Add suggestions from blocker
-    for (const [pkg, suggs] of Object.entries(blockResult.suggestions)) {
-      if (suggs.length > 0) {
-        result.suggestions.push(`For "${pkg}": ${suggs.join(', ')}`);
+  // If we have direct package names, validate each one individually
+  // (bypasses interceptCode which only works with code patterns)
+  if (packages.length > 0) {
+    for (const pkg of packages) {
+      try {
+        const evalResult = await evaluator.evaluate(pkg, { language: language as 'javascript' | 'python' | 'java' | 'unknown' });
+        if (evalResult.package.deprecated) {
+          result.deprecated.push(pkg);
+          result.suggestions.push(`Package "${pkg}" is deprecated. ${evalResult.warning || ''}`);
+        } else if (!evalResult.blocked) {
+          result.valid.push(pkg);
+        } else {
+          result.invalid.push(pkg);
+          if (evalResult.warning) {
+            result.suggestions.push(evalResult.warning);
+          }
+        }
+      } catch (e) {
+        result.suggestions.push(`Could not validate "${pkg}" - manual verification recommended`);
       }
     }
-  }
+  } else {
+    // Fallback: use interceptCode for content with no extractable packages
+    const blockResult = await blocker.interceptCode(content, language as 'javascript' | 'python' | 'java' | 'unknown');
 
-  // Check remaining valid packages for deprecation
-  const validPackages = packages.filter(p => !blockResult.blockedPackages.includes(p));
-  
-  for (const pkg of validPackages) {
-    try {
-      const evalResult = await evaluator.evaluate(pkg, { language: language as 'javascript' | 'python' | 'java' | 'unknown' });
-      if (evalResult.package.deprecated) {
-        result.deprecated.push(pkg);
-        result.suggestions.push(`Package "${pkg}" is deprecated. ${evalResult.warning || ''}`);
-      } else if (!evalResult.blocked) {
-        result.valid.push(pkg);
-      } else {
-        result.invalid.push(pkg);
-        if (evalResult.warning) {
-          result.suggestions.push(evalResult.warning);
+    if (!blockResult.allowed) {
+      result.invalid.push(...blockResult.blockedPackages);
+      result.suggestions.push(...blockResult.warnings);
+
+      for (const [pkg, suggs] of Object.entries(blockResult.suggestions)) {
+        if (suggs.length > 0) {
+          result.suggestions.push(`For "${pkg}": ${suggs.join(', ')}`);
         }
       }
-    } catch (e) {
-      // If we can't validate, mark as needs manual check
-      result.suggestions.push(`Could not validate "${pkg}" - manual verification recommended`);
     }
   }
 
@@ -313,6 +318,40 @@ function extractPackageNames(content: string): string[] {
           packages.add(p.replace(/[=<>].*$/, '')); // Remove version constraints
         }
       });
+    }
+  }
+
+  return Array.from(packages);
+}
+
+/**
+ * Parse content as direct package names when no code patterns are found.
+ * Handles: "left-pad", "express, fastify, koa", "express fastify koa",
+ * "express\nfastify\nkoa", and scoped packages like "@babel/core".
+ */
+function parseDirectPackageNames(content: string): string[] {
+  const packages: Set<string> = new Set();
+
+  // Split on commas, whitespace, or newlines
+  const candidates = content.split(/[,\s\n]+/).map(s => s.trim()).filter(Boolean);
+
+  // Valid package name pattern (npm-style, also covers pypi/cargo/etc.)
+  const validPkgPattern = /^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/i;
+
+  for (const candidate of candidates) {
+    // Strip version suffixes like @1.2.3, ==1.0, >=2.0
+    // For scoped packages (@scope/pkg@1.0), only strip the version @, not the leading scope @
+    let cleaned = candidate;
+    if (cleaned.startsWith('@')) {
+      // Scoped package: strip version after the package name portion
+      cleaned = cleaned.replace(/(@[^/]+\/[^@]+)@[\d].*$/, '$1');
+    } else {
+      cleaned = cleaned.replace(/[@=<>^~][\d].*$/, '');
+    }
+    // Also strip ==, >=, <= version operators for pypi-style
+    cleaned = cleaned.replace(/[=<>^~]+[\d].*$/, '');
+    if (cleaned && validPkgPattern.test(cleaned)) {
+      packages.add(cleaned);
     }
   }
 

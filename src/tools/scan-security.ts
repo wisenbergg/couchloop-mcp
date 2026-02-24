@@ -228,30 +228,17 @@ function generateRecommendations(vulnerabilities: SecurityVulnerability[]): stri
 
   if (hasSQL) {
     recommendations.add('Use parameterized queries for all database operations. Never concatenate user input directly into SQL strings.');
-    recommendations.add('Consider using an ORM like Prisma, Drizzle, or TypeORM that handle SQL injection prevention automatically.');
-    recommendations.add('Validate and whitelist all dynamic table and column names using strict allowlists.');
   }
 
   if (hasXSS) {
     recommendations.add('Use textContent instead of innerHTML for displaying user-provided text.');
-    recommendations.add('Always sanitize untrusted HTML using libraries like DOMPurify before rendering.');
-    recommendations.add('Use content security policies (CSP) to prevent inline script execution.');
-    recommendations.add('Never use eval() or Function() constructors with user input.');
-    recommendations.add('In React, prefer component composition over dangerouslySetInnerHTML.');
+    recommendations.add('Sanitize untrusted HTML using libraries like DOMPurify before rendering.');
   }
 
   if (hasSecrets) {
     recommendations.add('Move all secrets to environment variables (.env files, never commit these).');
-    recommendations.add('Use a secrets management system: AWS Secrets Manager, HashiCorp Vault, or cloud provider equivalents.');
-    recommendations.add('Rotate all exposed credentials immediately - they may be compromised.');
-    recommendations.add('Implement pre-commit hooks to prevent secrets from being committed.');
+    recommendations.add('Rotate any exposed credentials as soon as possible.');
   }
-
-  // General recommendations
-  recommendations.add('Enable OWASP dependency scanning in your CI/CD pipeline (npm audit, Snyk, etc.).');
-  recommendations.add('Implement automated security scanning in code review process.');
-  recommendations.add('Conduct regular security audits of AI-generated code before deployment.');
-  recommendations.add('Use security linters: ESLint security plugins, Semgrep, or SonarQube.');
 
   return Array.from(recommendations);
 }
@@ -264,31 +251,30 @@ function generateDeveloperNotes(vulnerabilities: SecurityVulnerability[], langua
   const highCount = vulnerabilities.filter(v => v.severity === 'HIGH').length;
 
   if (vulnerabilities.length === 0) {
-    return `Good news! No security vulnerabilities detected in this ${language} code snippet during scanning. ✓`;
+    return `No security vulnerabilities detected in this ${language} code.`;
   }
 
   let notes = `Security scan found ${vulnerabilities.length} potential issue(s) in this ${language} code:\n`;
 
   if (criticalCount > 0) {
-    notes += `\n🔴 CRITICAL (${criticalCount}): These vulnerabilities could lead to immediate security breaches. Fix these before any deployment.\n`;
+    notes += `\nCritical (${criticalCount}): Issues that could lead to security breaches. Should be fixed before deployment.\n`;
   }
 
   if (highCount > 0) {
-    notes += `\n🟠 HIGH (${highCount}): Serious security issues that should be fixed as soon as possible.\n`;
+    notes += `\nHigh (${highCount}): Significant security concerns worth addressing.\n`;
   }
 
   const mediumCount = vulnerabilities.filter(v => v.severity === 'MEDIUM').length;
   if (mediumCount > 0) {
-    notes += `\n🟡 MEDIUM (${mediumCount}): Important security improvements to make.\n`;
+    notes += `\nMedium (${mediumCount}): Security improvements to consider.\n`;
   }
 
-  notes += `\n📋 Each vulnerability includes:
-- The specific code location (line number)
-- CWE code for security reference
-- Clear explanation of the risk
-- Secure code example for fixing
+  const lowCount = vulnerabilities.filter(v => v.severity === 'LOW').length;
+  if (lowCount > 0) {
+    notes += `\nLow (${lowCount}): Minor concerns, review when convenient.\n`;
+  }
 
-⚠️  Research Finding: 80% of AI-generated code contains security vulnerabilities. Developers are 3.5x more likely to think insecure code is secure. Always review AI-generated code with security in mind.`;
+  notes += `\nEach finding includes the code location, CWE reference, and a suggested fix.`;
 
   return notes;
 }
@@ -297,9 +283,10 @@ function generateDeveloperNotes(vulnerabilities: SecurityVulnerability[], langua
  * Determine overall risk level
  */
 function determineRiskLevel(summary: SecurityScanResult['summary']): 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'SAFE' {
-  if (summary.critical > 0) return 'CRITICAL';
-  if (summary.high >= 3) return 'CRITICAL';
-  if (summary.high > 0) return 'HIGH';
+  if (summary.critical >= 3) return 'CRITICAL';
+  if (summary.critical > 0) return 'HIGH';
+  if (summary.high >= 5) return 'HIGH';
+  if (summary.high > 0) return 'MEDIUM';
   if (summary.medium >= 3) return 'MEDIUM';
   if (summary.medium > 0) return 'LOW';
   return 'SAFE';

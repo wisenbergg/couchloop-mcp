@@ -90,18 +90,39 @@ export class SecretScanner {
       return true;
     }
 
-    // Skip test/example files with common patterns
-    if (line.includes('example') || line.includes('test') || line.includes('mock') || line.includes('fixture')) {
-      // Unless they're clearly real assignments
-      if (!line.includes('=') && !line.includes(':')) {
-        return true;
-      }
+    // Skip type definitions and interfaces (they describe shape, not values)
+    if (/^\s*(type|interface|export\s+type|export\s+interface)\b/.test(trimmed)) {
+      return true;
     }
 
-    // Skip environment variable examples with placeholder values
-    if ((line.includes('process.env') || line.includes('process.getenv') || line.includes('os.getenv')) &&
-        (line.includes('YOUR_') || line.includes('your_') || line.includes('YOUR-') || line.includes('xxxx'))) {
+    // Skip validation schemas (Zod, Joi, etc.) that are purely schema definitions
+    // but NOT if they contain .default() with a real-looking value
+    if (/z\.(string|number|object|enum|boolean)/.test(trimmed) && !(/\.default\s*\(\s*['"][^'"]{8,}['"]/.test(trimmed))) {
       return true;
+    }
+
+    // Skip lines referencing environment variables (they're doing the right thing)
+    if (trimmed.includes('process.env') || trimmed.includes('import.meta.env') || trimmed.includes('os.getenv')) {
+      return true;
+    }
+
+    // Skip placeholder and example values
+    if (trimmed.includes('YOUR_') || trimmed.includes('your_') || trimmed.includes('YOUR-') || 
+        trimmed.includes('xxxx') || trimmed.includes('changeme') || trimmed.includes('placeholder')) {
+      return true;
+    }
+
+    // Skip .describe() or documentation patterns
+    if (trimmed.includes('.describe(') || trimmed.includes('.description')) {
+      return true;
+    }
+
+    // Skip test/example/mock files with common patterns
+    if (line.includes('example') || line.includes('test') || line.includes('mock') || line.includes('fixture')) {
+      // Unless they contain actual assignment of real-looking secrets
+      if (!/(?:sk-|pk_live|AKIA|ghp_)[A-Za-z0-9]{15,}/.test(trimmed)) {
+        return true;
+      }
     }
 
     return false;
@@ -212,7 +233,7 @@ export class SecretScanner {
 
         this.vulnerabilities.push({
           type: 'CONNECTION_STRING',
-          severity: 'CRITICAL',
+          severity: 'HIGH',
           line: lineNum,
           column: column,
           code: code,
@@ -253,10 +274,14 @@ export class SecretScanner {
    * Check for hardcoded passwords
    */
   private checkPasswords(line: string, lineNum: number): void {
-    // Skip if it's a password field definition or validation
-    if (line.includes('password') && !line.includes('=') && !line.includes(':')) {
-      return;
-    }
+    // Skip if it's a password field definition, type, schema, or validation
+    if (/password\s*[?]?:\s*(string|String|z\.)/.test(line)) return;
+    // Skip bcrypt/hash comparisons (they're handling passwords correctly)
+    if (line.includes('bcrypt') || line.includes('hash') || line.includes('compare')) return;
+    // Skip field name references in objects/destructuring
+    if (/['"]password['"]\s*[,}\]]/.test(line)) return;
+    // Skip HTML input type="password" patterns
+    if (/type\s*=\s*['"]password['"]/.test(line)) return;
 
     const matches = Array.from(line.matchAll(this.patterns.passwordAssignment));
 
