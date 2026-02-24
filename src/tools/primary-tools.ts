@@ -8,7 +8,7 @@
  * 0. couchloop        - Intent router (discoverability layer for loose commands)
  * 1. verify           - Pre-delivery verification (catches AI hallucinations, validates packages)
  * 2. status           - Dashboard (session progress, history, context, protection)
- * 3. conversation     - Therapeutic AI conversation with governance
+ * 3. conversation     - AI conversation with guided journeys and session memory
  * 4. brainstorm       - Dev thinking partner (reflective questioning, architecture, trade-offs)
  * 5. code_review      - Complete code analysis (security, quality, AI errors)
  * 6. package_audit    - Complete dependency audit (validation, versions, upgrades)
@@ -83,7 +83,7 @@ Remember: The best solutions come from the developer's own understanding of thei
 const conversationTool = {
   definition: {
     name: 'conversation',
-    description: 'Start or continue an AI conversation with built-in crisis detection, emotional support, and session memory. Includes brainstorm mode for dev ideation. Triggers: "end session", "start session", "wrap up", "done for now", "talk", "chat", "feeling", "stressed", "help me", "brainstorm", "think through", "map out feature".',
+    description: 'Start or continue an AI conversation with built-in crisis detection, guided self-reflection journeys, and session memory. Includes brainstorm mode for dev ideation. Triggers: "end session", "start session", "wrap up", "done for now", "talk", "chat", "feeling", "stressed", "help me", "brainstorm", "think through", "map out feature".',
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
