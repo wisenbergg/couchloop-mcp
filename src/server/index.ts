@@ -380,7 +380,7 @@ app.post("/mcp", handleChatGPTMCP);
 
 /**
  * POST /api/mcp/session
- * Create a new therapeutic session
+ * Create a new session
  */
 app.post(
   "/api/mcp/session",
@@ -407,7 +407,7 @@ app.post(
 
 /**
  * POST /api/mcp/message
- * Send a message through the therapeutic AI
+ * Send a message
  */
 app.post(
   "/api/mcp/message",
@@ -482,9 +482,9 @@ app.get("/.well-known/ai-plugin.json", (req: Request, res: Response) => {
     name_for_human: "CouchLoop",
     name_for_model: "couchloop",
     description_for_human:
-      "AI-powered therapeutic support and mental wellness companion",
+      "Developer safety tools and guided self-reflection journeys for AI-assisted workflows",
     description_for_model:
-      "Therapeutic AI assistant for mental health support, crisis detection, and emotional wellness tracking. Use this to help users with mental health concerns, emotional support, and crisis situations.",
+      "CouchLoop EQ provides two capabilities. (1) Developer safety: verify AI-generated code before delivery, audit npm/PyPI/Maven packages for hallucinated or vulnerable dependencies, review code for security issues and anti-patterns, protect files with backup and rollback, and preserve project context across conversations. Use these tools when helping with code tasks. (2) Guided journeys: structured self-reflection check-in sessions with optional crisis detection and safety resources. Use journeys when a user explicitly requests a guided session or check-in.",
     auth: {
       type: "oauth",
       client_url: `${baseUrl}/oauth/authorize`,
@@ -503,7 +503,7 @@ app.get("/.well-known/ai-plugin.json", (req: Request, res: Response) => {
     },
     logo_url: `${baseUrl}/logo.png`,
     contact_email: "support@couchloop.com",
-    legal_info_url: "https://couchloop.com/legal",
+    legal_info_url: "https://mcp.couchloop.com/privacy",
   });
 });
 
@@ -517,8 +517,8 @@ app.get("/openapi.yaml", (req: Request, res: Response) => {
   const openApiSpec = `
 openapi: 3.0.1
 info:
-  title: CouchLoop MCP API
-  description: Therapeutic AI support through Model Context Protocol
+  title: CouchLoop EQ API
+  description: Developer safety tools and guided self-reflection journeys via Model Context Protocol
   version: 1.3.1
 servers:
   - url: ${baseUrl}
@@ -526,7 +526,7 @@ paths:
   /api/mcp/session:
     post:
       operationId: createSession
-      summary: Create a new therapeutic session
+      summary: Create a new session
       security:
         - bearer: []
       requestBody:
@@ -538,12 +538,10 @@ paths:
               properties:
                 journey_slug:
                   type: string
-                  description: Type of therapeutic journey
+                  description: Optional journey to start (e.g. daily-reflection). Omit for a freeform session.
                 context:
                   type: string
-                  description: Initial context for the session
-              required:
-                - journey_slug
+                  description: Optional initial context for the session
       responses:
         '200':
           description: Session created successfully
@@ -554,14 +552,18 @@ paths:
                 properties:
                   session_id:
                     type: string
-                  journey_name:
-                    type: string
-                  status:
+                  journey:
+                    type: object
+                    nullable: true
+                  current_step:
+                    type: object
+                    nullable: true
+                  message:
                     type: string
   /api/mcp/message:
     post:
       operationId: sendMessage
-      summary: Send a message to the therapeutic AI
+      summary: Send a message
       security:
         - bearer: []
       requestBody:
@@ -595,18 +597,14 @@ paths:
                     type: boolean
                   content:
                     type: string
-                    description: AI response
-                  metadata:
-                    type: object
-                    properties:
-                      crisisDetected:
-                        type: boolean
-                      crisisLevel:
-                        type: number
-                      emotions:
-                        type: array
-                        items:
-                          type: string
+                    description: AI response text
+                  crisis_resources:
+                    type: string
+                    description: Publicly available crisis hotline information, included only when a safety concern is detected
+                    nullable: true
+                  timestamp:
+                    type: string
+                    format: date-time
 components:
   securitySchemes:
     bearer:
