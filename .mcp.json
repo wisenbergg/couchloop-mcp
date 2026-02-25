@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "couchloop-eq": {
+      "type": "url",
+      "url": "https://mcp.couchloop.com/mcp"
+    }
+  }
+}
