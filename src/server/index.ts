@@ -285,7 +285,7 @@ app.get(
   "/.well-known/openai-apps-challenge",
   (_req: Request, res: Response) => {
     res.type("text/plain");
-    res.send("V8qqOQoOKY6FQ-EUL6kSbRafEbTpWhkuPJTqa-PJmwo");
+    res.send("xaHoU7I7S_z48vkwp_X6qzlpwyCLeE3nevmjAcRDfnY");
   },
 );
 
