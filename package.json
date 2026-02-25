@@ -59,6 +59,7 @@
     "vercel:prod": "vercel --prod",
     "server": "tsx src/server/index.ts",
     "server:dev": "tsx watch src/server/index.ts",
+    "smithery:publish:url": "smithery mcp publish \"https://mcp.couchloop.com/mcp\" -n @wisenbergg/couchloop-mcp --config-schema '{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}'",
     "security:check": "npm run security:secrets && npm run security:audit && npm run security:package",
     "security:secrets": "node -e \"const{execSync}=require('child_process');try{const r=execSync('grep -rE \\\"(sk-|pk_live_|AKIA)[A-Za-z0-9]{20,}\\\" dist/ --include=*.js 2>/dev/null',{encoding:'utf8'});if(r.trim()){console.log(r);console.log('❌ Hardcoded secrets found!');process.exit(1)}}catch(e){}console.log('✅ No hardcoded secrets found')\"",
     "security:audit": "npm audit --audit-level=high || true",

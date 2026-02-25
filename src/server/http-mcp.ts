@@ -39,6 +39,16 @@ interface MCPSession {
   initialized: boolean;
 }
 
+interface MCPPromptDefinition {
+  name: string;
+  description: string;
+  arguments?: Array<{
+    name: string;
+    description?: string;
+    required?: boolean;
+  }>;
+}
+
 // Store sessions by ID
 const sessions = new Map<string, MCPSession>();
 
@@ -195,6 +205,37 @@ async function getCachedResources() {
     cachedResources = await setupResources();
   }
   return cachedResources;
+}
+
+/**
+ * Build static server-card metadata for scanners that cannot complete
+ * full MCP introspection (e.g. auth/config gated instrumentation).
+ */
+export async function getServerCardMetadata(): Promise<{
+  serverInfo: { name: string; version: string };
+  authentication: { required: boolean; schemes: string[] };
+  tools: MCPToolDefinition[];
+  resources: MCPResourceDefinition[];
+  prompts: MCPPromptDefinition[];
+}> {
+  const [tools, resources] = await Promise.all([
+    getCachedTools(),
+    getCachedResources(),
+  ]);
+
+  return {
+    serverInfo: {
+      name: "couchloop-mcp",
+      version: "1.3.1",
+    },
+    authentication: {
+      required: false,
+      schemes: [],
+    },
+    tools: tools.map((tool) => tool.definition),
+    resources: resources.map((resource) => resource.definition),
+    prompts,
+  };
 }
 
 /**

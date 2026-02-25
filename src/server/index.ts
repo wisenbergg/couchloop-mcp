@@ -16,7 +16,7 @@ import { initDatabase } from "../db/client.js";
 import { sendMessage } from "../tools/sendMessage.js";
 import { createSession } from "../tools/session.js";
 import { logger } from "../utils/logger.js";
-import { handleChatGPTMCP } from "./http-mcp.js";
+import { getServerCardMetadata, handleChatGPTMCP } from "./http-mcp.js";
 import { rateLimit, requireScope, validateToken } from "./middleware/auth.js";
 import {
     enhancedCors,
@@ -373,6 +373,27 @@ app.get("/mcp", showMCPInfo, (_req: Request, res: Response) => {
 });
 
 app.post("/mcp", handleChatGPTMCP);
+
+/**
+ * GET /.well-known/mcp/server-card.json
+ * Static MCP metadata fallback for scanners (e.g., Smithery) when
+ * dynamic introspection fails due to auth/config requirements.
+ */
+app.get(
+  "/.well-known/mcp/server-card.json",
+  async (_req: Request, res: Response) => {
+    try {
+      const metadata = await getServerCardMetadata();
+      res.json(metadata);
+    } catch (error) {
+      logger.error("Failed to generate server card metadata:", error);
+      res.status(500).json({
+        error: "server_error",
+        message: "Failed to generate server card metadata",
+      });
+    }
+  },
+);
 
 // ====================
 // Protected MCP API Endpoints
