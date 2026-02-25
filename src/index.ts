@@ -28,9 +28,13 @@ async function main() {
   try {
     logger.info("Starting CouchLoop MCP Server...");
 
-    // Initialize database connection
-    await initDatabase();
-    logger.info("Database connection established");
+    // Initialize database connection (non-fatal — server responds to tools/list even without DB)
+    try {
+      await initDatabase();
+      logger.info("Database connection established");
+    } catch (dbError) {
+      logger.warn("Database unavailable — starting in degraded mode (tool discovery still works):", dbError);
+    }
 
     // Create MCP server instance
     const server = new Server(
