@@ -1,0 +1,35 @@
+# Smithery configuration file: https://smithery.ai/docs/build/project-config
+
+startCommand:
+  type: stdio
+  commandFunction: |-
+    (config) => ({
+      command: 'node',
+      args: ['dist/index.js'],
+      env: {
+        DATABASE_URL: config.databaseUrl || '',
+        JWT_SECRET: config.jwtSecret || 'smithery-tool-discovery-key-32chars',
+        SUPABASE_URL: config.supabaseUrl || '',
+        SUPABASE_ANON_KEY: config.supabaseAnonKey || '',
+        NODE_ENV: 'production'
+      }
+    })
+  configSchema:
+    type: object
+    properties:
+      databaseUrl:
+        type: string
+        description: PostgreSQL connection string for session and checkpoint storage (e.g. postgresql://user:pass@host:5432/db)
+      jwtSecret:
+        type: string
+        description: Secret key for JWT tokens — minimum 32 characters
+      supabaseUrl:
+        type: string
+        description: Supabase project URL (optional — only needed for journey features)
+      supabaseAnonKey:
+        type: string
+        description: Supabase anonymous key (optional — only needed for journey features)
+    required: []
+  exampleConfig:
+    databaseUrl: postgresql://user:password@localhost:5432/couchloop
+    jwtSecret: your-secret-key-minimum-32-characters-here
