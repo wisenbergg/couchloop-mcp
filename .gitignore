@@ -231,3 +231,4 @@ archive/
 
 # Internal submission guides
 docker-mcp-contribution/README.md
+.agents/
