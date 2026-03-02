@@ -28,11 +28,14 @@ export async function initDatabase() {
 
     // Initialize Postgres connection for Drizzle
     // Optimized pool configuration for better performance under load
+    // FIX 4: Reduced pool size for transaction-mode pooler (port 6543 PgBouncer)
+    // Supabase pooler manages its own connection limits; oversized client pool
+    // can exhaust server-side slots, especially with multiple Railway instances
     sql = postgres(databaseUrl, {
-      max: 25,              // Increased from 10 for better concurrency
-      idle_timeout: 60,     // Increased from 20 to keep connections warm longer
+      max: 10,              // Right-sized for transaction-mode pooler
+      idle_timeout: 30,     // Shorter idle — pooler handles connection reuse
       connect_timeout: 10,  // Keep same connection timeout
-      prepare: false,       // Disable prepared statements for better connection reuse
+      prepare: false,       // Required for transaction-mode pooler
     });
 
     // Initialize Drizzle ORM

@@ -2,7 +2,7 @@ import { getDb } from '../db/client.js';
 import { sessions, journeys, checkpoints, insights, governanceAuditLog } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
 import { SaveCheckpointSchema, CheckpointResponse } from '../types/checkpoint.js';
-import { handleError, NotFoundError } from '../utils/errors.js';
+import { handleError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 import { getOrCreateSession } from './session-manager.js';
 import { storeContext } from './preserve-context.js';
@@ -14,22 +14,12 @@ export async function saveCheckpoint(args: unknown): Promise<CheckpointResponse 
     const db = getDb();
 
     // Get or create session implicitly if not provided
-    const { sessionId, isNew } = await getOrCreateSession(
+    // FIX 1: Session object returned directly — no redundant re-fetch
+    const { sessionId, session, isNew } = await getOrCreateSession(
       input.session_id,
       input.auth,
       'Checkpoint session'
     );
-
-    // Fetch the session
-    const [session] = await db
-      .select()
-      .from(sessions)
-      .where(eq(sessions.id, sessionId))
-      .limit(1);
-
-    if (!session) {
-      throw new NotFoundError('Session', sessionId);
-    }
 
     if (session.status !== 'active') {
       throw new Error(`Session is ${session.status}, not active`);
@@ -188,18 +178,8 @@ export async function getCheckpoints(args: { session_id?: string; auth?: { user_
     const db = getDb();
 
     // Get or create session implicitly if not provided
+    // FIX 1: Session object returned directly — no redundant re-fetch
     const { sessionId, isNew } = await getOrCreateSession(session_id, auth);
-
-    // Verify session exists
-    const [session] = await db
-      .select()
-      .from(sessions)
-      .where(eq(sessions.id, sessionId))
-      .limit(1);
-
-    if (!session) {
-      throw new NotFoundError('Session', sessionId);
-    }
 
     // Get all checkpoints
     const sessionCheckpoints = await db

@@ -6,6 +6,7 @@
  */
 import { getDb } from '../db/client.js';
 import { sessions, users } from '../db/schema.js';
+import type { Session } from '../db/schema.js';
 import { eq, desc, and } from 'drizzle-orm';
 import { extractUserFromContext } from '../types/auth.js';
 import { logger } from '../utils/logger.js';
@@ -17,17 +18,20 @@ const activeSessionCache = new Map<string, string>();
 /**
  * Get existing active session or create one implicitly
  * 
+ * Returns the full session object to avoid redundant re-fetches by callers.
+ * 
  * @param sessionId - Optional explicit session ID
  * @param authContext - Optional auth context for user identification
  * @param context - Optional context for new session creation
- * @returns Session ID (existing or newly created)
+ * @returns Session object and metadata (existing or newly created)
  */
 export async function getOrCreateSession(
   sessionId?: string,
   authContext?: { user_id?: string; client_id?: string; token?: string },
   context?: string
-): Promise<{ sessionId: string; isNew: boolean }> {
+): Promise<{ sessionId: string; session: Session; isNew: boolean }> {
   const db = getDb();
+  const now = new Date();
   
   // If explicit session ID provided, verify it exists and is active
   if (sessionId) {
@@ -38,13 +42,13 @@ export async function getOrCreateSession(
       .limit(1);
     
     if (session) {
-      // Update last active timestamp
-      await db
-        .update(sessions)
-        .set({ lastActiveAt: new Date() })
-        .where(eq(sessions.id, sessionId));
+      // Update last active timestamp (fire-and-forget, non-blocking)
+      db.update(sessions)
+        .set({ lastActiveAt: now })
+        .where(eq(sessions.id, sessionId))
+        .then(() => {}, (err) => logger.warn('Failed to update lastActiveAt:', err));
       
-      return { sessionId: session.id, isNew: false };
+      return { sessionId: session.id, session, isNew: false };
     }
     // Session ID provided but doesn't exist - fall through to create new
     logger.warn(`Session ${sessionId} not found, creating new session`);
@@ -67,12 +71,13 @@ export async function getOrCreateSession(
       .limit(1);
     
     if (cachedSession) {
-      await db
-        .update(sessions)
-        .set({ lastActiveAt: new Date() })
-        .where(eq(sessions.id, cachedSessionId));
+      // Fire-and-forget timestamp update
+      db.update(sessions)
+        .set({ lastActiveAt: now })
+        .where(eq(sessions.id, cachedSessionId))
+        .then(() => {}, (err) => logger.warn('Failed to update lastActiveAt:', err));
       
-      return { sessionId: cachedSession.id, isNew: false };
+      return { sessionId: cachedSession.id, session: cachedSession, isNew: false };
     }
     // Cached session no longer valid, remove from cache
     activeSessionCache.delete(externalUserId);
@@ -100,14 +105,14 @@ export async function getOrCreateSession(
       .limit(1);
     
     if (existingSession) {
-      // Update last active and cache
-      await db
-        .update(sessions)
-        .set({ lastActiveAt: new Date() })
-        .where(eq(sessions.id, existingSession.id));
+      // Fire-and-forget timestamp update
+      db.update(sessions)
+        .set({ lastActiveAt: now })
+        .where(eq(sessions.id, existingSession.id))
+        .then(() => {}, (err) => logger.warn('Failed to update lastActiveAt:', err));
       
       activeSessionCache.set(externalUserId, existingSession.id);
-      return { sessionId: existingSession.id, isNew: false };
+      return { sessionId: existingSession.id, session: existingSession, isNew: false };
     }
   }
   
@@ -147,7 +152,7 @@ export async function getOrCreateSession(
   // Cache the new session
   activeSessionCache.set(externalUserId, newSession.id);
   
-  return { sessionId: newSession.id, isNew: true };
+  return { sessionId: newSession.id, session: newSession, isNew: true };
 }
 
 /**
