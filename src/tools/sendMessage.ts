@@ -5,12 +5,11 @@ import { getShrinkChatClient } from '../clients/shrinkChatClient.js';
 import { sessions, checkpoints, journeys, crisisEvents, governanceEvaluations } from '../db/schema.js';
 import { logger } from '../utils/logger.js';
 import { sanitizeResponse } from '../utils/sanitize.js';
-import { sanitizeText } from '../utils/inputSanitize.js';
-import { NotFoundError } from '../utils/errors.js';
 import { v4 as uuidv4 } from 'uuid';
+import { sanitizeText } from '../utils/inputSanitize.js';
+import { getOrCreateSession } from './session-manager.js';
 import type { ShrinkResponse } from '../clients/shrinkChatClient.js';
 import { EvaluationEngine, type SessionContext } from '../governance/evaluationEngine.js';
-import { getOrCreateSession } from './session-manager.js';
 
 // Type definitions for metadata fields
 interface SessionMetadata {
@@ -85,7 +84,8 @@ async function sendMessageInternal(args: unknown) {
     const db = getDb();
 
     // Get or create session implicitly if not provided
-    const { sessionId, isNew } = await getOrCreateSession(
+    // FIX 1: Session object returned directly — no redundant re-fetch
+    const { sessionId, session, isNew } = await getOrCreateSession(
       input.session_id,
       undefined,
       'Message session'
@@ -93,30 +93,21 @@ async function sendMessageInternal(args: unknown) {
 
     logger.info(`Sending message for session ${sessionId}${isNew ? ' (newly created)' : ''}`);
 
-    // Query session only - message history is owned by shrink-chat
-    const [session] = await db.select()
-      .from(sessions)
-      .where(eq(sessions.id, sessionId))
-      .limit(1);
-
-    if (!session) {
-      throw new NotFoundError(`Session ${sessionId} not found`);
-    }
-
-    // Get or create thread ID
+    // Get or create thread ID + fetch journey in parallel (FIX 2)
     let threadId = session.threadId;
-    if (!threadId) {
-      threadId = uuidv4();
-      await db.update(sessions)
-        .set({ threadId })
-        .where(eq(sessions.id, sessionId));
-    }
-
-    // Build context (keeping existing context building)
-    // Journey fetch still needs to be sequential since it depends on session.journeyId
-    const journey = session.journeyId
-      ? await db.select().from(journeys).where(eq(journeys.id, session.journeyId)).limit(1).then(res => res[0])
+    const threadIdPromise = !threadId
+      ? (threadId = uuidv4(), db.update(sessions).set({ threadId }).where(eq(sessions.id, sessionId)))
       : null;
+
+    const journeyPromise = session.journeyId
+      ? db.select().from(journeys).where(eq(journeys.id, session.journeyId)).limit(1).then(res => res[0])
+      : null;
+
+    // FIX 2: Run threadId update + journey fetch in parallel
+    const [, journey] = await Promise.all([
+      threadIdPromise,
+      journeyPromise,
+    ]);
 
     const memoryContext = JSON.stringify({
       userId: session.userId || 'anonymous',
@@ -391,20 +382,9 @@ async function handleCrisisDetection(
  */
 async function handleLocalFallback(args: unknown): Promise<unknown> {
   const input = SendMessageSchema.parse(args);
-  const db = getDb();
 
-  // Get or create session implicitly
-  const { sessionId } = await getOrCreateSession(input.session_id);
-
-  const [session] = await db
-    .select()
-    .from(sessions)
-    .where(eq(sessions.id, sessionId))
-    .limit(1);
-
-  if (!session) {
-    return { success: false, error: 'Session not found' };
-  }
+  // FIX 1: Use session object directly from getOrCreateSession
+  const { session } = await getOrCreateSession(input.session_id);
 
   const fallbackContent = "I understand you're trying to communicate. The service is temporarily unavailable, but your message has been noted. Please try again shortly.";
 
