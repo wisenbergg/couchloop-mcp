@@ -35,6 +35,7 @@ import { listJourneys, getJourneyStatus } from './journey.js';
 import { getCheckpoints } from './checkpoint.js';
 import { getInsights, getUserContext } from './insight.js';
 import { verifyTool } from './verify.js';
+import { guardTool } from './guard.js';
 import { statusTool } from './status.js';
 import { logger } from '../utils/logger.js';
 
@@ -386,6 +387,7 @@ export async function setupTools() {
   // Domain-specific tools (order matters for some clients)
   const domainTools = [
     verifyTool,     // Pre-delivery verification (critical for catching AI errors)
+    guardTool,      // Invisible governance layer (silent response gate-check)
     statusTool,     // Dashboard and status checks
     conversationTool,
     brainstormTool,  // Standalone dev thinking partner
