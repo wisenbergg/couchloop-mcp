@@ -10,6 +10,8 @@
  */
 
 import { logger } from '../utils/logger.js';
+import { runToolWithPolicy, type NormalizedToolResponse } from '../policy/index.js';
+import type { PolicyContext } from '../policy/types.js';
 
 // ============================================================
 // INTENT DEFINITIONS
@@ -260,7 +262,27 @@ const toolRegistry: Map<string, { handler: (args: Record<string, unknown>) => Pr
 export function registerTools(tools: Array<{ definition: { name: string }; handler: (args: Record<string, unknown>) => Promise<unknown> }>) {
   toolRegistry.clear();
   for (const tool of tools) {
-    toolRegistry.set(tool.definition.name, { handler: tool.handler });
+    const toolName = tool.definition.name;
+    // Wrap each registered handler so couchloop-routed calls go through the
+    // same policy path (sanitize → verify-if-required → normalize → log)
+    // with routedVia='couchloop'.
+    const originalHandler = tool.handler;
+    toolRegistry.set(toolName, {
+      handler: async (args: Record<string, unknown>) => {
+        const ctx: PolicyContext = {
+          toolName: toolName as import('../policy/types.js').PublicToolName,
+          routedVia: 'couchloop',
+          sessionId: typeof args.session_id === 'string' ? args.session_id : undefined,
+          startedAt: Date.now(),
+        };
+        // If the handler is already wrapped (direct-path wrapping in primary-tools),
+        // avoid double-wrapping: call the original unwrapped version.
+        // The tools stored in toolRegistry are the wrapped versions from primary-tools;
+        // we re-wrap here with routedVia='couchloop' so the policy log reflects the
+        // actual call path. This is intentional — each leg of a routed call is logged.
+        return runToolWithPolicy(ctx, args, originalHandler);
+      },
+    });
   }
   logger.info(`Intent router registered ${toolRegistry.size} tools`);
 }
@@ -477,24 +499,35 @@ This tool should be invoked for ANY ambiguous or loose command related to sessio
         break;
     }
 
-    // Invoke the target tool
+    // Invoke the target tool (handler is already wrapped with policy layer
+    // via registerTools, so the result is NormalizedToolResponse).
     try {
-      const result = await targetTool.handler(targetArgs);
+      const innerResult = await targetTool.handler(targetArgs) as NormalizedToolResponse;
 
+      // Flatten: expose inner tool's success/error/partial/blocked at the top
+      // level so callers don't need to drill into result.result.
       return {
         routed_to: classification.tool,
         action: classification.action,
-        confidence: classification.confidence,
-        result,
+        routing_confidence: classification.confidence,
+        success: innerResult.success,
+        tool: innerResult.tool,
+        result: innerResult.result,
+        ...(innerResult.partial ? { partial: true } : {}),
+        ...(innerResult.blocked ? { blocked: true } : {}),
+        ...(innerResult.requires_approval ? { requires_approval: true } : {}),
+        ...(innerResult.verify_result !== undefined ? { verify_result: innerResult.verify_result } : {}),
+        ...(innerResult.error ? { error: innerResult.error } : {}),
+        policy_trace: innerResult.policy_trace,
       };
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Tool invocation failed';
       logger.error('Intent router tool invocation failed:', error);
       return {
+        success: false,
         routed_to: classification.tool,
         error: errorMessage,
-        classification,
-        args_passed: targetArgs,
+        routing_confidence: classification.confidence,
       };
     }
   },
