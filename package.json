@@ -68,14 +68,21 @@
   },
   "keywords": [
     "mcp",
+    "mcp-server",
     "model-context-protocol",
     "ai-safety",
     "ai-governance",
     "hallucination-detection",
     "chatgpt",
     "claude",
+    "cursor",
+    "windsurf",
+    "copilot",
     "llm-safety",
     "behavioral-governance",
+    "developer-tools",
+    "code-review",
+    "package-validation",
     "conversation",
     "state-management"
   ],
@@ -88,7 +95,7 @@
   "bugs": {
     "url": "https://github.com/wisenbergg/couchloop-mcp/issues"
   },
-  "homepage": "https://github.com/wisenbergg/couchloop-mcp#readme",
+  "homepage": "https://couchloop.com",
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
