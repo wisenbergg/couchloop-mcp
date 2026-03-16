@@ -54,7 +54,7 @@ const PACKAGE_PATTERNS = [
 const TECHNICAL_CLAIM_PATTERNS = [
   /\bv?\d+\.\d+(\.\d+)?\b/,              // version numbers
   /\b(as of|since|in version|introduced in)\b/i,
-  /\b\d+(%|ms|s|kb|mb|gb)\b/i,           // metrics
+  /\b\d+(?:%|(?:ms|s|kb|mb|gb)\b)/i,     // metrics (% is non-word so no trailing \b)
   /\b(deprecated|removed|breaking change)\b/i,
   /\b(always|never|guaranteed|will (always|never))\b/i,
 ];

@@ -10,12 +10,7 @@ import {
     ReadResourceRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import dotenv from "dotenv";
-import { getDb, initDatabase } from "./db/client.js";
-import { governanceAuditLog } from "./db/schema.js";
-import {
-    governancePostCheck,
-    governancePreCheck,
-} from "./governance/middleware.js";
+import { initDatabase } from "./db/client.js";
 import { setupResources } from "./resources/index.js";
 import { setupTools } from "./tools/index.js";
 import { logger } from "./utils/logger.js";
@@ -40,7 +35,7 @@ async function main() {
     const server = new Server(
       {
         name: "couchloop-mcp",
-        version: "1.3.1",
+        version: "1.4.0",
       },
       {
         capabilities: {
@@ -72,56 +67,11 @@ async function main() {
           throw new Error(`Tool ${toolName} not found`);
         }
 
-        // ═══════════════════════════════════════════════
-        // GOVERNANCE PRE-CHECK
-        // ═══════════════════════════════════════════════
-        const preCheck = await governancePreCheck(toolName, args);
-
-        if (!preCheck.allowed) {
-          logger.warn(`[Governance] BLOCKED ${toolName}:`, preCheck.issues);
-
-          // Log to audit
-          try {
-            const db = getDb();
-            await db.insert(governanceAuditLog).values({
-              actionType: "pre_check_block",
-              reason: preCheck.issues.join("; "),
-              confidenceScore: Math.round(preCheck.confidence * 100),
-              metadata: {
-                tool: toolName,
-                issues: preCheck.issues,
-                blocked: true,
-              },
-            });
-          } catch (auditError) {
-            logger.warn("Failed to log governance audit:", auditError);
-          }
-
-          return {
-            content: [
-              {
-                type: "text",
-                text: JSON.stringify(
-                  {
-                    blocked: true,
-                    reason: "Governance pre-check failed",
-                    issues: preCheck.issues,
-                    confidence: preCheck.confidence,
-                  },
-                  null,
-                  2,
-                ),
-              },
-            ],
-          };
-        }
-
-        // ═══════════════════════════════════════════════
-        // EXECUTE TOOL
-        // ═══════════════════════════════════════════════
-        let result: unknown;
         try {
-          result = await tool.handler(args);
+          const result = await tool.handler(args);
+          return {
+            content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+          };
         } catch (error) {
           const message = error instanceof Error ? error.message : "Tool execution failed";
           logger.error(`[Tool] ${toolName} threw:`, error);
@@ -130,53 +80,6 @@ async function main() {
             content: [{ type: "text", text: `Error: ${message}` }],
           };
         }
-
-        // ═══════════════════════════════════════════════
-        // GOVERNANCE POST-CHECK
-        // ═══════════════════════════════════════════════
-        const postCheck = await governancePostCheck(toolName, result);
-
-        if (postCheck.issues.length > 0) {
-          logger.info(
-            `[Governance] Issues detected in ${toolName} output:`,
-            postCheck.issues,
-          );
-
-          // Log to audit (but don't block - shadow mode)
-          try {
-            const db = getDb();
-            await db.insert(governanceAuditLog).values({
-              actionType: "post_check_warning",
-              reason: postCheck.issues.join("; "),
-              confidenceScore: Math.round(postCheck.confidence * 100),
-              metadata: {
-                tool: toolName,
-                issues: postCheck.issues,
-                blocked: false,
-              },
-            });
-          } catch (auditError) {
-            logger.warn("Failed to log governance audit:", auditError);
-          }
-        }
-
-        // Add governance metadata to response
-        const governedResult = {
-          ...(typeof result === "object" && result !== null
-            ? result
-            : { value: result }),
-          _governance: {
-            checked: true,
-            issues: postCheck.issues,
-            confidence: postCheck.confidence,
-          },
-        };
-
-        return {
-          content: [
-            { type: "text", text: JSON.stringify(governedResult, null, 2) },
-          ],
-        };
       },
     );
 
