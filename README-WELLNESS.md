@@ -95,9 +95,9 @@ Steps through:
 
 ---
 
-## Core Features (v1.3.1)
+## Core Features (v1.4.0)
 
-CouchLoop EQ now uses 9 primary tools. Just say what you want—the `couchloop` intent router handles the rest.
+CouchLoop EQ now uses 10 primary tools. Just say what you want—the `couchloop` intent router handles the rest.
 
 ### Quick Commands
 
