@@ -10,7 +10,7 @@ Your AI remembers conversations. Add persistent memory, safety checks, and devel
 
 AI assistants forget everything between sessions. Users repeat context, lose progress on multi-step workflows, and get inconsistent responses. Worse, LLMs can hallucinate packages, introduce vulnerabilities, delete critical files, or drift into harmful territory without guardrails.
 
-**CouchLoop EQ fixes this.** It's an MCP server with **9 primary tools** that give your AI persistent memory, intent routing, code review, brainstorm mode, pre-delivery verification, and developer protection. Just say what you want—the `couchloop` meta-tool routes to the right tool automatically.
+**CouchLoop EQ fixes this.** It's an MCP server with **10 primary tools** that give your AI persistent memory, intent routing, code review, brainstorm mode, pre-delivery verification, and developer protection. Just say what you want—the `couchloop` meta-tool routes to the right tool automatically.
 
 ## Quick Start (30 seconds)
 
@@ -139,7 +139,7 @@ await mcp.call("resume_session", { userId: "user_123" });
 - **Conversation boundaries**: Detects manipulation patterns and harmful suggestions
 - **Tone stability**: Maintains consistent personality without emotional drift
 
-### Developer Protection Tools (v1.2.0)
+### Developer Protection Tools (v1.4.0)
 
 - **Intent router**: Just say "end session", "review code", "save this"—routes automatically
 - **Code review**: Security scan + quality check + AI error detection in one call
@@ -157,7 +157,7 @@ Pre-built workflows for common use cases:
 | Gratitude Practice | 3 min    | Notice and name things you appreciate |
 | Weekly Review      | 10 min   | Look back and set intentions          |
 
-## Available Tools (8 Primary)
+## Available Tools (10 Primary)
 
 Just say what you want—the `couchloop` meta-tool routes your intent automatically.
 
@@ -167,21 +167,23 @@ Just say what you want—the `couchloop` meta-tool routes your intent automatica
 | `verify`        | Pre-delivery verification for AI-generated content | "verify this code", "check my response", "is this correct" |
 | `status`        | Dashboard: session progress, history, context      | "how am I doing", "my settings", "show my status"          |
 | `conversation`  | Session management and wellness workflows          | "start a reflection", "end session", "resume"              |
+| `brainstorm`    | Dev thinking partner — trade-off analysis, architecture decisions | "brainstorm this", "help me decide", "compare options" |
 | `code_review`   | Security + quality + AI error detection            | "review code", "is this safe", "lint this"                 |
 | `package_audit` | Validate packages across 7 registries              | "audit dependencies", "does this package exist"            |
 | `remember`      | Context persistence: checkpoints, insights         | "save this", "remember that", "checkpoint"                 |
 | `protect`       | File backups with rollback capability              | "backup my code", "rollback", "freeze"                     |
+| `guard`         | Governance pipeline: sanitize → verify-if-required → normalize → log | (auto-applied to all tool calls) |
 
-### Why 9 Tools?
+### Why 10 Tools?
 
-We found that **94% of user intents** map to these 9 archetypes. Instead of exposing 23+ granular tools and expecting users to remember which one to call, CouchLoop bundles related functionality and uses intent routing.
+We found that **94% of user intents** map to these 10 archetypes. Instead of exposing 23+ granular tools and expecting users to remember which one to call, CouchLoop bundles related functionality and uses intent routing.
 
 **Example:**
 
 - Before: `save_checkpoint`, `get_checkpoints`, `save_insight`, `get_insights`, `preserve_context`, `store_context`, `retrieve_context`
 - Now: `remember` (or just say "save this" and let `couchloop` route it)
 
-### New in v1.3.1: Standalone Brainstorm + Verification-First Architecture
+### New in v1.4.0: Policy Layer + Standalone Brainstorm + Verification-First Architecture
 
 The `verify` tool catches common AI mistakes BEFORE they reach users:
 

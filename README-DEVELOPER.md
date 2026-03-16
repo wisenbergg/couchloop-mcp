@@ -222,6 +222,7 @@ CouchLoop EQ now uses 10 primary tools. The `couchloop` meta-tool routes natural
 | `package_audit` | Validate packages exist, check versions, find vulnerabilities                                    |
 | `remember`      | Store/recall context, checkpoints, insights                                                      |
 | `protect`       | File backup, freeze, rollback, restore                                                           |
+| `guard`         | Governance pipeline: sanitize → verify-if-required → normalize → log                            |
 
 ### Usage Examples
 
