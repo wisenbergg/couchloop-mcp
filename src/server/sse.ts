@@ -72,7 +72,9 @@ async function createMCPServer(): Promise<Server> {
       }
       try {
         const result = await tool.handler(request.params.arguments || {});
-        return result as { content: Array<{ type: string; text: string }> };
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
       } catch (error) {
         const message = error instanceof Error ? error.message : "Tool execution failed";
         return {

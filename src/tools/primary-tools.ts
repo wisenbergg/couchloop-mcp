@@ -4,9 +4,10 @@
  * This module exports only the PRIMARY tools that users should see.
  * All granular tools are internal engines used by these primary tools.
  * 
- * PUBLIC TOOLS (9):
+ * PUBLIC TOOLS (10):
  * 0. couchloop        - Intent router (discoverability layer for loose commands)
- * 1. verify           - Pre-delivery verification (catches AI hallucinations, validates packages)
+ * 1. guard            - Invisible per-turn governance (called automatically by companion skill)
+ * 2. verify           - Pre-delivery verification (catches AI hallucinations, validates packages)
  * 2. status           - Dashboard (session progress, history, context, protection)
  * 3. conversation     - AI conversation with guided journeys and session memory
  * 4. brainstorm       - Dev thinking partner (reflective questioning, architecture, trade-offs)
@@ -36,6 +37,8 @@ import { getCheckpoints } from './checkpoint.js';
 import { getInsights, getUserContext } from './insight.js';
 import { verifyTool } from './verify.js';
 import { statusTool } from './status.js';
+import { guardTool } from './guard.js';
+import { runToolWithPolicy, type PolicyContext } from '../policy/index.js';
 import { logger } from '../utils/logger.js';
 
 // ============================================================
@@ -349,7 +352,16 @@ const protectTool = {
   },
   handler: async (args: Record<string, unknown>) => {
     const action = args.action as string;
-    
+
+    // path is required for check and backup — validate before delegating
+    if ((action === 'check' || action === 'backup') && !args.path) {
+      return {
+        success: false,
+        error: `path is required for action='${action}'`,
+        action,
+      };
+    }
+
     switch (action) {
       case 'check':
         return protectFiles({
@@ -382,23 +394,65 @@ const protectTool = {
 // EXPORT ONLY PRIMARY TOOLS
 // ============================================================
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Policy wrapper helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Wrap a tool handler so every call goes through:
+ *   execute → sanitize → verify-if-required → normalize → log
+ *
+ * The wrapped handler is used for BOTH direct MCP calls and intent-router
+ * (couchloop) delegated calls, since registerTools() stores references to
+ * these same handler functions.
+ */
+function withPolicy(
+  toolName: Parameters<typeof runToolWithPolicy>[0]['toolName'],
+  handler: (args: Record<string, unknown>) => Promise<unknown>,
+  routedVia: PolicyContext['routedVia'] = 'direct',
+) {
+  return async (args: Record<string, unknown>, _routedVia?: PolicyContext['routedVia']) => {
+    const via = _routedVia ?? routedVia;
+    const ctx: PolicyContext = {
+      toolName,
+      routedVia: via,
+      sessionId: typeof args.session_id === 'string' ? args.session_id : undefined,
+      startedAt: Date.now(),
+    };
+    return runToolWithPolicy(ctx, args, handler);
+  };
+}
+
 export async function setupTools() {
-  // Domain-specific tools (order matters for some clients)
-  const domainTools = [
-    verifyTool,     // Pre-delivery verification (critical for catching AI errors)
-    statusTool,     // Dashboard and status checks
+  // Domain-specific tools — handlers wrapped with the policy layer.
+  // The same wrapped handlers are registered in the intent router so that
+  // couchloop-routed calls go through the same policy path as direct calls.
+  const rawDomainTools = [
+    guardTool,
+    verifyTool,
+    statusTool,
     conversationTool,
-    brainstormTool,  // Standalone dev thinking partner
+    brainstormTool,
     codeReviewTool,
     packageAuditTool,
     rememberTool,
     protectTool,
   ];
 
-  // Register domain tools with intent router for internal invocation
+  const domainTools = rawDomainTools.map((tool) => ({
+    ...tool,
+    handler: withPolicy(
+      tool.definition.name as Parameters<typeof runToolWithPolicy>[0]['toolName'],
+      tool.handler as (args: Record<string, unknown>) => Promise<unknown>,
+    ),
+  }));
+
+  // Register wrapped domain tools with the intent router.
+  // Couchloop delegates to these handlers; routedVia will be overridden
+  // inside the couchloop handler by passing 'couchloop' explicitly.
   registerTools(domainTools);
 
-  // Intent router (couchloop) goes FIRST for maximum discoverability
+  // Intent router (couchloop) goes FIRST for maximum discoverability.
   const tools = [
     intentRouterTool,
     ...domainTools,
