@@ -35,7 +35,7 @@ async function main() {
     const server = new Server(
       {
         name: "couchloop-mcp",
-        version: "1.4.0",
+        version: "1.4.2",
       },
       {
         capabilities: {

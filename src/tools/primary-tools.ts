@@ -173,13 +173,15 @@ const brainstormTool = {
     },
   },
   handler: async (args: Record<string, unknown>) => {
-    return sendMessage({
-      message: args.message,
-      session_id: args.session_id,
-      system_prompt: BRAINSTORM_SYSTEM_PROMPT,
-      conversation_type: 'brainstorm',
-      save_checkpoint: true,
-    });
+    const message = String(args.message || '');
+    // brainstorm must NOT route through shrink-chat (therapeutic backend).
+    // Return instructions directly so the host LLM (Claude/ChatGPT) responds in brainstorm mode.
+    return {
+      mode: 'brainstorm',
+      instructions: BRAINSTORM_SYSTEM_PROMPT,
+      respond_to: message,
+      directive: `You are now in BRAINSTORM MODE. Follow the instructions above precisely. Do not respond therapeutically. Respond directly to: "${message}"`,
+    };
   },
 };
 
