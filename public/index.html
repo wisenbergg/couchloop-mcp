@@ -338,6 +338,33 @@
     }
 
     /* Responsive */
+    .chat-app-cta {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      text-decoration: none;
+    }
+
+    .chat-app-cta img {
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      width: 88px;
+      height: 88px;
+      display: block;
+    }
+
+    .chat-app-cta span {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      font-weight: 500;
+      letter-spacing: 0.02em;
+    }
+
+    .chat-app-cta-mobile {
+      display: none;
+    }
+
     @media (max-width: 768px) {
       h1 {
         font-size: 2.5rem;
@@ -353,6 +380,14 @@
 
       .setup-step {
         flex-direction: column;
+      }
+
+      .chat-app-cta {
+        display: none;
+      }
+
+      .chat-app-cta-mobile {
+        display: inline-flex;
       }
     }
   </style>
@@ -382,7 +417,12 @@
         <p>A behavioral governance layer for AI assistants. Catches hallucinations, inconsistencies, and tone drift before they become problems.</p>
         <div class="cta-group">
           <a href="#setup" class="btn btn-primary">Get Started</a>
-          <a href="https://couchloopchat.com" class="btn btn-secondary">Try CouchLoop Chat</a>
+          <a href="https://mcp.couchloop.com/mcp" class="btn btn-secondary" target="_blank" rel="noopener">MCP Endpoint ↗</a>
+          <a href="https://apps.apple.com/us/app/couchloop-chat/id6752988620" class="chat-app-cta" target="_blank" rel="noopener">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=176x176&data=https%3A%2F%2Fapps.apple.com%2Fus%2Fapp%2Fcouchloop-chat%2Fid6752988620&color=f8fafc&bgcolor=1e293b" alt="Scan to download CouchLoop Chat" loading="lazy">
+            <span>Scan to download</span>
+          </a>
+          <a href="https://apps.apple.com/us/app/couchloop-chat/id6752988620" class="btn btn-secondary chat-app-cta-mobile" target="_blank" rel="noopener">CouchLoop Chat ↗</a>
         </div>
       </div>
     </section>
