@@ -338,6 +338,12 @@
     }
 
     /* Responsive */
+    .qr-row {
+      display: flex;
+      justify-content: center;
+      margin-top: 20px;
+    }
+
     .chat-app-cta {
       display: flex;
       flex-direction: column;
@@ -386,6 +392,10 @@
         display: none;
       }
 
+      .qr-row {
+        display: none;
+      }
+
       .chat-app-cta-mobile {
         display: inline-flex;
       }
@@ -418,11 +428,13 @@
         <div class="cta-group">
           <a href="#setup" class="btn btn-primary">Get Started</a>
           <a href="https://mcp.couchloop.com/mcp" class="btn btn-secondary" target="_blank" rel="noopener">MCP Endpoint ↗</a>
+          <a href="https://apps.apple.com/us/app/couchloop-chat/id6752988620" class="btn btn-secondary chat-app-cta-mobile" target="_blank" rel="noopener">CouchLoop Chat ↗</a>
+        </div>
+        <div class="qr-row">
           <a href="https://apps.apple.com/us/app/couchloop-chat/id6752988620" class="chat-app-cta" target="_blank" rel="noopener">
             <img src="https://api.qrserver.com/v1/create-qr-code/?size=176x176&data=https%3A%2F%2Fapps.apple.com%2Fus%2Fapp%2Fcouchloop-chat%2Fid6752988620&color=f8fafc&bgcolor=1e293b" alt="Scan to download CouchLoop Chat" loading="lazy">
-            <span>Scan to download</span>
+            <span>Scan to download CouchLoop Chat</span>
           </a>
-          <a href="https://apps.apple.com/us/app/couchloop-chat/id6752988620" class="btn btn-secondary chat-app-cta-mobile" target="_blank" rel="noopener">CouchLoop Chat ↗</a>
         </div>
       </div>
     </section>
