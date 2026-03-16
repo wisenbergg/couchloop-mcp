@@ -178,7 +178,9 @@ export class ShrinkChatClient {
     const config = getConfig();
     // Detect crisis content to determine timeout
     const isCrisis = this.detectCrisisContent(prompt);
-    const timeout = isCrisis ? config.timeout.crisis : config.timeout.regular;
+    // Brainstorm uses a heavier system prompt — give it the default timeout, not the fast regular one
+    const isBrainstorm = options?.conversationType === 'brainstorm';
+    const timeout = isCrisis ? config.timeout.crisis : (isBrainstorm ? config.timeout.default : config.timeout.regular);
 
     // Track performance metrics
     const operationName = isCrisis
@@ -221,8 +223,8 @@ export class ShrinkChatClient {
       conversationType: options?.conversationType,
     };
 
-    // Use retry strategy for crisis messages or when explicitly requested
-    const shouldUseRetry = isCrisis || options?.conversationType === 'crisis';
+    // Use retry strategy for crisis/brainstorm messages or when explicitly requested
+    const shouldUseRetry = isCrisis || isBrainstorm || options?.conversationType === 'crisis';
 
     const response = shouldUseRetry
       ? await this.retryStrategy.execute(
