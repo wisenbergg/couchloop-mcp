@@ -142,9 +142,11 @@ For local development:
 - Use ngrok or deploy your own server
 - Follow setup in [CHATGPT_SETUP.md](CHATGPT_SETUP.md)
 
-## Available Tools (9 Primary)
+## Available Tools (10 Primary)
 
-CouchLoop EQ v1.3.1 uses a 9-tool architecture. The `couchloop` meta-tool acts as an intelligent router—just say what you want in natural language.
+CouchLoop EQ v1.4.0 uses a 10-tool architecture. The `couchloop` meta-tool acts as an intelligent router—just say what you want in natural language.
+
+> **v1.4.0:** All tools now execute through a mandatory policy layer (sanitize → verify-if-required → normalize → log), providing consistent output shapes, auto-triggered hallucination checks, and structured audit traces on every call.
 
 ### Universal Entry Point
 

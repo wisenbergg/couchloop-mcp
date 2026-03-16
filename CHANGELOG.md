@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-03-16
+
+### Added
+- Mandatory policy wrapper for all 10 public MCP tools: `validate → execute → sanitize → verify-if-required → normalize → log`
+- `src/policy/` layer: types, wrapper, sanitize, classifiers, verify-adapter, normalizer, logger
+- `src/tools/guard.ts` adapter using `GovernancePipeline` + `InterventionEngine` instances
+- `code_review` and `package_audit` auto-trigger a verify pass on every response
+- Technical claim detection (version numbers, deprecation notes, statistics) triggers full governance check
+- `verifyError` flag distinguishes verify adapter crash from genuine content failures
+- Array responses recursively sanitized element-by-element
+- `TResult` preserved through the full normalize pipeline (no type erasure)
+- 60 unit tests for `sanitize`, `classifiers`, and `normalize` modules
+- `hallucinated-packages-corpus` shim for type-safe named import of the corpus file
+
+### Fixed
+- `index.ts` dispatch: removed legacy `governancePreCheck`/`governancePostCheck` layer that was double-wrapping tool calls and corrupting `NormalizedToolResponse` shape with a `_governance` key spread
+- Classifier regex: `\b\d+(%|...)\b` → `\b\d+(?:%|...)` so percentage metric pattern correctly matches (% is non-word character, trailing `\b` was unreachable)
+- `sse.ts` bad content-envelope cast
+- `protect` tool: path now required for `check` and `backup` actions
+
+### Changed
+- Version bumped to 1.4.0 across `package.json`, `src/index.ts`, `src/server/sse.ts`
+- `tsconfig.json`: exclude `MCP Usage Takeaways.guard.ts` archive file from compilation
+
+## [1.3.3] - 2026-03-01
+
+### Changed
+- Patch stability improvements and dependency updates
+
+## [1.3.2] - 2026-02-20
+
+### Changed
+- Patch fixes for session handling edge cases
+
+## [1.3.1] - 2026-02-15
+
+### Added
+- Initial developer safety tools: `validate_packages`, `scan_security`, `pre_review_code`, `detect_code_smell`, `protect_files`, `preserve_context`, `check_versions`
+- 9-tool architecture with `couchloop` intent router
+- Guard tool with GovernancePipeline and InterventionEngine
+
+## [1.2.0] - 2026-02-10
+
+### Added
+- Developer guardian features (v1.1.0 architecture)
+- Package hallucination corpus with 200+ confirmed malicious/hallucinated packages
+- Security scanning with OWASP pattern detection
+
 ## [1.1.4] - 2026-02-04
 
 ### Changed

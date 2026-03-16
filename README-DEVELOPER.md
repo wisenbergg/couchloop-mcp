@@ -198,9 +198,11 @@ When you need to review or debug later, retrieve exact context of what was built
 
 ---
 
-## Tool Reference (v1.3.1)
+## Tool Reference (v1.4.0)
 
-CouchLoop EQ now uses 9 primary tools. The `couchloop` meta-tool routes natural language to the correct tool.
+CouchLoop EQ now uses 10 primary tools. The `couchloop` meta-tool routes natural language to the correct tool.
+
+> **v1.4.0 policy layer:** Every tool call passes through `sanitize → verify-if-required → normalize → log`. `code_review` and `package_audit` auto-trigger a verify pass; responses containing technical claims or code trigger full governance checks.
 
 ### Universal Entry Point
 
