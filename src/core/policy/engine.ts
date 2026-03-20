@@ -37,7 +37,7 @@ const POLICY_RULES: PolicyRule[] = [
     name: 'crisis_override',
     priority: 100,
     condition: (ctx) => ctx.isCrisisDetected === true,
-    decide: (ctx, classification) => ({
+    decide: (_ctx, _classification) => ({
       action: 'direct',
       targetTool: 'conversation', // Always route crisis to conversation tool
       reason: 'Crisis detected - immediate routing required',
@@ -52,7 +52,7 @@ const POLICY_RULES: PolicyRule[] = [
   {
     name: 'high_confidence_direct',
     priority: 90,
-    condition: (ctx, classification, health) => {
+    condition: (_ctx, classification, health) => {
       if (classification.confidence < 0.90) return false;
       if (classification.multiIntent) return false;
 
@@ -62,11 +62,11 @@ const POLICY_RULES: PolicyRule[] = [
 
       return (
         toolHealth?.status === 'healthy' &&
-        toolHealth.rollingSuccessRate >= 0.95 &&
+        (toolHealth.rollingSuccessRate ?? 0) >= 0.95 &&
         toolHealth.circuitBreakerState === 'closed'
       );
     },
-    decide: (ctx, classification) => ({
+    decide: (_ctx, classification) => ({
       action: 'direct',
       targetTool: mapIntentToTool(classification.primaryIntent),
       reason: `High confidence (${classification.confidence.toFixed(2)}) and healthy tool`,
@@ -80,8 +80,8 @@ const POLICY_RULES: PolicyRule[] = [
   {
     name: 'multi_intent_decomposition',
     priority: 80,
-    condition: (ctx, classification) => classification.multiIntent === true,
-    decide: (ctx, classification) => ({
+    condition: (_ctx, classification) => classification.multiIntent === true,
+    decide: (_ctx, classification) => ({
       action: 'router',
       reason: `Multiple intents detected: ${classification.decomposition?.join(', ')}`,
       confidence: classification.confidence,
@@ -94,7 +94,7 @@ const POLICY_RULES: PolicyRule[] = [
   {
     name: 'health_aware_reroute',
     priority: 70,
-    condition: (ctx, classification, health) => {
+    condition: (_ctx, classification, health) => {
       const toolName = mapIntentToTool(classification.primaryIntent);
       const toolHealth = health.get(toolName);
       return (
@@ -102,7 +102,7 @@ const POLICY_RULES: PolicyRule[] = [
         toolHealth?.circuitBreakerState === 'open'
       );
     },
-    decide: (ctx, classification) => {
+    decide: (_ctx, classification) => {
       const fallbacks = getFallbackTools(classification.primaryIntent);
       if (fallbacks.length > 0) {
         return {
@@ -128,8 +128,8 @@ const POLICY_RULES: PolicyRule[] = [
   {
     name: 'ambiguous_routing',
     priority: 60,
-    condition: (ctx, classification) => classification.ambiguous === true,
-    decide: (ctx, classification) => ({
+    condition: (_ctx, classification) => classification.ambiguous === true,
+    decide: (_ctx, classification) => ({
       action: 'router',
       reason: `Ambiguous intent - top alternatives: ${classification.alternatives
         .slice(0, 2)
@@ -145,7 +145,7 @@ const POLICY_RULES: PolicyRule[] = [
   {
     name: 'medium_confidence_direct',
     priority: 50,
-    condition: (ctx, classification, health) => {
+    condition: (_ctx, classification, health) => {
       if (classification.confidence < 0.75 || classification.confidence >= 0.90) return false;
 
       const toolName = mapIntentToTool(classification.primaryIntent);
@@ -153,10 +153,10 @@ const POLICY_RULES: PolicyRule[] = [
 
       return (
         toolHealth?.status !== 'unhealthy' &&
-        toolHealth?.rollingSuccessRate >= 0.90
+        (toolHealth?.rollingSuccessRate ?? 0) >= 0.90
       );
     },
-    decide: (ctx, classification) => ({
+    decide: (_ctx, classification) => ({
       action: 'direct',
       targetTool: mapIntentToTool(classification.primaryIntent),
       reason: `Medium confidence (${classification.confidence.toFixed(2)}) with healthy tool`,
@@ -171,8 +171,8 @@ const POLICY_RULES: PolicyRule[] = [
   {
     name: 'low_confidence_clarification',
     priority: 40,
-    condition: (ctx, classification) => classification.confidence < 0.55,
-    decide: (ctx, classification) => ({
+    condition: (_ctx, classification) => classification.confidence < 0.55,
+    decide: (_ctx, classification) => ({
       action: 'clarify',
       reason: `Low confidence (${classification.confidence.toFixed(2)}) - clarification needed`,
       confidence: classification.confidence,
@@ -184,7 +184,7 @@ const POLICY_RULES: PolicyRule[] = [
     name: 'protection_required',
     priority: 95,
     condition: (ctx) => ctx.requiresProtection === true,
-    decide: (ctx, classification) => ({
+    decide: (_ctx, _classification) => ({
       action: 'direct',
       targetTool: 'protect',
       reason: 'Protection check required before operation',
@@ -198,13 +198,13 @@ const POLICY_RULES: PolicyRule[] = [
   {
     name: 'deadline_simplification',
     priority: 85,
-    condition: (ctx, classification, health) => {
+    condition: (ctx, _classification, health) => {
       if (!ctx.latencyBudgetMs) return false;
 
-      const toolName = mapIntentToTool(classification.primaryIntent);
+      const toolName = mapIntentToTool(_classification.primaryIntent);
       const toolHealth = health.get(toolName);
 
-      return (
+      return Boolean(
         toolHealth?.p95LatencyMs &&
         toolHealth.p95LatencyMs > ctx.latencyBudgetMs
       );
@@ -223,7 +223,7 @@ const POLICY_RULES: PolicyRule[] = [
     name: 'default_router',
     priority: 0,
     condition: () => true,
-    decide: (ctx, classification) => ({
+    decide: (_ctx, classification) => ({
       action: 'router',
       reason: 'No specific policy matched - using router',
       confidence: classification.confidence,

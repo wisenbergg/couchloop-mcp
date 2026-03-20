@@ -245,7 +245,7 @@ export class ToolRegistry {
     // Reset rolling metrics every 30 minutes
     setInterval(() => {
       const now = Date.now();
-      this.healthMetrics.forEach((metrics, toolName) => {
+      this.healthMetrics.forEach((metrics) => {
         if (now - metrics.lastUpdated > 30 * 60 * 1000) {
           // Reset old metrics
           metrics.totalCalls = Math.floor(metrics.totalCalls * 0.5); // Decay old calls

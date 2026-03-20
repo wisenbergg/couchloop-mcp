@@ -7,7 +7,7 @@
 
 import { NodeTracerProvider } from '@opentelemetry/sdk-trace-node';
 import { registerInstrumentations } from '@opentelemetry/instrumentation';
-import * as resources from '@opentelemetry/resources';
+import { resourceFromAttributes } from '@opentelemetry/resources';
 import { SEMRESATTRS_SERVICE_NAME, SEMRESATTRS_SERVICE_VERSION, SEMRESATTRS_DEPLOYMENT_ENVIRONMENT } from '@opentelemetry/semantic-conventions';
 import {
   BatchSpanProcessor,
@@ -43,7 +43,7 @@ export function initializeTracing(options: {
   }
 
   // Create resource identifying this service
-  const resource = new resources.Resource({
+  const resource = resourceFromAttributes({
     [SEMRESATTRS_SERVICE_NAME]: options.serviceName || 'mcp-orchestrator',
     [SEMRESATTRS_SERVICE_VERSION]: options.serviceVersion || '2.0.0',
     [SEMRESATTRS_DEPLOYMENT_ENVIRONMENT]: process.env.NODE_ENV || 'development',
@@ -197,7 +197,7 @@ export function withContext<T>(
 /**
  * Extract context from incoming request headers
  */
-export function extractContext(headers: Record<string, string>): Context {
+export function extractContext(_headers: Record<string, string>): Context {
   // This would use W3C Trace Context propagation
   // For now, return active context
   return context.active();

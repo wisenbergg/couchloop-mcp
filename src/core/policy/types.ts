@@ -5,7 +5,7 @@
  * and determines routing strategy based on business rules.
  */
 
-import type { IntentClass, IntentResult } from '../intent/types.js';
+import type { IntentResult } from '../intent/types.js';
 
 export interface PolicyContext {
   // Request context

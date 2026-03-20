@@ -160,7 +160,7 @@ export class ExecutionPlanner {
   private createMultiIntentPlan(
     planId: string,
     intents: string[],
-    decision: PolicyDecision,
+    _decision: PolicyDecision,
     globalDeadlineMs: number,
   ): ExecutionPlan {
     const executionBudget = this.calculateExecutionBudget(globalDeadlineMs);
@@ -178,13 +178,16 @@ export class ExecutionPlanner {
     // If there are more intents than max parallel, chain them
     if (intents.length > this.config.maxParallelNodes) {
       for (let i = this.config.maxParallelNodes; i < intents.length; i++) {
-        nodes.push({
-          nodeId: `n${i + 1}`,
-          tool: this.mapIntentToTool(intents[i]),
-          dependsOn: [`n${i - this.config.maxParallelNodes + 1}`],
-          deadlineMs: perNodeBudget,
-          retryPolicy: 'standard',
-        });
+        const currentIntent = intents[i];
+        if (currentIntent) {
+          nodes.push({
+            nodeId: `n${i + 1}`,
+            tool: this.mapIntentToTool(currentIntent),
+            dependsOn: [`n${i - this.config.maxParallelNodes + 1}`],
+            deadlineMs: perNodeBudget,
+            retryPolicy: 'standard',
+          });
+        }
       }
     }
 
