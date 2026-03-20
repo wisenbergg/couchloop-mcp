@@ -14,7 +14,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../utils/logger.js';
-import { classifyIntent, determineRoutingStrategy } from '../core/intent/classifier.js';
+import { classifyIntent } from '../core/intent/classifier.js';
 import { PolicyEngine } from '../core/policy/engine.js';
 import { ExecutionPlanner } from '../core/planning/planner.js';
 import { ToolRegistry } from '../core/registry/registry.js';
@@ -22,14 +22,11 @@ import {
   createStandardRequest,
   createStandardResponse,
   createStandardError,
-  type StandardRequest,
-  type StandardResponse,
 } from '../core/envelopes.js';
 import {
   startRequestSpan,
   traceAsync,
   TracingStages,
-  setSpanAttributes,
   addSpanEvent,
 } from '../core/telemetry/tracing.js';
 import type { PolicyContext } from '../core/policy/types.js';
@@ -298,10 +295,11 @@ export async function couchloopV2Handler(args: Record<string, unknown>): Promise
           });
 
           // Try fallback if available
-          if (executionPlan.fallbacks[primaryNode.nodeId]?.length > 0) {
+          const fallbacks = executionPlan.fallbacks[primaryNode.nodeId];
+          if (fallbacks && fallbacks.length > 0 && fallbacks[0]) {
             addSpanEvent('executing_fallback');
             return executeFallback(
-              executionPlan.fallbacks[primaryNode.nodeId][0],
+              fallbacks[0],
               normalizedInput
             );
           }
@@ -333,7 +331,8 @@ export async function couchloopV2Handler(args: Record<string, unknown>): Promise
           intent: classification,
         });
 
-        const standardResponse = createStandardResponse(
+        // Create standard response for logging/metrics (but return legacy format)
+        createStandardResponse(
           standardRequest,
           executionResult.result,
           {

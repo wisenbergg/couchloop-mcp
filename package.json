@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "type": "module",
   "bin": {
-    "couchloop-eq-mcp": "./dist/index.js"
+    "couchloop-eq-mcp": "dist/index.js"
   },
   "files": [
     "dist/index.js",
