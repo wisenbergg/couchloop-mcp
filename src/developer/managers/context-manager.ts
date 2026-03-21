@@ -89,7 +89,9 @@ export class ContextManager {
       query = query.eq('category', category);
     }
     if (searchTerm) {
-      query = query.ilike('content', `%${searchTerm}%`);
+      // Escape SQL LIKE wildcards in the search term
+      const escaped = searchTerm.replace(/[%_]/g, '\\$&');
+      query = query.ilike('content', `%${escaped}%`);
     }
 
     const { data, error } = await query;
@@ -116,13 +118,21 @@ export class ContextManager {
 
     // Fire-and-forget: bump usage stats on retrieved rows
     const ids = data.map((r: any) => r.id);
-    const firstUsageCount: number = (data[0] as any)?.usage_count ?? 0;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any)
-      .from(TABLE)
-      .update({ usage_count: firstUsageCount + 1, last_accessed: new Date().toISOString() })
-      .in('id', ids)
-      .then(() => {}, (err: unknown) => logger.warn('[ContextManager] usage update failed:', err));
+      .rpc('increment_usage_count', { row_ids: ids })
+      .then(() => {}, (err: unknown) => {
+        // Fallback: update each row individually if RPC not available
+        ids.forEach((id: string) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (supabase as any)
+            .from(TABLE)
+            .update({ last_accessed: new Date().toISOString() })
+            .eq('id', id)
+            .then(() => {}, () => {});
+        });
+        logger.warn('[ContextManager] usage RPC failed, used fallback:', err);
+      });
 
     logger.info(`[ContextManager] Retrieved ${data.length} entries`);
 
@@ -206,7 +216,7 @@ export class ContextManager {
   async cleanup(daysOld = 30): Promise<PreserveContextResponse> {
     const supabase = getSupabase();
     if (!supabase) {
-      return this.degraded('retrieve', 'Supabase client unavailable');
+      return this.degraded('cleanup', 'Supabase client unavailable');
     }
 
     const cutoff = new Date();
@@ -222,7 +232,7 @@ export class ContextManager {
       logger.error('[ContextManager] cleanup error:', error.message);
       return {
         success: false,
-        action: 'retrieve',
+        action: 'cleanup',
         message: `Cleanup failed: ${error.message}`,
       };
     }
@@ -231,7 +241,7 @@ export class ContextManager {
 
     return {
       success: true,
-      action: 'retrieve',
+      action: 'cleanup',
       message: `Removed ${count ?? 0} entries older than ${daysOld} days`,
     };
   }

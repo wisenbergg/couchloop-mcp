@@ -57,10 +57,17 @@ export function initializeTracing(options: {
 
   // OTLP exporter (for Jaeger, Grafana Tempo, etc.)
   if (options.exporterUrl || process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
+    let parsedHeaders: Record<string, string> = {};
+    if (process.env.OTEL_EXPORTER_OTLP_HEADERS) {
+      try {
+        parsedHeaders = JSON.parse(process.env.OTEL_EXPORTER_OTLP_HEADERS);
+      } catch {
+        logger.warn('Invalid OTEL_EXPORTER_OTLP_HEADERS JSON, ignoring');
+      }
+    }
     const otlpExporter = new OTLPTraceExporter({
       url: options.exporterUrl || process.env.OTEL_EXPORTER_OTLP_ENDPOINT,
-      headers: process.env.OTEL_EXPORTER_OTLP_HEADERS ?
-        JSON.parse(process.env.OTEL_EXPORTER_OTLP_HEADERS) : {},
+      headers: parsedHeaders,
     });
     exporters.push(otlpExporter);
   }

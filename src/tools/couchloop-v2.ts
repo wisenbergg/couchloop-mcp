@@ -20,8 +20,6 @@ import { PolicyEngine } from '../core/policy/engine.js';
 import { ExecutionPlanner } from '../core/planning/planner.js';
 import { ToolRegistry } from '../core/registry/registry.js';
 import {
-  createStandardRequest,
-  createStandardResponse,
   createStandardError,
 } from '../core/envelopes.js';
 import {
@@ -325,29 +323,6 @@ export async function couchloopV2Handler(args: Record<string, unknown>): Promise
           'response.latency': totalLatency,
           'response.success': executionResult.success,
         });
-
-        // Create standard response
-        const standardRequest = createStandardRequest(normalizedInput, {
-          requestId,
-          traceId,
-          tenantId,
-          userId,
-          sessionId,
-          intent: classification,
-        });
-
-        // Create standard response for logging/metrics (but return legacy format)
-        createStandardResponse(
-          standardRequest,
-          executionResult.result,
-          {
-            toolName: executionResult.tool || 'unknown',
-            status: executionResult.success ? 'success' : 'failed',
-            latencyMs: totalLatency,
-            warnings: classification.ambiguous ?
-              ['Intent was ambiguous, best effort routing applied'] : undefined,
-          }
-        );
 
         // Return legacy format for backward compatibility
         return {
