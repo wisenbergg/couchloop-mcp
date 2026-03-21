@@ -1,6 +1,5 @@
-import * as fs from 'fs';
-import * as path from 'path';
 import { nanoid } from 'nanoid';
+import { getSupabase } from '../../db/client.js';
 import { logger } from '../../utils/logger.js';
 import {
   ContextEntry,
@@ -9,199 +8,154 @@ import {
   PreserveContextResponse,
 } from '../../types/context.js';
 
-const CONTEXT_STORE_PATH = path.join(process.cwd(), 'src', 'db', 'context-store.json');
-const MAX_CONTEXT_WINDOW_TOKENS = 200000; // Approximate token limit
-const AVG_CHARS_PER_TOKEN = 4; // Average characters per token
+const TABLE = 'context_entries';
+const MAX_CONTEXT_WINDOW_TOKENS = 200_000;
+const AVG_CHARS_PER_TOKEN = 4;
 
-interface ContextStore {
-  version: string;
-  entries: ContextEntry[];
-  metadata: {
-    created_at: string;
-    last_updated: string;
-  };
-}
-
+/**
+ * ContextManager — Supabase-backed context storage.
+ *
+ * Replaces the previous filesystem implementation (context-store.json)
+ * which failed in containerised deployments (Railway) where the application
+ * filesystem is read-only at runtime.
+ *
+ * Uses the existing getSupabase() singleton from db/client.ts — no new
+ * connections, no environment branching. Works identically in local dev,
+ * staging, and production as long as SUPABASE_* env vars are set.
+ *
+ * Falls back gracefully (degraded mode) when Supabase is unavailable so
+ * the MCP server can still respond to tool/list requests.
+ */
 export class ContextManager {
-  private store: ContextStore;
-  private isInitialized = false;
-
-  constructor() {
-    this.store = {
-      version: '1.0.0',
-      entries: [],
-      metadata: {
-        created_at: new Date().toISOString(),
-        last_updated: new Date().toISOString(),
-      },
-    };
-  }
-
   /**
-   * Initialize the context store from disk
-   */
-  async initialize(): Promise<void> {
-    try {
-      // Create parent directory if it doesn't exist
-      const dir = path.dirname(CONTEXT_STORE_PATH);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-
-      // Load existing store or create new one
-      if (fs.existsSync(CONTEXT_STORE_PATH)) {
-        const data = fs.readFileSync(CONTEXT_STORE_PATH, 'utf-8');
-        this.store = JSON.parse(data);
-        logger.info(`Loaded context store with ${this.store.entries.length} entries`);
-      } else {
-        this.createDefaultStore();
-        this.save();
-        logger.info('Created new context store');
-      }
-
-      this.isInitialized = true;
-    } catch (error) {
-      logger.error('Failed to initialize context manager:', error);
-      throw new Error(`Context manager initialization failed: ${error}`);
-    }
-  }
-
-  /**
-   * Store a context entry
+   * Store a context entry.
    */
   async storeEntry(
     category: ContextCategoryType,
     content: string,
   ): Promise<PreserveContextResponse> {
-    this.ensureInitialized();
-
-    try {
-      const entry: ContextEntry = {
-        id: nanoid(),
-        category,
-        content,
-        timestamp: new Date(),
-        usage_count: 0,
-        last_retrieved: null,
-      };
-
-      this.store.entries.push(entry);
-      this.store.metadata.last_updated = new Date().toISOString();
-      this.save();
-
-      logger.info(`Stored context entry: ${entry.id} in category: ${category}`);
-
-      return {
-        success: true,
-        action: 'store',
-        message: `Successfully stored context in "${category}" category`,
-        data: [entry],
-      };
-    } catch (error) {
-      logger.error('Error storing context:', error);
-      throw new Error(`Failed to store context: ${error}`);
+    const supabase = getSupabase();
+    if (!supabase) {
+      return this.degraded('store', 'Supabase client unavailable — check SUPABASE_* env vars');
     }
+
+    const { data, error } = await supabase
+      .from(TABLE)
+      .insert({ id: nanoid(), category, content, usage_count: 0, tags: [] })
+      .select()
+      .single();
+
+    if (error) {
+      logger.error('[ContextManager] storeEntry error:', error.message);
+      return {
+        success: false,
+        action: 'store',
+        message: `Failed to store context: ${error.message}`,
+      };
+    }
+
+    logger.info(`[ContextManager] Stored entry id=${data.id} category=${category}`);
+
+    return {
+      success: true,
+      action: 'store',
+      message: `Successfully stored context in "${category}" category`,
+      data: [this.toEntry(data)],
+    };
   }
 
   /**
-   * Retrieve context entries by category or search term
+   * Retrieve context entries — optionally filtered by category and/or search term.
+   * Increments usage_count and updates last_accessed as a fire-and-forget side effect.
    */
   async retrieve(
     category?: ContextCategoryType,
     searchTerm?: string,
   ): Promise<PreserveContextResponse> {
-    this.ensureInitialized();
+    const supabase = getSupabase();
+    if (!supabase) {
+      return this.degraded('retrieve', 'Supabase client unavailable');
+    }
 
-    try {
-      let results = this.store.entries;
+    let query = supabase
+      .from(TABLE)
+      .select('*')
+      .order('created_at', { ascending: false });
 
-      // Filter by category if provided
-      if (category) {
-        results = results.filter((e) => e.category === category);
-      }
+    if (category) {
+      query = query.eq('category', category);
+    }
+    if (searchTerm) {
+      query = query.ilike('content', `%${searchTerm}%`);
+    }
 
-      // Filter by search term if provided
-      if (searchTerm) {
-        const term = searchTerm.toLowerCase();
-        results = results.filter((e) => e.content.toLowerCase().includes(term));
-      }
+    const { data, error } = await query;
 
-      // Update usage count and last retrieved timestamp
-      results.forEach((entry) => {
-        entry.usage_count += 1;
-        entry.last_retrieved = new Date();
-      });
+    if (error) {
+      logger.error('[ContextManager] retrieve error:', error.message);
+      return {
+        success: false,
+        action: 'retrieve',
+        message: `Failed to retrieve context: ${error.message}`,
+      };
+    }
 
-      this.store.metadata.last_updated = new Date().toISOString();
-      this.save();
-
-      if (results.length === 0) {
-        return {
-          success: true,
-          action: 'retrieve',
-          message: `No context found${category ? ` in category "${category}"` : ''}${
-            searchTerm ? ` matching "${searchTerm}"` : ''
-          }`,
-          data: null,
-        };
-      }
-
-      logger.info(`Retrieved ${results.length} context entries`);
-
+    if (!data || data.length === 0) {
       return {
         success: true,
         action: 'retrieve',
-        message: `Retrieved ${results.length} context entries`,
-        data: results,
+        message: `No context found${category ? ` in category "${category}"` : ''}${
+          searchTerm ? ` matching "${searchTerm}"` : ''
+        }`,
+        data: null,
       };
-    } catch (error) {
-      logger.error('Error retrieving context:', error);
-      throw new Error(`Failed to retrieve context: ${error}`);
     }
+
+    // Fire-and-forget: bump usage stats on retrieved rows
+    const ids = data.map((r: any) => r.id);
+    supabase
+      .from(TABLE)
+      .update({ usage_count: data[0].usage_count + 1, last_accessed: new Date().toISOString() })
+      .in('id', ids)
+      .then(() => {}, (err: unknown) => logger.warn('[ContextManager] usage update failed:', err));
+
+    logger.info(`[ContextManager] Retrieved ${data.length} entries`);
+
+    return {
+      success: true,
+      action: 'retrieve',
+      message: `Retrieved ${data.length} context entries`,
+      data: data.map((r: any) => this.toEntry(r)),
+    };
   }
 
   /**
-   * Check context window status and provide warnings if needed
+   * Check context window usage and return store metadata.
    */
-  async check(includeMetadata: boolean = false): Promise<PreserveContextResponse> {
-    this.ensureInitialized();
+  async check(includeMetadata = false): Promise<PreserveContextResponse> {
+    const supabase = getSupabase();
+    if (!supabase) {
+      return this.degraded('check', 'Supabase client unavailable');
+    }
 
-    try {
-      const metadata = this.getMetadata();
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select('category, content');
 
-      let warning: string | undefined;
-      if (metadata.context_window_usage_percent > 80) {
-        warning = `Context window is ${metadata.context_window_usage_percent.toFixed(
-          1,
-        )}% full. Consider archiving or cleaning up old context entries.`;
-      } else if (metadata.context_window_usage_percent > 60) {
-        warning = `Context window is ${metadata.context_window_usage_percent.toFixed(
-          1,
-        )}% full. You may want to monitor usage.`;
-      }
-
-      const response: PreserveContextResponse = {
-        success: true,
+    if (error) {
+      logger.error('[ContextManager] check error:', error.message);
+      return {
+        success: false,
         action: 'check',
-        message: `Context store contains ${metadata.total_entries} entries`,
-        warning,
+        message: `Failed to check context: ${error.message}`,
       };
-
-      if (includeMetadata) {
-        response.data = metadata;
-      }
-
-      return response;
-    } catch (error) {
-      logger.error('Error checking context:', error);
-      throw new Error(`Failed to check context: ${error}`);
     }
-  }
 
-  /**
-   * Get metadata about the context store
-   */
-  private getMetadata(): ContextMetadata {
+    const rows = data ?? [];
+    const totalBytes = rows.reduce((sum: number, r: any) => sum + (r.content?.length ?? 0), 0);
+    const estimatedTokens = totalBytes / AVG_CHARS_PER_TOKEN;
+    const usagePct = Math.min((estimatedTokens / MAX_CONTEXT_WINDOW_TOKENS) * 100, 100);
+
     const entriesByCategory: Record<ContextCategoryType, number> = {
       architecture: 0,
       requirements: 0,
@@ -210,158 +164,102 @@ export class ContextManager {
       'technical-patterns': 0,
       'project-metadata': 0,
     };
-
-    let totalBytes = 0;
-
-    this.store.entries.forEach((entry) => {
-      entriesByCategory[entry.category]++;
-      totalBytes += entry.content.length;
+    rows.forEach((r: any) => {
+      if (r.category in entriesByCategory) {
+        entriesByCategory[r.category as ContextCategoryType]++;
+      }
     });
 
-    const estimatedTokens = totalBytes / AVG_CHARS_PER_TOKEN;
-    const usagePercent = (estimatedTokens / MAX_CONTEXT_WINDOW_TOKENS) * 100;
+    let warning: string | undefined;
+    if (usagePct > 80) {
+      warning = `Context store is ${usagePct.toFixed(1)}% full. Consider cleaning up old entries.`;
+    } else if (usagePct > 60) {
+      warning = `Context store is ${usagePct.toFixed(1)}% full.`;
+    }
 
-    return {
-      total_entries: this.store.entries.length,
+    const metadata: ContextMetadata = {
+      total_entries: rows.length,
       entries_by_category: entriesByCategory,
       total_stored_bytes: totalBytes,
-      last_updated: new Date(this.store.metadata.last_updated),
-      context_window_usage_percent: Math.min(usagePercent, 100),
+      last_updated: new Date(),
+      context_window_usage_percent: usagePct,
+    };
+
+    return {
+      success: true,
+      action: 'check',
+      message: `Context store contains ${rows.length} entries`,
+      warning,
+      ...(includeMetadata ? { data: metadata } : {}),
     };
   }
 
   /**
-   * Clear old or unused context entries (cleanup)
+   * Remove entries older than `daysOld` days.
    */
-  async cleanup(daysOld: number = 30): Promise<PreserveContextResponse> {
-    this.ensureInitialized();
+  async cleanup(daysOld = 30): Promise<PreserveContextResponse> {
+    const supabase = getSupabase();
+    if (!supabase) {
+      return this.degraded('retrieve', 'Supabase client unavailable');
+    }
 
-    try {
-      const cutoffDate = new Date();
-      cutoffDate.setDate(cutoffDate.getDate() - daysOld);
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - daysOld);
 
-      const beforeCount = this.store.entries.length;
-      this.store.entries = this.store.entries.filter((entry) => {
-        const entryDate = new Date(entry.timestamp);
-        return entryDate > cutoffDate;
-      });
+    const { error, count } = await supabase
+      .from(TABLE)
+      .delete({ count: 'exact' })
+      .lt('created_at', cutoff.toISOString());
 
-      const removedCount = beforeCount - this.store.entries.length;
-      this.store.metadata.last_updated = new Date().toISOString();
-      this.save();
-
-      logger.info(`Cleaned up ${removedCount} context entries older than ${daysOld} days`);
-
+    if (error) {
+      logger.error('[ContextManager] cleanup error:', error.message);
       return {
-        success: true,
+        success: false,
         action: 'retrieve',
-        message: `Removed ${removedCount} entries older than ${daysOld} days`,
+        message: `Cleanup failed: ${error.message}`,
       };
-    } catch (error) {
-      logger.error('Error cleaning context:', error);
-      throw new Error(`Failed to cleanup context: ${error}`);
     }
-  }
 
-  /**
-   * Export all context for backup
-   */
-  async export(): Promise<ContextStore> {
-    this.ensureInitialized();
-    return JSON.parse(JSON.stringify(this.store));
-  }
+    logger.info(`[ContextManager] Cleaned up ${count ?? 0} entries older than ${daysOld} days`);
 
-  /**
-   * Import context from backup
-   */
-  async import(store: ContextStore): Promise<void> {
-    try {
-      this.store = store;
-      this.store.metadata.last_updated = new Date().toISOString();
-      this.save();
-      logger.info('Imported context store');
-    } catch (error) {
-      logger.error('Error importing context:', error);
-      throw new Error(`Failed to import context: ${error}`);
-    }
-  }
-
-  /**
-   * Create default context store
-   */
-  private createDefaultStore(): void {
-    this.store = {
-      version: '1.0.0',
-      entries: [
-        {
-          id: nanoid(),
-          category: 'project-metadata',
-          content: 'CouchLoop MCP Server - Model Context Protocol server for stateful conversation management',
-          timestamp: new Date(),
-          usage_count: 0,
-          last_retrieved: null,
-        },
-        {
-          id: nanoid(),
-          category: 'architecture',
-          content:
-            'CouchLoop uses PostgreSQL via Supabase with Drizzle ORM. MCP protocol via stdio for communication. Session/journey/checkpoint management.',
-          timestamp: new Date(),
-          usage_count: 0,
-          last_retrieved: null,
-        },
-        {
-          id: nanoid(),
-          category: 'requirements',
-          content:
-            'Must support multi-turn conversations, session persistence across interruptions, guided journeys, crisis detection via shrink-chat integration',
-          timestamp: new Date(),
-          usage_count: 0,
-          last_retrieved: null,
-        },
-      ],
-      metadata: {
-        created_at: new Date().toISOString(),
-        last_updated: new Date().toISOString(),
-      },
+    return {
+      success: true,
+      action: 'retrieve',
+      message: `Removed ${count ?? 0} entries older than ${daysOld} days`,
     };
   }
 
-  /**
-   * Save store to disk
-   */
-  private save(): void {
-    try {
-      const dir = path.dirname(CONTEXT_STORE_PATH);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-      fs.writeFileSync(CONTEXT_STORE_PATH, JSON.stringify(this.store, null, 2), 'utf-8');
-    } catch (error) {
-      logger.error('Failed to save context store:', error);
-      throw new Error(`Failed to persist context: ${error}`);
-    }
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  /** Map a raw Supabase row to the ContextEntry shape used by the rest of the codebase. */
+  private toEntry(row: any): ContextEntry {
+    return {
+      id: row.id,
+      category: row.category as ContextCategoryType,
+      content: row.content,
+      timestamp: new Date(row.created_at),
+      usage_count: row.usage_count ?? 0,
+      last_retrieved: row.last_accessed ? new Date(row.last_accessed) : null,
+    };
   }
 
-  /**
-   * Ensure manager is initialized
-   */
-  private ensureInitialized(): void {
-    if (!this.isInitialized) {
-      throw new Error(
-        'ContextManager not initialized. Call initialize() before using other methods.',
-      );
-    }
+  /** Return a consistent degraded-mode response when Supabase is unavailable. */
+  private degraded(action: PreserveContextResponse['action'], reason: string): PreserveContextResponse {
+    logger.warn(`[ContextManager] Degraded mode — ${reason}`);
+    return {
+      success: false,
+      action,
+      message: `Context storage unavailable: ${reason}`,
+    };
   }
 }
 
-// Singleton instance
+// Singleton — no initialize() needed; Supabase client handles its own lifecycle.
 let instance: ContextManager | null = null;
 
 export async function getContextManager(): Promise<ContextManager> {
   if (!instance) {
     instance = new ContextManager();
-    await instance.initialize();
   }
   return instance;
 }

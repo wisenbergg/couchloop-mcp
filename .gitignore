@@ -181,8 +181,8 @@ docs/OAUTH_IMPLEMENTATION_PLAN.md
 # Runtime/Temporary Data
 src/db/context-store.json
 
-# Database Migrations (using drizzle push workflow)
-src/db/migrations/
+# Database Migrations (tracked for deployment)
+# src/db/migrations/
 
 # Shell/Bash scripts (especially with env vars)
 test-*.sh

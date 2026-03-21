@@ -453,13 +453,20 @@ export async function setupTools() {
       tool.handler as (args: Record<string, unknown>) => Promise<unknown>,
     );
 
-    // Register each tool with the V2 registry for health tracking
+    // Register real handler into V2 registry.
+    // Uses existing metadata if already registered (from initializeToolRegistry),
+    // otherwise falls back to a minimal metadata stub so health tracking still works.
     const toolName = tool.definition.name;
-    const existingMetadata = registry.getTool(toolName);
-    if (existingMetadata) {
-      // Update handler in registry
-      registry.register(existingMetadata.metadata, wrappedHandler);
-    }
+    const existing = registry.getTool(toolName);
+    const metadata = existing?.metadata ?? {
+      toolName,
+      version: '2.0.0',
+      capabilities: [],
+      latencyProfile: { p50Ms: 500, p95Ms: 1000 },
+      constraints: { idempotent: false, safeParallel: false, supportsCache: false },
+      costWeight: 0.5,
+    };
+    registry.register(metadata, wrappedHandler);
 
     return {
       ...tool,

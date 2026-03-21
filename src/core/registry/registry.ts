@@ -77,7 +77,15 @@ export class ToolRegistry {
     handler: ToolHandler,
   ): void {
     const existing = this.tools.get(metadata.toolName);
-    if (existing && existing.metadata.version >= metadata.version) {
+    // Only block re-registration if the existing entry already has a real handler
+    // (i.e. not a placeholder). Placeholders are identified by their name containing
+    // 'not yet implemented'. This allows setupTools() to replace placeholder handlers
+    // with real ones without being blocked by the version guard.
+    const isPlaceholder = existing && (
+      existing.handler.toString().includes('not yet implemented') ||
+      existing.handler.name === 'handler'
+    );
+    if (existing && !isPlaceholder && existing.metadata.version >= metadata.version) {
       logger.warn(`Tool ${metadata.toolName} already registered with same or newer version`);
       return;
     }
@@ -274,7 +282,11 @@ export class ToolRegistry {
 }
 
 /**
- * Pre-populate registry with existing tools
+ * Pre-populate registry with tool metadata only.
+ * Handlers are registered separately by setupTools() once they are
+ * fully initialised and policy-wrapped. Keeping metadata and handlers
+ * separate avoids the placeholder-handler problem where the version guard
+ * blocks real handler registration.
  */
 export function initializeToolRegistry(): void {
   const registry = ToolRegistry.getInstance();
