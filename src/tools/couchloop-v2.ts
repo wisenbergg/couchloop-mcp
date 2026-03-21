@@ -15,6 +15,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from '../utils/logger.js';
 import { classifyIntent } from '../core/intent/classifier.js';
+import { intentRouterTool } from './intent-router.js';
 import { PolicyEngine } from '../core/policy/engine.js';
 import { ExecutionPlanner } from '../core/planning/planner.js';
 import { ToolRegistry } from '../core/registry/registry.js';
@@ -407,16 +408,27 @@ export async function couchloopV2Handler(args: Record<string, unknown>): Promise
 }
 
 /**
- * Execute legacy router for backward compatibility
+ * Execute legacy router for backward compatibility.
+ * Delegates to the real intent router (intent-router.ts) which has its own
+ * populated tool registry from registerTools(). This bridges the gap between
+ * the V2 ToolRegistry and the legacy tool Map until they are fully unified.
  */
 async function executeLegacyRouter(input: any): Promise<any> {
-  // This would call the existing intent-router.ts handler
-  // For now, return a placeholder
-  return {
-    routed_to: 'legacy_router',
-    message: 'Falling back to legacy router',
-    input,
-  };
+  try {
+    const result = await intentRouterTool.handler({
+      intent: input.intent,
+      context: input.context,
+      session_id: input.metadata?.sessionId,
+    });
+    return result;
+  } catch (error) {
+    logger.error('[couchloop-v2] Legacy router fallback failed:', error);
+    return {
+      success: false,
+      routed_to: 'legacy_router',
+      error: error instanceof Error ? error.message : 'Legacy router failed',
+    };
+  }
 }
 
 /**
