@@ -260,6 +260,10 @@ export async function couchloopV2Handler(args: Record<string, unknown>): Promise
               intent: normalizedInput.intent,
               context: normalizedInput.context,
               action: mapIntentToAction(classification.primaryIntent),
+              // Tool-specific required parameter defaults.
+              // The V2 direct-execution path bypasses the legacy intent router's
+              // per-tool arg mapping, so we supply sensible defaults here.
+              ...mapToolArgs(primaryNode.tool, normalizedInput.intent),
             }),
             new Promise((_, reject) =>
               setTimeout(() => reject(new Error('Tool execution timeout')), primaryNode.deadlineMs)
@@ -457,6 +461,33 @@ async function executeFallback(toolName: string, input: any): Promise<any> {
       error: error instanceof Error ? error.message : 'Fallback failed',
       tool: toolName,
     };
+  }
+}
+
+/**
+ * Map tool name to the required args it needs beyond intent/context/action.
+ * Prevents "Required" validation errors when the V2 executor calls tools directly
+ * without going through the legacy intent router's per-tool arg mapping.
+ */
+function mapToolArgs(toolName: string, intent: string): Record<string, unknown> {
+  switch (toolName) {
+    case 'status': {
+      // Infer check type from intent, default to 'all'
+      if (/session|progress/i.test(intent)) return { check: 'session' };
+      if (/history|insight|pattern/i.test(intent)) return { check: 'history' };
+      if (/context|window|stored|decision/i.test(intent)) return { check: 'context' };
+      if (/backup|protection|freeze/i.test(intent)) return { check: 'protection' };
+      if (/preference|setting|timezone/i.test(intent)) return { check: 'preferences' };
+      return { check: 'all' };
+    }
+    case 'conversation':
+      return { message: intent };
+    case 'brainstorm':
+      return { message: intent };
+    case 'remember':
+      return { content: intent };
+    default:
+      return {};
   }
 }
 
