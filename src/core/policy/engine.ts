@@ -198,10 +198,10 @@ const POLICY_RULES: PolicyRule[] = [
   {
     name: 'deadline_simplification',
     priority: 85,
-    condition: (ctx, _classification, health) => {
+    condition: (ctx, classification, health) => {
       if (!ctx.latencyBudgetMs) return false;
 
-      const toolName = mapIntentToTool(_classification.primaryIntent);
+      const toolName = mapIntentToTool(classification.primaryIntent);
       const toolHealth = health.get(toolName);
 
       return Boolean(

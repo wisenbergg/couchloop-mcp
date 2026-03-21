@@ -12,7 +12,7 @@ export const ContextCategory = z.enum([
 export type ContextCategoryType = z.infer<typeof ContextCategory>;
 
 export const PreserveContextSchema = z.object({
-  action: z.enum(['store', 'retrieve', 'check']).describe('Action to perform'),
+  action: z.enum(['store', 'retrieve', 'check', 'cleanup']).describe('Action to perform'),
   category: ContextCategory.optional().describe('Context category (e.g., "architecture", "requirements")'),
   content: z.string().optional().describe('Content to store'),
   search_term: z.string().optional().describe('Search term for retrieving context'),
@@ -40,7 +40,7 @@ export interface ContextMetadata {
 
 export interface PreserveContextResponse {
   success: boolean;
-  action: 'store' | 'retrieve' | 'check';
+  action: 'store' | 'retrieve' | 'check' | 'cleanup';
   message: string;
   data?: ContextEntry[] | ContextMetadata | null;
   warning?: string;
