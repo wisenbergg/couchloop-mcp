@@ -477,21 +477,38 @@ function mapIntentToAction(intent: string): string | undefined {
 export const couchloopV2Tool = {
   definition: {
     name: 'couchloop',
-    description: 'Universal entry point for CouchLoop V2 - now with modular orchestration',
+    description: `Universal entry point for CouchLoop. Routes ANY command to the right tool automatically. ALWAYS use for ambiguous or loose commands. Handles:
+- Sessions: "end session", "start", "done", "wrap up", "goodbye", "resume", "where should I start", "hi", "hey"
+- Status: "how am I doing", "what do you know about me", "show my progress", "my settings", "dashboard"
+- Memory: "save", "remember", "checkpoint", "recall", "don't forget", "keep track"
+- Code: "review code", "check this", "find bugs", "is this safe", "analyze"
+- Packages: "audit dependencies", "outdated", "npm audit", "upgrade packages", "security scan"
+- Protection: "backup", "freeze code", "rollback", "undo", "restore"
+- Brainstorm: "brainstorm", "think through", "map out feature", "help me design", "I have an idea", "trade-offs"
+- Journeys: "I'm stressed", "feeling anxious", "help me", "need to talk"
+- Verification: "verify this", "check my response", "is this correct", "does this package exist"
+
+Invoke for ANY ambiguous, loose, or multi-intent command. High-confidence single-intent commands can also call specific tools directly.`,
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
     inputSchema: {
       type: 'object',
       properties: {
         intent: {
           type: 'string',
-          description: 'What the user wants to do',
+          description: 'What the user wants to do. Can be a loose natural-language phrase like "end session", "review this code", "I have an idea", or "where should I start".',
         },
         context: {
           type: 'string',
-          description: 'Additional context',
+          description: 'Additional content relevant to the intent — code to review, a message body, package names, or any supporting detail that helps route and execute the command.',
         },
         session_id: {
           type: 'string',
-          description: 'Session ID if known',
+          description: 'Active session ID if known. Omit to let the server resolve the current session automatically.',
         },
       },
       required: ['intent'],
