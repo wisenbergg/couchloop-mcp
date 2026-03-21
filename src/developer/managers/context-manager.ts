@@ -12,6 +12,7 @@ const TABLE = 'context_entries';
 const MAX_CONTEXT_WINDOW_TOKENS = 200_000;
 const AVG_CHARS_PER_TOKEN = 4;
 
+
 /**
  * ContextManager — Supabase-backed context storage.
  *
@@ -39,7 +40,8 @@ export class ContextManager {
       return this.degraded('store', 'Supabase client unavailable — check SUPABASE_* env vars');
     }
 
-    const { data, error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any)
       .from(TABLE)
       .insert({ id: nanoid(), category, content, usage_count: 0, tags: [] })
       .select()
@@ -77,7 +79,8 @@ export class ContextManager {
       return this.degraded('retrieve', 'Supabase client unavailable');
     }
 
-    let query = supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let query = (supabase as any)
       .from(TABLE)
       .select('*')
       .order('created_at', { ascending: false });
@@ -113,9 +116,11 @@ export class ContextManager {
 
     // Fire-and-forget: bump usage stats on retrieved rows
     const ids = data.map((r: any) => r.id);
-    supabase
+    const firstUsageCount: number = (data[0] as any)?.usage_count ?? 0;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
       .from(TABLE)
-      .update({ usage_count: data[0].usage_count + 1, last_accessed: new Date().toISOString() })
+      .update({ usage_count: firstUsageCount + 1, last_accessed: new Date().toISOString() })
       .in('id', ids)
       .then(() => {}, (err: unknown) => logger.warn('[ContextManager] usage update failed:', err));
 
@@ -138,7 +143,8 @@ export class ContextManager {
       return this.degraded('check', 'Supabase client unavailable');
     }
 
-    const { data, error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any)
       .from(TABLE)
       .select('category, content');
 
@@ -206,7 +212,8 @@ export class ContextManager {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - daysOld);
 
-    const { error, count } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error, count } = await (supabase as any)
       .from(TABLE)
       .delete({ count: 'exact' })
       .lt('created_at', cutoff.toISOString());

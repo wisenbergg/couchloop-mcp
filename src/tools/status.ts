@@ -10,7 +10,7 @@ import { getDb } from '../db/client.js';
 import { sessions, checkpoints, insights } from '../db/schema.js';
 import { eq, desc, count } from 'drizzle-orm';
 import { WorkflowEngine } from '../workflows/engine.js';
-import { ContextManager } from '../developer/managers/context-manager.js';
+import { getContextManager } from '../developer/managers/context-manager.js';
 import { ContextMetadata, ContextEntry } from '../types/context.js';
 import { getProtectionStatus, listBackups } from './protect-files.js';
 import { getUserContext } from './insight.js';
@@ -296,8 +296,7 @@ interface ContextStatus {
 
 async function getContextStatus(): Promise<ContextStatus> {
   try {
-    const contextManager = new ContextManager();
-    await contextManager.initialize();
+    const contextManager = await getContextManager();
     const checkResult = await contextManager.check(true);
     
     const metadata = (checkResult.data || {}) as ContextMetadata;
