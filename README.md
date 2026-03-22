@@ -1,4 +1,4 @@
-# CouchLoop EQ — MCP Server
+# CouchLoop EQ - MCP Server
 
 Behavioral governance layer for safer, more consistent AI conversations.
 
@@ -31,7 +31,7 @@ Behavioral governance layer for safer, more consistent AI conversations.
 
 ## What is CouchLoop EQ?
 
-CouchLoop EQ v2.0 is a **high-performance, modular orchestration system** for AI behavioral governance. Built on MCP (Model Context Protocol), it provides confidence-based routing, parallel execution, and comprehensive observability—while monitoring for hallucination, inconsistency, and unsafe reasoning patterns.
+CouchLoop EQ is a behavioral governance layer for AI assistants. Built on MCP (Model Context Protocol), it monitors for hallucination, inconsistency, and unsafe reasoning patterns while managing stateful AI sessions.
 
 ## Why CouchLoop EQ?
 
@@ -48,32 +48,19 @@ Unlike raw LLMs that can hallucinate packages, generate insecure code, and lose 
 | 🔍 **Sloppy AI code**        | `verify` pre-checks AI responses for hallucinated APIs and bad imports        |
 | 💡 **Unstructured thinking** | `brainstorm` helps think through trade-offs, compare options, decompose ideas |
 
-## 🚀 New in v2.0: Modular Orchestration Architecture
+## Architecture
 
-CouchLoop EQ has been completely redesigned from a monolithic router to a high-performance modular system:
+CouchLoop EQ uses a modular pipeline:
 
-### Architecture Evolution
 ```
-V1: couchloop → regex patterns → direct tool execution (slow, rigid)
-V2: Request → Classify → Policy → Plan → Execute → Compose (fast, flexible)
+Request -> Classify -> Policy -> Plan -> Execute -> Compose
 ```
 
-### Performance Improvements
-| Metric | V1 | V2 | Improvement |
-|--------|-----|-----|------------|
-| **P95 Latency** | 4.5s | < 3.0s | 33% faster |
-| **Direct Routing** | 0% | 60%+ | Bypasses router for high confidence |
-| **Parallel Execution** | No | Yes | 2-4x throughput |
-| **Circuit Breakers** | No | Yes | Auto-recovery from failures |
-| **Observability** | Basic logs | Full tracing | 100% request visibility |
-
-### V2 Core Components
-- **Intent Classifier**: Confidence-based routing (no more regex-only)
-- **Policy Engine**: Health-aware decisions with fallbacks
+- **Intent Classifier**: Confidence-based routing with multi-intent detection
+- **Policy Engine**: Health-aware routing with fallbacks and crisis override
 - **Execution Planner**: DAG generation for parallel operations
-- **Tool Registry**: Real-time health tracking and circuit breakers
+- **Tool Registry**: Health tracking and circuit breakers
 - **OpenTelemetry**: Distributed tracing across all stages
-- **Feature Flags**: Gradual rollout control (0-100%)
 
 ## Key Safety Features
 
@@ -100,7 +87,7 @@ V2: Request → Classify → Policy → Plan → Execute → Compose (fast, flex
 
 ## Quick Start
 
-CouchLoop EQ is a standard MCP server that works with **any MCP-compatible client**—Claude Desktop, ChatGPT, Cursor, Windsurf, VS Code, and more.
+CouchLoop EQ is a standard MCP server that works with **any MCP-compatible client** - Claude Desktop, ChatGPT, Cursor, Windsurf, VS Code, and more.
 
 ### Option 1: Connect to Hosted Server (Easiest)
 
@@ -121,7 +108,7 @@ For Claude Desktop (v0.7.0+), add to `~/Library/Application Support/Claude/claud
 
 Restart Claude and try: **"Start a daily reflection session"**
 
-### Option 2: Run Locally (v1.2.0)
+### Option 2: Run Locally
 
 ```bash
 npm install -g couchloop-eq-mcp
@@ -142,7 +129,7 @@ Add to Claude Desktop configuration:
 }
 ```
 
-**New in v1.0.4**: Sessions automatically persist locally to `~/.couchloop-mcp/identity.json` - no signup required!
+Sessions automatically persist locally to `~/.couchloop-mcp/identity.json` - no signup required.
 
 ### For ChatGPT (Developer Mode)
 
@@ -169,40 +156,44 @@ For local development:
 - Use ngrok or deploy your own server
 - Follow setup in [CHATGPT_SETUP.md](CHATGPT_SETUP.md)
 
-## Available Tools (11 Primary - V2 Architecture)
+## Available Tools (10 Primary)
 
-CouchLoop EQ v2.0 uses a consolidated 11-tool architecture with intelligent routing. The `couchloop_router` is now **only used for ambiguous requests**—high-confidence intents go direct to tools for 60%+ faster execution.
-
-> **v2.0:** Direct routing for high confidence (bypasses router), parallel execution for multi-intent requests, circuit breakers for automatic recovery, and full OpenTelemetry tracing.
+CouchLoop EQ provides 10 MCP tools with intelligent routing. The `couchloop` intent router handles ambiguous or multi-intent requests, while high-confidence intents can call tools directly.
 
 ### Universal Entry Point
 
 | Tool        | Description                                                                                                                                            |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `couchloop` | **Intent router** — Routes any loose command to the right tool. Use for: "end session", "save this", "review code", "brainstorm this", "help me", etc. |
+| `couchloop` | **Intent router** - Routes any loose command to the right tool. Use for: "end session", "save this", "review code", "brainstorm this", "help me", etc. |
+
+### Governance
+
+| Tool    | Description                                                                                              |
+| ------- | -------------------------------------------------------------------------------------------------------- |
+| `guard` | **Per-turn governance** - Evaluates draft responses before delivery. Actions: pass, modified, or blocked |
 
 ### Core Tools
 
 | Tool            | Description                                                                                                           |
 | --------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `verify`        | **Pre-delivery verification** — Catches AI hallucinations, validates packages, checks code before presenting to users |
-| `status`        | **Dashboard** — Session progress, history, context window usage, protection status, preferences                       |
+| `verify`        | **Pre-delivery verification** - Catches AI hallucinations, validates packages, checks code before presenting to users |
+| `status`        | **Dashboard** - Session progress, history, context window usage, protection status, preferences                       |
 | `conversation`  | AI conversation with crisis detection and session memory. Actions: start, send, end, resume, status                   |
-| `brainstorm`    | **Standalone dev thinking partner** — trade-off analysis, feature design, architecture decisions                      |
-| `code_review`   | Complete code analysis — security vulnerabilities, code smells, AI-generated errors                                   |
-| `package_audit` | Dependency audit — validates packages exist, checks versions, finds vulnerabilities                                   |
+| `brainstorm`    | **Standalone dev thinking partner** - trade-off analysis, feature design, architecture decisions                      |
+| `code_review`   | Complete code analysis - security vulnerabilities, code smells, AI-generated errors                                   |
+| `package_audit` | Dependency audit - validates packages exist, checks versions, finds vulnerabilities                                   |
 | `remember`      | Save and recall context, checkpoints, insights across sessions                                                        |
-| `protect`       | File protection — backup, freeze, rollback, restore                                                                   |
+| `protect`       | File protection - backup, freeze, rollback, restore                                                                   |
 
 ### Usage Examples
 
 ```
 # Via intent router (recommended for loose commands)
-"end session"          → couchloop routes to conversation(action: end)
-"save this for later"  → couchloop routes to remember(action: save)
-"review my code"       → couchloop routes to code_review
-"brainstorm a feature" → couchloop routes to brainstorm
-"what can you do"      → couchloop returns capabilities list
+"end session"          -> couchloop routes to conversation(action: end)
+"save this for later"  -> couchloop routes to remember(action: save)
+"review my code"       -> couchloop routes to code_review
+"brainstorm a feature" -> couchloop routes to brainstorm
+"what can you do"      -> couchloop returns capabilities list
 
 # Direct tool calls (for precise control)
 conversation(action: "start", message: "Begin daily reflection")
@@ -214,7 +205,7 @@ code_review(code: "function foo()...")  # Analyze code
 
 ## Real-World Usage
 
-CouchLoop EQ is actively used in production development. Here's what 2 weeks of actual usage looks like:
+CouchLoop EQ is actively used in production development. Here is what 2 weeks of actual usage looked like:
 
 ### Usage Statistics
 
@@ -268,22 +259,22 @@ This insight was captured mid-debugging session, preserved across context window
 
 | Feature Size          | Recommended Actions                                                                          |
 | --------------------- | -------------------------------------------------------------------------------------------- |
-| **Small fix**         | `save_insight` — Quick note of what was done and why                                         |
-| **Medium feature**    | `save_insight` + `save_checkpoint` — Capture decisions and state                             |
-| **Large feature set** | `preserve_context` + `save_checkpoint` + multiple `save_insight` — Full architecture context |
+| **Small fix**         | `remember` with type `insight` - Quick note of what was done and why                         |
+| **Medium feature**    | `remember` with type `insight` + `checkpoint` - Capture decisions and state                   |
+| **Large feature set** | Multiple `remember` calls (insight, checkpoint, decision) - Full architecture context         |
 
-**Why this matters:** When you need to review or debug later, you can retrieve the exact context of what was just built—even weeks later, across different AI sessions.
+**Why this matters:** When you need to review or debug later, you can retrieve the exact context of what was just built - even weeks later, across different AI sessions.
 
 ```
-"Get my insights tagged 'auth-refactor'" → Instant recall of decisions made
-"Resume my Sprint 42 session" → Pick up exactly where you left off
+"Get my insights tagged 'auth-refactor'" -> Instant recall of decisions made
+"Resume my Sprint 42 session" -> Pick up exactly where you left off
 ```
 
 ## Available Journeys
 
-- **Daily Reflection** (5 min) — A brief check-in to process your day
-- **Gratitude Practice** (3 min) — Notice and name three things you appreciate
-- **Weekly Review** (10 min) — Look back on your week and set intentions
+- **Daily Reflection** (5 min) - A brief check-in to process your day
+- **Gratitude Practice** (3 min) - Notice and name three things you appreciate
+- **Weekly Review** (10 min) - Look back on your week and set intentions
 
 ## Example Usage
 
