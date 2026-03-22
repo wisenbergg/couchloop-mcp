@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Developer Use Cases – CouchLoop EQ</title>
+    <title>Developer Use Cases - CouchLoop EQ</title>
     <meta
       name="description"
       content="Real developer use cases for CouchLoop EQ: brainstorm architecture, review code, audit packages, and preserve context across sessions."
@@ -426,7 +426,7 @@
             <div class="use-case-header">
               <div class="use-case-icon">💡</div>
               <h3>Brainstorm: Data Export UX in a Privacy-First App</h3>
-              <span class="tool-badge">conversation(brainstorm)</span>
+              <span class="tool-badge">brainstorm</span>
             </div>
             <div class="use-case-scenario">
               "We need an 'Export Your Data' feature, but all emails are hashed
@@ -437,7 +437,7 @@
                 <div class="msg msg-user">
                   <div class="msg-label">Developer</div>
                   I'm building an Export Data screen for a therapeutic iOS app.
-                  Key constraint: all emails are hashed on the backend — we
+                  Key constraint: all emails are hashed on the backend - we
                   never store plaintext. SSO users (Google, Apple) may not have
                   an email stored locally. How should we handle collecting an
                   email for data export?
@@ -449,7 +449,7 @@
                   <strong
                     >1. When do you first have the plaintext email?</strong
                   >
-                  At login/registration, before hashing — are you already saving
+                  At login/registration, before hashing - are you already saving
                   it to SecureStore for email+password users? <br /><br />
                   <strong>2. SSO tokens:</strong> Google and Apple Sign In
                   tokens include the user's email. Are you extracting it during
@@ -462,22 +462,22 @@
                   <div class="msg-label">Developer</div>
                   Yes, email+password users already have it in SecureStore.
                   We're not extracting from SSO tokens yet. And yeah, a
-                  different email should be fine — they're authenticated.
+                  different email should be fine - they're authenticated.
                 </div>
                 <div class="msg msg-ai">
                   <div class="msg-label">CouchLoop EQ</div>
                   <strong>Recommended approach:</strong>
                   <br /><br />
-                  1. <strong>Capture SSO email at login</strong> — extract from
+                  1. <strong>Capture SSO email at login</strong> - extract from
                   Google/Apple token, save to SecureStore alongside
                   email+password users<br />
-                  2. <strong>Export screen: editable email field</strong> —
+                  2. <strong>Export screen: editable email field</strong>  -
                   pre-filled from SecureStore, user can change it. Label: "Where
                   should we send your data?"<br />
-                  3. <strong>Re-auth before export</strong> — require
+                  3. <strong>Re-auth before export</strong> - require
                   FaceID/passcode confirmation to prevent someone borrowing the
                   phone<br />
-                  4. <strong>Email never stored on backend</strong> — used only
+                  4. <strong>Email never stored on backend</strong> - used only
                   for delivery, then discarded server-side
                 </div>
               </div>
@@ -498,7 +498,7 @@
             <div class="use-case-header">
               <div class="use-case-icon">⚖️</div>
               <h3>Compare: Vercel vs Railway for a Next.js App</h3>
-              <span class="tool-badge">conversation(brainstorm)</span>
+              <span class="tool-badge">brainstorm</span>
             </div>
             <div class="use-case-scenario">
               "I need to pick a hosting platform for a Next.js app with Postgres
@@ -508,12 +508,12 @@
               <div class="conversation">
                 <div class="msg msg-user">
                   <div class="msg-label">Developer</div>
-                  What hosting platform should I use — Vercel or Railway? It's a
+                  What hosting platform should I use - Vercel or Railway? It's a
                   Next.js app.
                 </div>
                 <div class="msg msg-ai">
                   <div class="msg-label">CouchLoop EQ</div>
-                  Before I compare — what does your stack look like beyond
+                  Before I compare - what does your stack look like beyond
                   Next.js? Database? Background jobs? Websockets? That changes
                   the recommendation significantly.
                 </div>
@@ -524,7 +524,7 @@
                 <div class="msg msg-ai">
                   <div class="msg-label">CouchLoop EQ</div>
                   <strong>Go with Railway.</strong> Here's why: <br /><br />
-                  Vercel is optimized for serverless — great for Next.js
+                  Vercel is optimized for serverless - great for Next.js
                   frontend and API routes, but background jobs (email queues)
                   and persistent Postgres connections are awkward on serverless.
                   You'd need a separate service for the job runner.
@@ -579,17 +579,17 @@
                   <div class="msg-label">CouchLoop EQ</div>
                   <strong>3 critical issues found:</strong>
                   <br /><br />
-                  🔴 <strong>SQL Injection</strong> — String interpolation in
+                  🔴 <strong>SQL Injection</strong> - String interpolation in
                   SQL query. Use parameterized queries:
                   <code
                     >db.query('SELECT * FROM users WHERE email = $1',
                     [email])</code
                   >
                   <br /><br />
-                  🔴 <strong>Hardcoded Secret</strong> — JWT secret
+                  🔴 <strong>Hardcoded Secret</strong> - JWT secret
                   <code>'mysecret123'</code> in source code. Move to environment
                   variable. <br /><br />
-                  🟡 <strong>Sensitive Data in Logs</strong> — Logging email and
+                  🟡 <strong>Sensitive Data in Logs</strong> - Logging email and
                   JWT token to console. Remove before production.
                 </div>
               </div>
@@ -629,7 +629,7 @@
                   <code>react-native-keychain</code> (1.2M weekly downloads,
                   maintained, MIT license). <br /><br />
                   Installing non-existent packages can lead to typosquatting
-                  attacks — malicious packages with similar names.
+                  attacks - malicious packages with similar names.
                 </div>
               </div>
               <div class="outcome">
@@ -658,7 +658,7 @@
               <div class="conversation">
                 <div class="msg msg-user">
                   <div class="msg-label">Developer</div>
-                  Save this: Payment flow bug — race condition between frontend
+                  Save this: Payment flow bug - race condition between frontend
                   state and backend data during payment retry. Root cause is
                   state sync gap across 5 components. Fix: defense-in-depth
                   combining data cleanup + frontend validation.
@@ -681,7 +681,7 @@
                   <div class="msg-label">CouchLoop EQ</div>
                   Found 1 insight tagged <code>payment</code>: <br /><br />
                   <em
-                    >"Payment flow bug — race condition between frontend state
+                    >"Payment flow bug - race condition between frontend state
                     and backend data during payment retry. Root cause is state
                     sync gap across 5 components. Fix: defense-in-depth
                     combining data cleanup + frontend validation."</em
@@ -711,7 +711,7 @@
           </p>
           <a href="/#setup" class="btn btn-primary">Get Started</a>
           <a href="/use-cases/wellness" class="btn btn-secondary"
-            >See Wellness Use Cases →</a
+            >See Wellness Use Cases</a
           >
         </div>
       </section>
