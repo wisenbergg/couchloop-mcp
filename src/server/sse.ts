@@ -392,20 +392,19 @@ async function createMCPServer(): Promise<Server> {
  */
 export async function handleSSE(req: Request, res: Response) {
   try {
-    // Get or generate session ID
-    let sessionId = req.headers["x-session-id"] as string;
+    // Get session ID from MCP standard header or legacy header
+    const sessionId = (req.headers["mcp-session-id"] || req.headers["x-session-id"]) as string | undefined;
 
     // Check if this is an existing session
-    let session = activeSessions.get(sessionId);
+    let session = sessionId ? activeSessions.get(sessionId) : undefined;
 
     if (!session) {
       // Create new session
-      sessionId =
-        sessionId || `session_${crypto.randomBytes(16).toString("hex")}`;
+      const newSessionId = `session_${crypto.randomBytes(16).toString("hex")}`;
 
       // Create transport with stateful mode (session management)
       const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: () => sessionId,
+        sessionIdGenerator: () => newSessionId,
       });
 
       // Create and configure server
@@ -416,9 +415,9 @@ export async function handleSSE(req: Request, res: Response) {
 
       // Store session
       session = { transport, server, lastActivity: Date.now() };
-      activeSessions.set(sessionId, session);
+      activeSessions.set(newSessionId, session);
 
-      logger.info(`New MCP session created: ${sessionId}`);
+      logger.info(`New MCP session created: ${newSessionId}`);
     }
 
     // Update activity timestamp
@@ -477,20 +476,19 @@ export async function handleMCPLenient(req: Request, res: Response) {
       );
     }
 
-    // Get or generate session ID
-    let sessionId = req.headers["x-session-id"] as string;
+    // Get session ID from MCP standard header or legacy header
+    const sessionId = (req.headers["mcp-session-id"] || req.headers["x-session-id"]) as string | undefined;
 
     // Check if this is an existing session
-    let session = activeSessions.get(sessionId);
+    let session = sessionId ? activeSessions.get(sessionId) : undefined;
 
     if (!session) {
       // Create new session
-      sessionId =
-        sessionId || `session_${crypto.randomBytes(16).toString("hex")}`;
+      const newSessionId = `session_${crypto.randomBytes(16).toString("hex")}`;
 
       // Create transport with lenient options
       const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: () => sessionId,
+        sessionIdGenerator: () => newSessionId,
         // Enable JSON-only responses for better compatibility
         enableJsonResponse: true,
       } as { sessionIdGenerator: () => string; enableJsonResponse?: boolean });
@@ -503,9 +501,9 @@ export async function handleMCPLenient(req: Request, res: Response) {
 
       // Store session
       session = { transport, server, lastActivity: Date.now() };
-      activeSessions.set(sessionId, session);
+      activeSessions.set(newSessionId, session);
 
-      logger.info(`New lenient MCP session created: ${sessionId}`);
+      logger.info(`New lenient MCP session created: ${newSessionId}`);
     }
 
     // Update activity timestamp
