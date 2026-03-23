@@ -675,6 +675,11 @@ async function startServer() {
     await initDatabase();
     logger.info("Database initialized");
 
+    // Initialize V2 orchestration (tool registry, feature flags, telemetry)
+    const { initializeV2Orchestration } = await import("../core/init.js");
+    await initializeV2Orchestration();
+    logger.info("V2 orchestration initialized");
+
     app.listen(PORT, () => {
       logger.info(`OAuth server running on port ${PORT}`);
       logger.info(
