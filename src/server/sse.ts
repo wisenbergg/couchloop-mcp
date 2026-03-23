@@ -77,6 +77,8 @@ async function createMCPServer(): Promise<Server> {
         };
       } catch (error) {
         const message = error instanceof Error ? error.message : "Tool execution failed";
+        const stack = error instanceof Error ? error.stack : undefined;
+        logger.error(`Tool execution failed: ${request.params.name}`, { message, stack });
         return {
           isError: true,
           content: [{ type: "text", text: `Error: ${message}` }],
