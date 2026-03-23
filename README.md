@@ -91,7 +91,7 @@ CouchLoop EQ is a standard MCP server that works with **any MCP-compatible clien
 
 ### Option 1: Connect to Hosted Server (Easiest)
 
-**Production endpoint:** `https://mcp.couchloop.com/mcp`
+**Production endpoint:** `https://mcp.couchloop.com/sse`
 
 For Claude Desktop (v0.7.0+), add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
@@ -99,7 +99,7 @@ For Claude Desktop (v0.7.0+), add to `~/Library/Application Support/Claude/claud
 {
   "mcpServers": {
     "couchloop-eq": {
-      "url": "https://mcp.couchloop.com/mcp",
+      "url": "https://mcp.couchloop.com/sse",
       "transport": "streamable-http"
     }
   }
@@ -139,16 +139,16 @@ ChatGPT supports MCP servers through Developer Mode. See [CHATGPT_SETUP.md](CHAT
 
 Any MCP-compatible client (Cursor, Windsurf, Continue, etc.) can connect using:
 
-- **URL:** `https://mcp.couchloop.com/mcp`
+- **URL:** `https://mcp.couchloop.com/sse`
 - **Transport:** `streamable-http`
 - **Auth:** None required (session-based isolation)
 
-**Production Server Available:** `https://mcp.couchloop.com/mcp`
+**Production Server Available:** `https://mcp.couchloop.com/sse`
 
 Quick steps:
 
 1. Enable Developer Mode in ChatGPT Settings
-2. Add as MCP connector with URL: `https://mcp.couchloop.com/mcp`
+2. Add as MCP connector with URL: `https://mcp.couchloop.com/mcp` (ChatGPT uses the `/mcp` endpoint)
 3. No authentication required - uses session-based isolation
 
 For local development:

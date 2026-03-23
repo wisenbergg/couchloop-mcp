@@ -30,7 +30,7 @@ Perfect for daily reflection, gratitude practice, journaling, and personal growt
 
 ### Connect to Hosted Server
 
-**Endpoint:** `https://mcp.couchloop.com/mcp`
+**Endpoint:** `https://mcp.couchloop.com/sse`
 
 For Claude Desktop, add to your config:
 
@@ -38,7 +38,7 @@ For Claude Desktop, add to your config:
 {
   "mcpServers": {
     "couchloop-eq": {
-      "url": "https://mcp.couchloop.com/mcp",
+      "url": "https://mcp.couchloop.com/sse",
       "transport": "streamable-http"
     }
   }
