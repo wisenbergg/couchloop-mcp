@@ -27,7 +27,7 @@ Use the public demo server to test immediately:
       "command": "npx",
       "args": ["-y", "couchloop-eq-mcp"],
       "env": {
-        "COUCHLOOP_SERVER": "https://mcp.couchloop.com"
+        "COUCHLOOP_SERVER": "https://mcp.couchloop.com/mcp"
       }
     }
   }
