@@ -33,7 +33,7 @@ AI coding assistants hallucinate. They suggest packages that don't exist, genera
 
 ### Connect to Hosted Server
 
-**Endpoint:** `https://mcp.couchloop.com/sse`
+**Endpoint:** `https://mcp.couchloop.com/mcp`
 
 Add to your MCP client configuration:
 
@@ -41,7 +41,7 @@ Add to your MCP client configuration:
 {
   "mcpServers": {
     "couchloop-eq": {
-      "url": "https://mcp.couchloop.com/sse",
+      "url": "https://mcp.couchloop.com/mcp",
       "transport": "streamable-http"
     }
   }
