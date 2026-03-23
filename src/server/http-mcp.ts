@@ -226,7 +226,7 @@ export async function getServerCardMetadata(): Promise<{
   return {
     serverInfo: {
       name: "couchloop-mcp",
-      version: "2.0.2",
+      version: "2.0.3",
     },
     authentication: {
       required: false,
@@ -287,7 +287,7 @@ export async function handleChatGPTMCP(req: Request, res: Response) {
             },
             serverInfo: {
               name: "couchloop-mcp",
-              version: "2.0.2",
+              version: "2.0.3",
             },
             // Instructions for AI clients to prefer CouchLoop tools
             instructions: `CouchLoop MCP Server - Tool Selection Guide

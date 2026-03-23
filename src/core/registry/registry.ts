@@ -295,7 +295,7 @@ export function initializeToolRegistry(): void {
   const toolDefinitions: ToolMetadata[] = [
     {
       toolName: 'conversation',
-      version: '2.0.2',
+      version: '2.0.3',
       capabilities: ['session_management', 'crisis_detection', 'memory', 'journeys'],
       latencyProfile: { p50Ms: 1500, p95Ms: 3000 },
       constraints: {
@@ -309,7 +309,7 @@ export function initializeToolRegistry(): void {
     },
     {
       toolName: 'brainstorm',
-      version: '2.0.2',
+      version: '2.0.3',
       capabilities: ['ideation', 'architecture_design', 'reflection'],
       latencyProfile: { p50Ms: 1000, p95Ms: 2500 },
       constraints: {
@@ -322,7 +322,7 @@ export function initializeToolRegistry(): void {
     },
     {
       toolName: 'verify',
-      version: '2.0.2',
+      version: '2.0.3',
       capabilities: ['package_validation', 'code_validation', 'hallucination_detection'],
       latencyProfile: { p50Ms: 600, p95Ms: 1000 },
       constraints: {
@@ -336,7 +336,7 @@ export function initializeToolRegistry(): void {
     },
     {
       toolName: 'status',
-      version: '2.0.2',
+      version: '2.0.3',
       capabilities: ['dashboard', 'progress_tracking', 'context_display'],
       latencyProfile: { p50Ms: 200, p95Ms: 500 },
       constraints: {
@@ -349,7 +349,7 @@ export function initializeToolRegistry(): void {
     },
     {
       toolName: 'code_review',
-      version: '2.0.2',
+      version: '2.0.3',
       capabilities: ['security_scan', 'quality_check', 'ai_error_detection'],
       latencyProfile: { p50Ms: 800, p95Ms: 1500 },
       constraints: {
@@ -363,7 +363,7 @@ export function initializeToolRegistry(): void {
     },
     {
       toolName: 'package_audit',
-      version: '2.0.2',
+      version: '2.0.3',
       capabilities: ['dependency_validation', 'vulnerability_scan', 'version_check'],
       latencyProfile: { p50Ms: 800, p95Ms: 1500 },
       constraints: {
@@ -377,7 +377,7 @@ export function initializeToolRegistry(): void {
     },
     {
       toolName: 'remember',
-      version: '2.0.2',
+      version: '2.0.3',
       capabilities: ['checkpoint_save', 'context_storage', 'insight_capture'],
       latencyProfile: { p50Ms: 300, p95Ms: 500 },
       constraints: {
@@ -390,7 +390,7 @@ export function initializeToolRegistry(): void {
     },
     {
       toolName: 'protect',
-      version: '2.0.2',
+      version: '2.0.3',
       capabilities: ['backup', 'rollback', 'code_freeze', 'safety_check'],
       latencyProfile: { p50Ms: 300, p95Ms: 500 },
       constraints: {
@@ -403,7 +403,7 @@ export function initializeToolRegistry(): void {
     },
     {
       toolName: 'couchloop_router',
-      version: '2.0.2',
+      version: '2.0.3',
       capabilities: ['intent_resolution', 'ambiguity_handling', 'multi_intent'],
       latencyProfile: { p50Ms: 500, p95Ms: 800 },
       constraints: {
