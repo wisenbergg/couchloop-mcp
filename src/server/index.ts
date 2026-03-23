@@ -16,7 +16,7 @@ import { initDatabase } from "../db/client.js";
 import { sendMessage } from "../tools/sendMessage.js";
 import { createSession } from "../tools/session.js";
 import { logger } from "../utils/logger.js";
-import { getServerCardMetadata, handleChatGPTMCP } from "./http-mcp.js";
+import { getServerCardMetadata } from "./http-mcp.js";
 import { rateLimit, requireScope, validateToken } from "./middleware/auth.js";
 import {
     enhancedCors,
@@ -365,14 +365,8 @@ function showMCPInfo(req: Request, res: Response, next: NextFunction) {
  * MCP endpoint for ChatGPT Developer Mode
  * Uses custom handler that directly implements MCP protocol
  */
-app.get("/mcp", showMCPInfo, (_req: Request, res: Response) => {
-  // If we get here, it wasn't a browser request
-  res.json({
-    error: "GET not supported for MCP. Use POST with JSON-RPC payload.",
-  });
-});
-
-app.post("/mcp", handleChatGPTMCP);
+app.get("/mcp", showMCPInfo, handleSSE);
+app.post("/mcp", handleSSE);
 
 /**
  * GET /.well-known/mcp/server-card.json
@@ -540,7 +534,7 @@ openapi: 3.0.1
 info:
   title: CouchLoop EQ API
   description: Developer safety tools and guided self-reflection journeys via Model Context Protocol
-  version: 1.3.1
+  version: 2.0.3
 servers:
   - url: ${baseUrl}
 paths:
