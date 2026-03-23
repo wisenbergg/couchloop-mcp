@@ -460,7 +460,7 @@ export async function setupTools() {
     const existing = registry.getTool(toolName);
     const metadata = existing?.metadata ?? {
       toolName,
-      version: '2.0.0',
+      version: '2.0.2',
       capabilities: [],
       latencyProfile: { p50Ms: 500, p95Ms: 1000 },
       constraints: { idempotent: false, safeParallel: false, supportsCache: false },
