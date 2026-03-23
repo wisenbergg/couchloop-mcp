@@ -78,7 +78,7 @@ Connects to a server running elsewhere (cloud, another machine).
 {
   "couchloop-eq-mcp": {
     "url": "https://your-server.com/mcp",
-    "transport": "sse"
+    "transport": "streamable-http"
   }
 }
 ```
@@ -88,8 +88,8 @@ Connects to a server running elsewhere (cloud, another machine).
 ```json
 {
   "couchloop-eq-mcp": {
-    "url": "https://mcp.couchloop.com/sse",
-    "transport": "sse",
+    "url": "https://mcp.couchloop.com/mcp",
+    "transport": "streamable-http",
     "headers": {
       "Authorization": "Bearer your-api-key"
     }
@@ -173,8 +173,8 @@ Use **Remote** configuration with OAuth:
 ```json
 {
   "couchloop-eq-mcp": {
-    "url": "https://mcp.couchloop.com/sse",
-    "transport": "sse"
+    "url": "https://mcp.couchloop.com/mcp",
+    "transport": "streamable-http"
   }
 }
 ```
