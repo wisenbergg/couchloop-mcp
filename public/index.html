@@ -525,12 +525,24 @@
         <!-- Claude Desktop -->
         <div class="setup-box" style="margin-bottom: 24px;">
           <h3 style="margin-bottom: 16px;">🤖 Claude Desktop</h3>
-          <p style="margin-bottom: 12px;">Add to <code>~/Library/Application Support/Claude/claude_desktop_config.json</code>:</p>
+          <p style="margin-bottom: 12px;"><strong>Option A — Remote (easiest):</strong> Add to <code>~/Library/Application Support/Claude/claude_desktop_config.json</code>:</p>
           <div class="code-block" style="text-align: left; white-space: pre; font-size: 0.85rem;">{
   "mcpServers": {
     "couchloop-eq": {
       "url": "https://mcp.couchloop.com/mcp",
       "transport": "streamable-http"
+    }
+  }
+}</div>
+          <p style="margin-top: 16px; margin-bottom: 12px;"><strong>Option B — Local (via npm):</strong></p>
+          <div class="code-block" style="text-align: left; white-space: pre; font-size: 0.85rem;">{
+  "mcpServers": {
+    "couchloop-eq": {
+      "command": "npx",
+      "args": ["couchloop-eq-mcp"],
+      "env": {
+        "COUCHLOOP_SERVER": "https://mcp.couchloop.com"
+      }
     }
   }
 }</div>
