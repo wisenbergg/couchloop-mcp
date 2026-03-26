@@ -22,9 +22,9 @@ dotenv.config({ path: ".env.local" });
 // Initialize server
 async function main() {
   try {
-    logger.info("Starting CouchLoop MCP Server v2.0...");
+    logger.info("Starting CouchLoop MCP Server v2.1...");
 
-    // Initialize V2 Orchestration System (100% rollout!)
+    // Initialize orchestration system
     await initializeV2Orchestration();
 
     // Initialize database connection (non-fatal — server responds to tools/list even without DB)
@@ -38,8 +38,8 @@ async function main() {
     // Create MCP server instance
     const server = new Server(
       {
-        name: "couchloop-mcp-v2",
-        version: "2.0.3",
+        name: "couchloop-mcp",
+        version: "2.1.0",
       },
       {
         capabilities: {
@@ -53,9 +53,13 @@ async function main() {
     // Set up tools
     const tools = await setupTools();
 
+    // Cache tools/list response — tools are static after setup, and tools/list
+    // accounts for ~80% of RPC traffic (IDE polling)
+    const cachedToolDefinitions = Object.freeze(tools.map((t) => t.definition));
+
     // Set up tool handlers
     server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: tools.map((t) => t.definition),
+      tools: cachedToolDefinitions,
     }));
 
     server.setRequestHandler(

@@ -17,15 +17,14 @@
 
 AI coding assistants hallucinate. They suggest packages that don't exist, generate insecure code, and lose context mid-conversation. CouchLoop EQ catches these problems before they hit production.
 
-| Problem                      | What Happens                                             | CouchLoop EQ Solution                                  |
-| ---------------------------- | -------------------------------------------------------- | ------------------------------------------------------ |
-| 🎭 **Hallucinated packages** | `npm install ai-super-validator` → package doesn't exist | `validate_packages` verifies against real registries   |
-| 🔓 **Insecure code**         | SQL injection, XSS, hardcoded secrets                    | `scan_security` detects vulnerabilities with CWE codes |
-| 📉 **Code bloat**            | Over-engineered, verbose patterns                        | `detect_code_smell` flags complexity issues            |
-| 🧠 **Lost context**          | Re-explain architecture every session                    | `preserve_context` stores decisions permanently        |
-| 🗂️ **Accidental deletion**   | `rm -rf` the wrong directory                             | `protect_files` + `rollback_file` with auto-backups    |
-| 📚 **Deprecated APIs**       | Using outdated patterns                                  | `check_versions` warns about breaking changes          |
-| 🔍 **Sloppy AI code**        | Console.logs, TODOs, missing error handling              | `pre_review_code` catches before commit                |
+| Problem                      | What Happens                                             | CouchLoop EQ Solution                                    |
+| ---------------------------- | -------------------------------------------------------- | -------------------------------------------------------- |
+| 🎭 **Hallucinated packages** | `npm install ai-super-validator` → package doesn't exist | `review(mode: "packages")` verifies against real registries |
+| 🔓 **Insecure code**         | SQL injection, XSS, hardcoded secrets                    | `review(mode: "code")` detects vulnerabilities with CWE codes |
+| 📉 **Code bloat**            | Over-engineered, verbose patterns                        | `review(mode: "code")` flags complexity issues             |
+| 🧠 **Lost context**          | Re-explain architecture every session                    | `memory` stores decisions permanently                     |
+| 📚 **Deprecated APIs**       | Using outdated patterns                                  | `review(mode: "packages")` warns about breaking changes   |
+| 🔍 **Sloppy AI code**        | Console.logs, TODOs, missing error handling              | `review(mode: "verify")` catches before commit             |
 
 ---
 
@@ -183,9 +182,9 @@ Create a session to establish context:
 
 | Feature Size          | Recommended Actions                                              |
 | --------------------- | ---------------------------------------------------------------- |
-| **Small fix**         | `save_insight` — Quick note of what was done and why             |
-| **Medium feature**    | `save_insight` + `save_checkpoint` — Capture decisions and state |
-| **Large feature set** | `preserve_context` + `save_checkpoint` + multiple `save_insight` |
+| **Small fix**         | `memory(action: "save")` with type `insight` — Quick note       |
+| **Medium feature**    | `memory(action: "save")` with `insight` + `checkpoint`           |
+| **Large feature set** | Multiple `memory` saves (insight, checkpoint, decision)          |
 
 ### Why This Matters
 
@@ -198,85 +197,58 @@ When you need to review or debug later, retrieve exact context of what was built
 
 ---
 
-## Tool Reference (v1.4.0)
+## Tool Reference (v2.1.0)
 
-CouchLoop EQ now uses 10 primary tools. The `couchloop` meta-tool routes natural language to the correct tool.
+CouchLoop EQ uses 4 primary tools. Each tool has a clear, focused responsibility.
 
-> **v1.4.0 policy layer:** Every tool call passes through `sanitize → verify-if-required → normalize → log`. `code_review` and `package_audit` auto-trigger a verify pass; responses containing technical claims or code trigger full governance checks.
+> **v2.1.0 policy layer:** Every tool call passes through `withPolicy()` which auto-invokes the `guard` (governance) on every response. The `review` tool combines code review, package audit, and verification into one tool with modes.
 
-### Universal Entry Point
-
-| Tool        | Purpose                                                                                      |
-| ----------- | -------------------------------------------------------------------------------------------- |
-| `couchloop` | Routes any loose command: "review code", "audit packages", "brainstorm feature", "save this" |
-
-### Developer Tools
+### Core Tools
 
 | Tool            | Purpose                                                                                          |
 | --------------- | ------------------------------------------------------------------------------------------------ |
-| `verify`        | Pre-delivery verification — catches AI hallucinations before presenting to users                 |
+| `memory`        | **Hero tool** — save/recall context, checkpoints, insights, decisions (Supabase-backed)          |
+| `conversation`  | AI conversation with crisis detection, journeys, and session memory                              |
+| `review`        | Unified code review, package audit, and verification. Modes: code, packages, verify, full        |
 | `status`        | Dashboard — session progress, context window, saved insights                                     |
-| `conversation`  | AI conversation with crisis detection and session memory                                         |
-| `brainstorm`    | **Standalone dev thinking partner** — trade-off analysis, feature design, architecture decisions |
-| `code_review`   | Security scan + code quality + AI error detection in one call                                    |
-| `package_audit` | Validate packages exist, check versions, find vulnerabilities                                    |
-| `remember`      | Store/recall context, checkpoints, insights                                                      |
-| `protect`       | File backup, freeze, rollback, restore                                                           |
-| `guard`         | Governance pipeline: sanitize → verify-if-required → normalize → log                            |
+
+### Internal (auto-invoked, not user-facing)
+
+| Tool    | Purpose                                                                                          |
+| ------- | ------------------------------------------------------------------------------------------------ |
+| `guard` | Per-turn governance — auto-invoked by policy wrapper, threshold-gated at 50KB                    |
 
 ### Usage Examples
 
 ```
-# Via couchloop (natural language)
-"review this code"       → routes to code_review
-"audit my dependencies"  → routes to package_audit
-"brainstorm a caching layer" → routes to brainstorm
-"save this context"      → routes to remember
-"backup src/core/"       → routes to protect
-
-# Direct calls (precise control)
-brainstorm(message: "Redis vs Memcached for sessions?")
-verify(type: "packages", content: "lodash-utils-pro")  # Catches hallucinated packages
-code_review(code: "...", auto_fix: true)
-package_audit(packages: ["axios", "lodash"])
-remember(action: "recall")
-protect(action: "freeze", path: "src/core/")
+# Direct calls
+review(mode: "code", code: "function foo()...")  # Security + quality analysis
+review(mode: "packages", content: "lodash-utils-pro")  # Catches hallucinated packages
+review(mode: "verify", content: "AI response to check")  # Pre-delivery verification
+review(mode: "full", code: "...")  # All checks combined
+memory(action: "save", content: "Architecture uses event sourcing")
+memory(action: "recall")  # Get all saved context
+conversation(action: "start", message: "Begin daily reflection")
+status()  # System dashboard
 ```
 
 ---
 
-## Brainstorm Mode (NEW)
+## Unified Review Tool
 
-Use CouchLoop as a **thinking partner** for architecture decisions, feature design, or technology choices.
+The `review` tool replaces the old standalone `code_review`, `package_audit`, and `verify` tools with a single unified interface:
 
-```
-"brainstorm: should I use Redis or Memcached for session storage?"
-```
-
-**How it works:**
-
-1. Asks 1-2 clarifying questions about your context (scale, team, existing stack)
-2. Provides structured comparison with trade-offs
-3. Gives a direct recommendation with reasoning
-
-**Example flow:**
+| Mode       | What It Does                                                    |
+| ---------- | --------------------------------------------------------------- |
+| `code`     | Security scan + code quality + AI error detection               |
+| `packages` | Validate packages exist across 7 registries, check versions     |
+| `verify`   | Pre-delivery verification — catches hallucinations before users |
+| `full`     | All of the above in one pass                                    |
 
 ```
-You: "brainstorm a caching layer for my API"
-
-CouchLoop: "What's your expected request volume, and do you need
-cache invalidation when data changes?"
-
-You: "~1000 req/s, and yes invalidation matters"
-
-CouchLoop: "Redis is your best bet. Here's why:
-- Built-in pub/sub for cache invalidation
-- Handles 1K req/s easily (it's designed for 100K+)
-- Supports data structures you'll likely need later
-- Use Redis Cluster if you grow past single-node limits
-
-Alternative: If you're already on AWS, ElastiCache
-with Redis engine simplifies operations."
+"Review my code for security issues"  →  review(mode: "code")
+"Does the package 'lodash-es' exist?" →  review(mode: "packages")
+"Verify this before I show the user"  →  review(mode: "verify")
 ```
 
 ---

@@ -30,17 +30,25 @@ const INTENT_PATTERNS: IntentPattern[] = [
     contextClues: ['session_id', 'journey', 'checkpoint'],
   },
 
-  // Memory Control
+  // Memory Control - SAVE and RECALL stored context
+  // This is the ONLY intent that reads/writes stored insights, checkpoints, decisions
   {
     intent: 'memory_control',
     priority: 8,
     patterns: [
       /\b(save|store|remember|checkpoint|snapshot)\b/i,
-      /\b(recall|retrieve|get|show)\b.*\b(saved|stored|remembered|context)\b/i,
+      /\b(recall|retrieve|get|show|pull|fetch)\b.*\b(saved|stored|remembered|context|insights?|decisions?|checkpoints?)\b/i,
       /\bdon'?t\s+forget\b/i,
       /\bkeep\s+track\b/i,
+      /\bwhat\s+(do\s+you|did\s+we)\s+(remember|know|save|decide)\b/i,
+      /\bprevious\s+(context|session|work|decisions?|insights?)\b/i,
+      /\b(what'?s|what\s+is|what\s+was)\s+(been\s+)?(built|saved|decided|stored|recorded)\b/i,
+      /\bproduction\s+readiness\b/i,
+      /\b(insight|decision)\s+retrieval\b/i,
+      /\bpull\s+(the\s+)?(full\s+)?content\b/i,
+      /\b(get|show|pull|retrieve)\s+(the\s+)?(recent|latest|last)\s+(insights?|checkpoints?|context)\b/i,
     ],
-    contextClues: ['checkpoint', 'insight', 'context', 'memory'],
+    contextClues: ['checkpoint', 'insight', 'context', 'memory', 'decision', 'recall', 'retrieve', 'saved', 'stored', 'built', 'readiness'],
   },
 
   // Verify - PRE-DELIVERY VERIFICATION
@@ -127,17 +135,19 @@ const INTENT_PATTERNS: IntentPattern[] = [
     contextClues: ['backup', 'rollback', 'freeze', 'protection'],
   },
 
-  // Conversation Operations (summarize, reframe, etc.)
+  // Conversation Operations - THERAPEUTIC/EMOTIONAL only
+  // NEVER route data retrieval, insight recall, or project queries here
   {
     intent: 'conversation_ops',
     priority: 4,
     patterns: [
-      /\b(summarize|summary|wrap\s+up|key\s+points)\b/i,
+      /\b(summarize|summary|wrap\s+up|key\s+points)\b.*\b(conversation|session|chat)\b/i,
       /\b(reframe|rephrase|say\s+differently)\b/i,
-      /\b(continue|elaborate|expand)\b/i,
+      /\b(continue|elaborate|expand)\s+(the\s+)?conversation\b/i,
       /\btalk\b.*\b(to\s+you|with\s+you)\b/i,
+      /\b(vent|emotional|wellness|self[\s-]?care)\b/i,
     ],
-    contextClues: ['conversation', 'chat', 'message'],
+    contextClues: ['conversation', 'chat', 'message', 'emotional', 'wellness'],
   },
 ];
 

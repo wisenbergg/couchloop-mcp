@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2025-07-09
+
+### Changed — Tool Consolidation (10 → 4 public tools)
+- **`memory`** (hero tool) — replaces `remember`, `preserve_context`, `save_checkpoint`, `save_insight`. Actions: save, recall, list
+- **`conversation`** — AI conversation with crisis detection, journeys, session memory
+- **`review`** (unified) — replaces `code_review`, `package_audit`, `verify`, `brainstorm`. Modes: code, packages, verify, full
+- **`status`** — dashboard replacing status + parts of couchloop router
+- **`guard`** moved to internal-only — auto-invoked by `withPolicy()` wrapper, no longer exposed as public tool
+- Removed `couchloop` meta-tool / intent router from public surface
+- Removed standalone `protect`, `brainstorm`, `verify` tools
+
+### Added
+- Policy wrapper (`withPolicy()`) auto-invokes guard on every tool call
+- Guard threshold-gating: skip governance for responses > 50KB (`GUARD_MAX_RESPONSE_BYTES`)
+- `GUARD_EXEMPT_TOOLS` set for guard + memory (prevents recursion)
+- `tools/list` response cached with `Object.freeze()` at startup (was 80% of RPC traffic)
+- `memoryTool` marked as hero tool — listed first, detailed description with trigger phrases
+
+### Fixed
+- `Object.assign` sanitized leak in policy wrapper — changed to `let sanitized` with full reassignment on guard block
+- `memoryTool` schema: `required` changed from `["action", "content"]` to `[]` (recall/list don't need content)
+
+### Removed
+- Feature flags ceremony in `src/core/init.ts` (dead code)
+- `registerTools()` legacy function from primary-tools
+- `couchloop-v2.ts` router no longer primary entry point (kept for backward compat)
+- `smithery.yaml`: hardcoded JWT fallback removed — `jwtSecret` now required (minLength: 32)
+
+### Documentation
+- All 20+ documentation files updated to reflect v2.1.0 architecture
+- `AGENT_RUNTIME_CONTRACT.md` fully rewritten for 4-tool lifecycle
+- `guardian-skill.md` rewritten: guard is automatic, not manually called
+
 ## [1.4.0] - 2026-03-16
 
 ### Added

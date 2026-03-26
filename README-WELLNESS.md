@@ -95,35 +95,19 @@ Steps through:
 
 ---
 
-## Core Features (v1.4.0)
+## Core Features (v2.1.0)
 
-CouchLoop EQ now uses 10 primary tools. Just say what you want—the `couchloop` intent router handles the rest.
+CouchLoop EQ uses 4 primary tools. Just say what you want—the AI handles routing.
 
 ### Quick Commands
 
 ```
 "end session"            → ends and saves current session
-"save this insight"      → captures to remember tool
+"save this insight"      → captures to memory tool
 "start daily reflection" → begins conversation journey
 "how am I doing"         → retrieves your context and insights
-"brainstorm this"        → reflective thinking partner mode
 "help"                   → shows all capabilities
 ```
-
-### Brainstorm Mode (NEW)
-
-Use CouchLoop as a reflective thinking partner—not just for technical decisions, but for personal exploration:
-
-```
-"brainstorm: I'm feeling stuck in my current routine"
-```
-
-CouchLoop asks clarifying questions to help you think through what's really going on, rather than jumping to solutions. Great for:
-
-- Exploring feelings or patterns you've noticed
-- Thinking through life decisions
-- Processing something that happened
-- Clarifying what you actually want
 
 ### Sessions
 
@@ -216,16 +200,10 @@ Welcome back. Earlier today you were feeling anxious about your presentation but
 
 | Tool                 | Purpose                                      |
 | -------------------- | -------------------------------------------- |
-| `create_session`     | Start a new guided session                   |
-| `resume_session`     | Continue where you left off                  |
-| `send_message`       | Send a message through the therapeutic stack |
-| `save_checkpoint`    | Capture progress at a key moment             |
-| `get_checkpoints`    | Retrieve all checkpoints for a session       |
-| `list_journeys`      | See available guided journeys                |
-| `get_journey_status` | Check progress in current journey            |
-| `save_insight`       | Capture a meaningful realization             |
-| `get_insights`       | Retrieve saved insights                      |
-| `get_user_context`   | Get personalization context                  |
+| `conversation`       | Start, resume, and manage guided sessions    |
+| `memory`             | Save and retrieve insights, checkpoints      |
+| `status`             | Check progress, context, and preferences     |
+| `review`             | Code review, package audit, verification     |
 
 ---
 

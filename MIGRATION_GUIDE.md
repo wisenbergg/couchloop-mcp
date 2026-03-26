@@ -1,5 +1,7 @@
 # CouchLoop V2 Migration Guide
 
+> **Historical document.** This guide was written for the v1→v2 migration (modular orchestration rollout via feature flags). As of v2.1.0, the migration is complete: the system uses 4 public tools (`memory`, `conversation`, `review`, `status`) with automatic governance via `withPolicy()`. Feature flags have been removed. See [CHANGELOG.md](./CHANGELOG.md) for the full history.
+
 ## Overview
 
 This guide describes the safe migration path from the monolithic `couchloop` to the new modular orchestration system (V2). The migration is designed to be gradual, reversible, and observable at every step.

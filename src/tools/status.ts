@@ -26,7 +26,7 @@ export type StatusInput = z.infer<typeof StatusInputSchema>;
 export const statusTool = {
   definition: {
     name: 'status',
-    description: `Dashboard and quick status checks. Use for: "how am I doing", "what's my progress", "show my history", "what do you know about me", "my settings", "context window", "backup status". Returns personalized status with actionable next steps.`,
+    description: `System dashboard — session progress, history summaries, context usage, protection status, and preferences. Use for high-level overviews and summaries, NOT for retrieving specific stored insights or decisions (use remember with action recall for that). Triggers: "how am I doing", "what's my progress", "show my history", "dashboard", "overview", "my settings", "context window", "backup status", "what do you know about me". Returns personalized status with actionable next steps.`,
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,

@@ -460,7 +460,11 @@ function mapToolArgs(toolName: string, intent: string): Record<string, unknown> 
     case 'brainstorm':
       return { message: intent };
     case 'remember':
-      return { content: intent };
+      // Detect recall vs save from intent keywords
+      if (/\b(recall|retrieve|get|show|pull|fetch|what.*(saved|stored|built|decided)|previous|readiness|insight\s+retrieval)\b/i.test(intent)) {
+        return { content: intent, action: 'recall' };
+      }
+      return { content: intent, action: 'save' };
     default:
       return {};
   }
@@ -486,15 +490,22 @@ export const couchloopV2Tool = {
     description: `Universal entry point for CouchLoop. Routes ANY command to the right tool automatically. ALWAYS use for ambiguous or loose commands. Handles:
 - Sessions: "end session", "start", "done", "wrap up", "goodbye", "resume", "where should I start", "hi", "hey"
 - Status: "how am I doing", "what do you know about me", "show my progress", "my settings", "dashboard"
-- Memory: "save", "remember", "checkpoint", "recall", "don't forget", "keep track"
+- Memory SAVE: "save", "remember", "checkpoint", "don't forget", "keep track"
+- Memory RECALL: "recall", "retrieve", "get insights", "pull context", "what was saved", "what did we decide", "previous context", "what's been built", "production readiness"
 - Code: "review code", "check this", "find bugs", "is this safe", "analyze"
 - Packages: "audit dependencies", "outdated", "npm audit", "upgrade packages", "security scan"
 - Protection: "backup", "freeze code", "rollback", "undo", "restore"
 - Brainstorm: "brainstorm", "think through", "map out feature", "help me design", "I have an idea", "trade-offs"
-- Journeys: "I'm stressed", "feeling anxious", "help me", "need to talk"
+- Emotional support: "I'm stressed", "feeling anxious", "help me cope", "need to talk"
 - Verification: "verify this", "check my response", "is this correct", "does this package exist"
 
-Invoke for ANY ambiguous, loose, or multi-intent command. High-confidence single-intent commands can also call specific tools directly.`,
+ROUTING RULES:
+- Data retrieval (insights, decisions, context) → remember(action:recall)
+- Emotional/wellness concerns → conversation
+- Dev thinking/architecture → brainstorm
+- System overview/progress → status
+
+NEVER route data retrieval requests to conversation (it's therapeutic only) or brainstorm (it's ideation only).`,
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,

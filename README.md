@@ -39,14 +39,13 @@ Unlike raw LLMs that can hallucinate packages, generate insecure code, and lose 
 
 | Problem                      | CouchLoop EQ Solution                                                         |
 | ---------------------------- | ----------------------------------------------------------------------------- |
-| 🎭 **Hallucinated packages** | `verify` + `package_audit` catch fake npm/PyPI/Maven before install           |
-| 🔓 **Insecure code**         | `code_review` detects SQLi, XSS, hardcoded secrets                            |
-| 📉 **Code bloat**            | `code_review` flags over-engineering, console.logs, missing error handling    |
-| 🧠 **Lost context**          | `remember` stores architecture decisions and checkpoints across sessions      |
-| 🗂️ **Accidental deletion**   | `protect` with automatic backups, freeze mode, and rollback                   |
-| 📚 **Deprecated APIs**       | `package_audit` warns about outdated versions and breaking changes            |
-| 🔍 **Sloppy AI code**        | `verify` pre-checks AI responses for hallucinated APIs and bad imports        |
-| 💡 **Unstructured thinking** | `brainstorm` helps think through trade-offs, compare options, decompose ideas |
+| 🎭 **Hallucinated packages** | `review(mode: "packages")` catches fake npm/PyPI/Maven before install        |
+| 🔓 **Insecure code**         | `review(mode: "code")` detects SQLi, XSS, hardcoded secrets                  |
+| 📉 **Code bloat**            | `review(mode: "code")` flags over-engineering, console.logs, missing errors  |
+| 🧠 **Lost context**          | `memory` stores architecture decisions and checkpoints across sessions        |
+| 📚 **Deprecated APIs**       | `review(mode: "packages")` warns about outdated versions and breaking changes |
+| 🔍 **Sloppy AI code**        | `review(mode: "verify")` pre-checks AI responses for hallucinated APIs       |
+| 🧠 **Session continuity**    | `conversation` with crisis detection, journeys, and session memory            |
 
 ## Architecture
 
@@ -259,14 +258,14 @@ This insight was captured mid-debugging session, preserved across context window
 
 | Feature Size          | Recommended Actions                                                                          |
 | --------------------- | -------------------------------------------------------------------------------------------- |
-| **Small fix**         | `remember` with type `insight` - Quick note of what was done and why                         |
-| **Medium feature**    | `remember` with type `insight` + `checkpoint` - Capture decisions and state                   |
-| **Large feature set** | Multiple `remember` calls (insight, checkpoint, decision) - Full architecture context         |
+| **Small fix**         | `memory(action: "save")` with type `insight` — Quick note of what was done and why              |
+| **Medium feature**    | `memory(action: "save")` with type `insight` + `checkpoint` — Capture decisions and state      |
+| **Large feature set** | Multiple `memory` saves (insight, checkpoint, decision) — Full architecture context            |
 
 **Why this matters:** When you need to review or debug later, you can retrieve the exact context of what was just built - even weeks later, across different AI sessions.
 
 ```
-"Get my insights tagged 'auth-refactor'" -> Instant recall of decisions made
+memory(action: "recall") -> Instant recall of decisions made
 "Resume my Sprint 42 session" -> Pick up exactly where you left off
 ```
 
