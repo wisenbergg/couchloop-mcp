@@ -9,16 +9,20 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type PublicToolName =
+  | 'memory'
+  | 'conversation'
+  | 'review'
+  | 'status'
+  // Internal-only (auto-triggered by policy wrapper, not user-facing)
+  | 'guard'
+  // Legacy names kept for type compatibility during migration
   | 'couchloop'
   | 'verify'
-  | 'status'
-  | 'conversation'
   | 'brainstorm'
   | 'code_review'
   | 'package_audit'
   | 'remember'
-  | 'protect'
-  | 'guard';
+  | 'protect';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Verify / Guard mode
@@ -57,6 +61,16 @@ export interface PolicyDecisionTrace {
   normalizedShape: boolean;
   /** true when guard MCP-native content envelope was unwrapped */
   guardNormalized?: boolean;
+  /** true when guard was auto-triggered by the policy wrapper */
+  guardTriggered?: boolean;
+  /** guard decision: pass / modified / blocked */
+  guardAction?: 'pass' | 'modified' | 'blocked';
+  /** domain detected by guard (dev / clinical / unknown) */
+  guardDomain?: string;
+  /** true when guard itself threw an error (fail-open) */
+  guardError?: boolean;
+  /** true when guard was skipped due to response size exceeding threshold */
+  guardSkippedLargeResponse?: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -76,6 +90,13 @@ export interface NormalizedToolResponse<TResult = unknown> {
   requires_approval?: boolean;
   /** present when verify was auto-triggered */
   verify_result?: unknown;
+  /** present when guard was auto-triggered */
+  guard_result?: {
+    action: 'pass' | 'modified' | 'blocked';
+    domain_detected: string;
+    elapsed_ms: number;
+    intervention?: { type: string; reason: string; confidence: number };
+  };
   policy_trace: PolicyDecisionTrace;
   error?: string;
 }
@@ -98,5 +119,8 @@ export interface PolicyLogEvent {
   blocked: boolean;
   partial: boolean;
   guardNormalized: boolean;
+  guardTriggered?: boolean;
+  guardAction?: 'pass' | 'modified' | 'blocked';
+  guardError?: boolean;
   error?: string;
 }

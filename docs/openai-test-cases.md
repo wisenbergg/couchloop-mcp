@@ -186,9 +186,10 @@ Content-Type: application/json
   "id": 1,
   "result": {
     "tools": [
+      { "name": "memory", "description": "..." },
       { "name": "conversation", "description": "..." },
-      { "name": "verify", "description": "..." },
-      { "name": "code_review", "description": "..." }
+      { "name": "review", "description": "..." },
+      { "name": "status", "description": "..." }
     ]
   }
 }
@@ -197,13 +198,13 @@ Content-Type: application/json
 **Pass criteria:**
 - Status is `200`
 - `result.tools` is a non-empty array
-- Tool names include at least `conversation`, `verify`, and `code_review`
+- Tool names include `memory`, `conversation`, `review`, and `status`
 
 ---
 
-## TC6 — Developer Tool (verify)
+## TC6 — Developer Tool (review)
 
-**Purpose:** Verify that a developer safety tool works end-to-end via the MCP protocol.
+**Purpose:** Verify that the unified review tool works end-to-end via the MCP protocol.
 
 **Request:**
 ```
@@ -215,10 +216,10 @@ Content-Type: application/json
   "id": 2,
   "method": "tools/call",
   "params": {
-    "name": "verify",
+    "name": "review",
     "arguments": {
-      "type": "packages",
-      "content": "react, express, lodash",
+      "mode": "packages",
+      "packages": ["react", "express", "lodash"],
       "registry": "npm"
     }
   }

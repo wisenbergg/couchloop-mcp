@@ -10,7 +10,7 @@ Your AI remembers conversations. Add persistent memory, safety checks, and devel
 
 AI assistants forget everything between sessions. Users repeat context, lose progress on multi-step workflows, and get inconsistent responses. Worse, LLMs can hallucinate packages, introduce vulnerabilities, delete critical files, or drift into harmful territory without guardrails.
 
-**CouchLoop EQ fixes this.** It's an MCP server with **10 primary tools** that give your AI persistent memory, intent routing, code review, brainstorm mode, pre-delivery verification, and developer protection. Just say what you want - the `couchloop` meta-tool routes to the right tool automatically.
+**CouchLoop EQ fixes this.** It's an MCP server with **4 public tools** that give your AI persistent memory, code review, package auditing, verification, and session management. Each tool is focused and direct — no meta-routing needed.
 
 ## Quick Start (30 seconds)
 
@@ -139,13 +139,12 @@ await mcp.call("resume_session", { userId: "user_123" });
 - **Conversation boundaries**: Detects manipulation patterns and harmful suggestions
 - **Tone stability**: Maintains consistent personality without emotional drift
 
-### Developer Protection Tools (v1.4.0)
+### Developer Protection Tools (v2.1.0)
 
-- **Intent router**: Just say "end session", "review code", "save this" - routes automatically
-- **Code review**: Security scan + quality check + AI error detection in one call
-- **Package audit**: Validates packages exist across 7 registries (npm, PyPI, Maven, etc.)
-- **Remember**: Context persistence across sessions - checkpoints, insights, decisions
-- **Protect**: Automatic backups with rollback capability for accidental deletions
+- **Code review**: Security scan + quality check + AI error detection via `review(mode: "code")`
+- **Package audit**: Validates packages exist across 7 registries via `review(mode: "packages")`
+- **Verification**: Pre-delivery AI response verification via `review(mode: "verify")`
+- **Memory**: Context persistence across sessions — checkpoints, insights, decisions via `memory`
 
 ### Guided Journeys
 
@@ -157,72 +156,65 @@ Pre-built workflows for common use cases:
 | Gratitude Practice | 3 min    | Notice and name things you appreciate |
 | Weekly Review      | 10 min   | Look back and set intentions          |
 
-## Available Tools (10 Primary)
+## Available Tools (4 Public)
 
-Just say what you want - the `couchloop` meta-tool routes your intent automatically.
+Each tool has a focused purpose. The `review` tool unifies code review, package auditing, and verification into one tool with modes.
 
-| Tool            | What It Does                                       | Trigger Phrases                                            |
-| --------------- | -------------------------------------------------- | ---------------------------------------------------------- |
-| `couchloop`     | Universal entry point - routes ANY loose command     | "end session", "start", "where should I start", "hi"       |
-| `verify`        | Pre-delivery verification for AI-generated content | "verify this code", "check my response", "is this correct" |
-| `status`        | Dashboard: session progress, history, context      | "how am I doing", "my settings", "show my status"          |
-| `conversation`  | Session management and wellness workflows          | "start a reflection", "end session", "resume"              |
-| `brainstorm`    | Dev thinking partner - trade-off analysis, architecture decisions | "brainstorm this", "help me decide", "compare options" |
-| `code_review`   | Security + quality + AI error detection            | "review code", "is this safe", "lint this"                 |
-| `package_audit` | Validate packages across 7 registries              | "audit dependencies", "does this package exist"            |
-| `remember`      | Context persistence: checkpoints, insights         | "save this", "remember that", "checkpoint"                 |
-| `protect`       | File backups with rollback capability              | "backup my code", "rollback", "freeze"                     |
-| `guard`         | Governance pipeline: sanitize -> verify-if-required -> normalize -> log | (auto-applied to all tool calls) |
+| Tool            | What It Does                                           | Trigger Phrases                                               |
+| --------------- | ------------------------------------------------------ | ------------------------------------------------------------- |
+| `memory`        | Hero tool — save/recall context, checkpoints, insights | "save this", "remember that", "recall", "checkpoint"          |
+| `conversation`  | AI conversation with crisis detection and journeys     | "start a reflection", "end session", "resume"                 |
+| `review`        | Unified code review, package audit, and verification   | "review code", "audit packages", "verify this"                |
+| `status`        | Dashboard: session, history, context, preferences      | "how am I doing", "my settings", "show my status"             |
 
-### Why 10 Tools?
+> **Internal:** The `guard` tool runs automatically on every tool call via the policy wrapper — it's not exposed to users.
 
-We found that **94% of user intents** map to these 10 archetypes. Instead of exposing 23+ granular tools and expecting users to remember which one to call, CouchLoop bundles related functionality and uses intent routing.
+### Why 4 Tools?
 
-**Example:**
+We consolidated from 10+ tools to 4 focused public tools. Related functionality is bundled into modes rather than separate tools:
 
-- Before: `save_checkpoint`, `get_checkpoints`, `save_insight`, `get_insights`, `preserve_context`, `store_context`, `retrieve_context`
-- Now: `remember` (or just say "save this" and let `couchloop` route it)
+- Before: `code_review`, `package_audit`, `verify`, `brainstorm` → Now: `review(mode: "code" | "packages" | "verify" | "full")`
+- Before: `remember`, `preserve_context`, `save_checkpoint` → Now: `memory(action: "save" | "recall" | "list")`
 
-### New in v1.4.0: Policy Layer + Standalone Brainstorm + Verification-First Architecture
+### Review Tool Modes
 
-The `verify` tool catches common AI mistakes BEFORE they reach users:
+The `review` tool catches common AI mistakes BEFORE they reach users:
 
-- **24%** of AI package suggestions don't exist
-- **Hallucinated APIs** that compile but fail at runtime
-- **ESM/CJS confusion** in TypeScript projects
-- **Inconsistencies** with earlier statements in the conversation
-
-Call `verify` before presenting code, packages, or factual claims.
+- **Code mode**: Security scan + quality check + AI error detection
+- **Packages mode**: Validates packages exist across 7 registries (npm, PyPI, Maven, etc.)
+- **Verify mode**: Pre-delivery verification for AI-generated content
+- **Full mode**: All checks in one pass
 
 ## Example Usage
 
-### Just Talk Naturally
+### Memory
 
 ```
-"Where should I start?"
-"End session"
-"How am I doing?"
-"Review this code before I commit"
-"Verify this looks correct"
-"Remember this decision: we're using ESM"
-"Backup my files before I refactor"
+memory(action: "save", content: "We decided to use ESM for all imports")
+memory(action: "recall")  // Retrieves saved context
+memory(action: "list")    // Lists all saved entries
 ```
 
-### Session Management
+### Conversation
 
 ```
-"Start a daily reflection session"
-"Resume my last session"
-"Save this insight: I notice I'm more energized in the mornings"
+conversation(message: "Start a daily reflection session")
+conversation(message: "Resume my last session")
 ```
 
-### Developer Safety
+### Review
 
 ```
-"Review my code for security issues"
-"Does the package 'lodash-es' exist?"
-"Verify this code snippet before I show it to the user"
-"Check my status - what context do you have?"
+review(mode: "code", content: "function login(user, pass) { ... }")
+review(mode: "packages", packages: ["lodash-es", "leftpad"])
+review(mode: "verify", content: "This code snippet...")
+review(mode: "full", content: "...", packages: ["..."])
+```
+
+### Status
+
+```
+status()  // Dashboard: session, history, context, preferences
 ```
 
 ## Authentication
@@ -244,11 +236,11 @@ Call `verify` before presenting code, packages, or factual claims.
 
 ### For Developer Protection
 
-- **AI code generation**: Prevent package hallucination and dependency errors
-- **Security-sensitive development**: Catch hardcoded credentials before they're committed
+- **AI code generation**: Prevent package hallucination and dependency errors via `review(mode: "packages")`
+- **Security-sensitive development**: Catch hardcoded credentials via `review(mode: "code")`
 - **Code review automation**: Pre-screen AI suggestions for quality issues
 - **Legacy code maintenance**: Detect deprecated APIs and version incompatibilities
-- **Critical file protection**: Automatic backups before AI-driven refactoring
+- **Context preservation**: Save architectural decisions across sessions via `memory`
 
 > **Building wellness apps?** See our [wellness integration guide](https://couchloop.com/docs/wellness) for purpose-built journeys and crisis detection features.
 

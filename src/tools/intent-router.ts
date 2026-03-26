@@ -81,9 +81,14 @@ const INTENT_MAPPINGS: IntentMapping[] = [
   },
   {
     patterns: [
-      /\b(recall|retrieve|get|show|what)\b.*\b(saved|stored|remembered|checkpoints?|context)\b/i,
-      /\bwhat\s+(do\s+you|did\s+we)\s+(remember|know|save)\b/i,
-      /\bprevious\s+(context|session|work)\b/i,
+      /\b(recall|retrieve|get|show|pull|fetch)\b.*\b(saved|stored|remembered|checkpoints?|context|insights?|decisions?)\b/i,
+      /\bwhat\s+(do\s+you|did\s+we)\s+(remember|know|save|decide)\b/i,
+      /\bprevious\s+(context|session|work|decisions?|insights?)\b/i,
+      /\b(what'?s|what\s+is|what\s+was)\s+(been\s+)?(built|saved|decided|stored|recorded)\b/i,
+      /\bproduction\s+readiness\b/i,
+      /\bpull\s+(the\s+)?(full\s+)?content\b/i,
+      /\b(get|show|pull|retrieve)\s+(the\s+)?(recent|latest|last)\s+(insights?|checkpoints?|context)\b/i,
+      /\b(insight|decision)\s+retrieval\b/i,
     ],
     tool: 'remember',
     action: 'recall',
@@ -178,7 +183,6 @@ const INTENT_MAPPINGS: IntentMapping[] = [
       /\b(context\s+window|backup\s+status)\b/i,
       /\bwhere\s+should\s+i\s+start\b/i,
       /\b(dashboard|overview)\b/i,
-      /\bwhat'?s\s+(saved|stored|remembered)\b/i,
     ],
     tool: 'status',
     action: 'all',
@@ -201,14 +205,15 @@ const INTENT_MAPPINGS: IntentMapping[] = [
   },
 
   // Journeys/Check-in - LOWEST PRIORITY (catch-all for emotional content)
+  // IMPORTANT: This routes to the THERAPEUTIC backend (shrink-chat).
+  // NEVER route data retrieval, insight recall, or project status queries here.
   {
     patterns: [
       /\b(stressed|anxious|worried|overwhelmed|sad|depressed|angry|frustrated|scared|lonely)\b/i,
       /\b(feeling|i\s+feel|i'?m\s+feeling)\b/i,
-      /\b(help\s+me|need\s+help|struggling)\b/i,
+      /\b(help\s+me\s+cope|need\s+support|struggling\s+with\s+emotions?)\b/i,
       /\bhow\s+are\s+you\b/i,
-      /\b(talk|chat|vent)\b.*\b(to\s+you|with\s+you)?\b/i,
-      /\b(support|encourage|listen)\b/i,
+      /\b(vent|emotional|wellness|self[\s-]?care)\b/i,
     ],
     tool: 'conversation',
     action: 'send',

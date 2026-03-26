@@ -2,7 +2,7 @@
 
 ## What this repo is
 
-CouchLoop EQ is an MCP (Model Context Protocol) server deployed on Railway at `mcp.couchloop.com`. It gives AI assistants (Claude, Copilot, ChatGPT) a set of tools for session management, code review, package auditing, context persistence, and wellness journeys. Published to npm as `couchloop-eq-mcp`.
+CouchLoop EQ is an MCP (Model Context Protocol) server deployed on Railway at `mcp.couchloop.com`. It gives AI assistants (Claude, Copilot, ChatGPT) a set of tools for context persistence, code review, package auditing, and wellness journeys. Published to npm as `couchloop-eq-mcp`.
 
 ## Stack
 
@@ -17,18 +17,19 @@ CouchLoop EQ is an MCP (Model Context Protocol) server deployed on Railway at `m
 
 ```
 src/
-  index.ts              — Server entry point, initialises DB + tools + resources
+  index.ts              — Server entry point, initialises DB + tools + resources (tools/list cached)
   tools/
-    primary-tools.ts    — setupTools() — the 9 public MCP tools
-    couchloop-v2.ts     — Universal intent router (V2 orchestration)
-    intent-router.ts    — Legacy tool registry (registerTools/intentRouterTool)
+    primary-tools.ts    — setupTools() — the 4 public MCP tools
+    couchloop-v2.ts     — Intent router (internal, used by legacy compatibility)
+    intent-router.ts    — Legacy tool registry (intent mappings)
     [tool].ts           — Individual tool handlers
+  policy/
+    wrapper.ts          — runToolWithPolicy() — mandatory wrapper, auto-invokes guard
+    types.ts            — Policy layer types
   core/
     registry/registry.ts  — V2 ToolRegistry singleton (health tracking)
-    policy/engine.ts      — V2 PolicyEngine (routing decisions)
-    planning/planner.ts   — V2 ExecutionPlanner
     intent/classifier.ts  — Intent classification
-    init.ts               — V2 orchestration initialisation
+    init.ts               — Orchestration init (tracing + registry)
   db/
     client.ts           — initDatabase(), getDb(), getSupabase()
     schema.ts           — Drizzle schema (users, sessions, checkpoints, insights, context_entries...)
@@ -38,20 +39,20 @@ src/
       context-manager.ts — ContextManager class (Supabase-backed, no filesystem)
 ```
 
-## Public tools (9)
+## Public tools (4)
 
 | Tool | Description |
 |------|-------------|
-| `couchloop` | Universal intent router — routes loose commands to the right tool |
-| `guard` | Per-turn governance (invisible, called by companion skill) |
-| `verify` | Pre-delivery verification, package validation, hallucination detection |
-| `status` | Dashboard — session, history, context, protection, preferences |
+| `memory` | **Hero tool** — save/recall context, checkpoints, insights, decisions (Supabase-backed). Actions: save, recall, list |
 | `conversation` | AI conversation with crisis detection, journeys, session memory |
-| `brainstorm` | Dev thinking partner — reflective questioning, architecture decisions |
-| `code_review` | Security scan, quality check, AI error detection |
-| `package_audit` | Dependency validation, vulnerability scan, version check |
-| `remember` | Context capture — checkpoints, insights, decisions (Supabase-backed) |
-| `protect` | File backup, rollback, code freeze |
+| `review` | Unified code review, package audit, and verification. Modes: code, packages, verify, full |
+| `status` | Dashboard — session, history, context, protection, preferences |
+
+### Internal tools (not exposed to users)
+
+| Tool | Description |
+|------|-------------|
+| `guard` | Per-turn governance — auto-invoked by the policy wrapper on every tool call. Threshold-gated at 50KB. |
 
 ## Critical rules
 
@@ -72,8 +73,8 @@ src/
 
 ### Tool registration
 - Tools are registered in `primary-tools.ts` via `setupTools()`
-- The V2 `ToolRegistry` (core/registry) and legacy `toolRegistry` Map (intent-router) are separate — `executeLegacyRouter` bridges them
 - All tool handlers must be wrapped with `withPolicy()` before registration
+- The policy wrapper (`runToolWithPolicy`) auto-invokes the `guard` tool on every call (threshold-gated at 50KB)
 - Every tool definition needs: `description` with trigger phrases, `annotations` (readOnlyHint, destructiveHint, idempotentHint, openWorldHint), full `inputSchema` with parameter descriptions
 
 ### Deployment
@@ -93,8 +94,7 @@ Key vars: `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE
 **Add a new tool:**
 1. Create `src/tools/my-tool.ts` with handler + definition (include annotations + full descriptions)
 2. Import and add to `rawDomainTools` array in `primary-tools.ts`
-3. Add intent mapping in `intent-router.ts` `INTENT_MAPPINGS` if it should be routable via `couchloop`
-4. Add `mapToolArgs` case in `couchloop-v2.ts` if it has required params beyond intent/context
+3. Wrap with `withPolicy()` in `setupTools()`
 
 **Add a new DB table:**
 1. Write migration SQL in `src/db/migrations/NNNN_description.sql`

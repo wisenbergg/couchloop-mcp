@@ -1,5 +1,7 @@
 # CouchLoop Runtime Upgrade Plan
 
+> **Historical document.** This audit was performed against the v1.4.0 codebase (10-tool architecture with `couchloop` intent router). As of v2.1.0, most gaps identified here have been resolved: guard is now auto-invoked via `withPolicy()`, tools consolidated to 4 public tools, protect/brainstorm/verify removed as standalone tools, and `remember` replaced by `memory`. See [CHANGELOG.md](./CHANGELOG.md).
+
 > Companion to `AGENT_RUNTIME_CONTRACT.md`.
 > Status: Working document — track resolved items as PRs close.
 > Scope: Gaps between v1 contract claims and actual enforcement as of the March 16, 2026 codebase audit.
