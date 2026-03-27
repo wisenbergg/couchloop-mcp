@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { Session, Checkpoint } from '../db/schema.js';
+import { AuthContextSchema } from './auth.js';
 
 export const JourneyStepTypeSchema = z.enum(['prompt', 'checkpoint', 'summary']);
 export type JourneyStepType = z.infer<typeof JourneyStepTypeSchema>;
@@ -38,6 +39,7 @@ export type ListJourneysInput = z.infer<typeof ListJourneysSchema>;
 
 export const GetJourneyStatusSchema = z.object({
   session_id: z.string().uuid().describe('Session ID to check'),
+  auth: AuthContextSchema.optional().describe('Authentication context'),
 });
 
 export type GetJourneyStatusInput = z.infer<typeof GetJourneyStatusSchema>;

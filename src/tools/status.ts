@@ -4,8 +4,9 @@
  * Dashboard and quick status checks for session, history, context, protection, and preferences.
  * Provides personalized status with actionable next steps.
  *
- * SECURITY: All database queries are scoped to the authenticated user.
- * No cross-user data leakage is possible — every query path requires a resolved userId.
+ * SECURITY: All database queries (sessions, checkpoints, insights) are scoped
+ * to the authenticated user. Context and protection checks use machine-local
+ * storage and are not user-scoped.
  */
 
 import { z } from 'zod';
