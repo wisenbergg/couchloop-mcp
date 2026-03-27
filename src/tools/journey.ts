@@ -1,7 +1,8 @@
 import { getDb } from '../db/client.js';
-import { sessions, journeys, checkpoints } from '../db/schema.js';
-import { eq, sql } from 'drizzle-orm';
+import { sessions, journeys, checkpoints, users } from '../db/schema.js';
+import { eq, and, sql } from 'drizzle-orm';
 import { ListJourneysSchema, GetJourneyStatusSchema } from '../types/journey.js';
+import { extractUserFromContext } from '../types/auth.js';
 import { handleError, NotFoundError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 
@@ -49,11 +50,22 @@ export async function getJourneyStatus(args: unknown) {
     const input = GetJourneyStatusSchema.parse(args);
     const db = getDb();
 
-    // Get session
+    // Resolve calling user for ownership check
+    const externalUserId = await extractUserFromContext(input.auth);
+    const [user] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.externalId, externalUserId))
+      .limit(1);
+
+    // Get session — scoped to this user
     const [session] = await db
       .select()
       .from(sessions)
-      .where(eq(sessions.id, input.session_id))
+      .where(user
+        ? and(eq(sessions.id, input.session_id), eq(sessions.userId, user.id))
+        : eq(sessions.id, input.session_id)
+      )
       .limit(1);
 
     if (!session) {

@@ -19,6 +19,7 @@
  * - protect           - Broken on Railway (read-only /app filesystem)
  */
 
+import { z } from 'zod';
 import { ToolRegistry } from '../core/registry/registry.js';
 
 // Tool handler imports
@@ -41,6 +42,24 @@ import { logger } from '../utils/logger.js';
 // ============================================================
 
 // ── 1. MEMORY (hero feature — registered first) ─────────────────────────────
+
+// Zod schemas for handler validation (CLAUDE.md Key Invariant #1)
+const MemoryInputSchema = z.object({
+  action: z.enum(['save', 'recall', 'list']).optional(),
+  content: z.unknown().optional(),
+  type: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  session_id: z.string().optional(),
+  auth: z.record(z.unknown()).optional(),
+});
+
+const ConversationInputSchema = z.object({
+  action: z.enum(['send', 'start', 'end', 'resume', 'status']).optional(),
+  message: z.string().optional(),
+  journey: z.string().optional(),
+  session_id: z.string().optional(),
+  auth: z.record(z.unknown()).optional(),
+});
 
 const memoryTool = {
   definition: {
@@ -78,14 +97,19 @@ const memoryTool = {
           type: 'string',
           description: 'Session to associate with',
         },
+        auth: {
+          type: 'object',
+          description: 'Authentication context for user identification',
+        },
       },
       required: [],
     },
   },
   handler: async (args: Record<string, unknown>) => {
-    const action = (args.action as string) || 'save';
-    const sessionId = args.session_id as string | undefined;
-    const auth = args.auth as Record<string, unknown> | undefined;
+    const parsed = MemoryInputSchema.parse(args);
+    const action = parsed.action ?? 'save';
+    const sessionId = parsed.session_id;
+    const auth = parsed.auth;
 
     switch (action) {
       case 'recall': {
@@ -99,10 +123,10 @@ const memoryTool = {
       case 'save':
       default:
         return handleSmartContext({
-          content: args.content,
-          type: args.type || 'insight',
-          tags: args.tags,
-          session_id: args.session_id,
+          content: parsed.content,
+          type: parsed.type || 'insight',
+          tags: parsed.tags,
+          session_id: parsed.session_id,
           auth,
         });
     }
@@ -141,35 +165,40 @@ const conversationTool = {
           type: 'string',
           description: 'Session ID (auto-managed if not provided)',
         },
+        auth: {
+          type: 'object',
+          description: 'Authentication context for user identification',
+        },
       },
       required: ['message'],
     },
   },
   handler: async (args: Record<string, unknown>) => {
-    const action = (args.action as string) || 'send';
-    const auth = args.auth as Record<string, unknown> | undefined;
+    const parsed = ConversationInputSchema.parse(args);
+    const action = parsed.action ?? 'send';
+    const auth = parsed.auth;
 
     switch (action) {
       case 'start':
         return createSession({
-          journey_slug: args.journey as string,
-          context: args.message as string,
+          journey_slug: parsed.journey,
+          context: parsed.message,
           auth,
         });
       case 'end':
-        return endSession(args.session_id as string, auth);
+        return endSession(parsed.session_id, auth);
       case 'resume':
-        return resumeSession({ session_id: args.session_id as string, auth });
+        return resumeSession({ session_id: parsed.session_id as string, auth });
       case 'status':
-        if (args.session_id) {
-          return getJourneyStatus({ session_id: args.session_id as string });
+        if (parsed.session_id) {
+          return getJourneyStatus({ session_id: parsed.session_id, auth });
         }
         return listJourneys({});
       case 'send':
       default:
         return sendMessage({
-          message: args.message,
-          session_id: args.session_id,
+          message: parsed.message,
+          session_id: parsed.session_id,
           save_checkpoint: true,
           include_memory: true,
         });
