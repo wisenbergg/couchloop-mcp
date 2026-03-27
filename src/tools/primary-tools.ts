@@ -85,16 +85,17 @@ const memoryTool = {
   handler: async (args: Record<string, unknown>) => {
     const action = (args.action as string) || 'save';
     const sessionId = args.session_id as string | undefined;
-    
+    const auth = args.auth as Record<string, unknown> | undefined;
+
     switch (action) {
       case 'recall': {
-        const checkpoints = await getCheckpoints({ session_id: sessionId });
-        const insights = await getInsights({ session_id: sessionId, limit: 10 });
-        const userContext = await getUserContext({ include_recent_insights: true, include_session_history: true });
-        return { checkpoints, insights, user_context: userContext };
+        const checkpointData = await getCheckpoints({ session_id: sessionId, auth });
+        const insightData = await getInsights({ session_id: sessionId, limit: 10, auth });
+        const userContext = await getUserContext({ include_recent_insights: true, include_session_history: true, auth });
+        return { checkpoints: checkpointData, insights: insightData, user_context: userContext };
       }
       case 'list':
-        return getInsights({ session_id: sessionId, limit: 20 });
+        return getInsights({ session_id: sessionId, limit: 20, auth });
       case 'save':
       default:
         return handleSmartContext({
@@ -102,6 +103,7 @@ const memoryTool = {
           type: args.type || 'insight',
           tags: args.tags,
           session_id: args.session_id,
+          auth,
         });
     }
   },
@@ -145,17 +147,19 @@ const conversationTool = {
   },
   handler: async (args: Record<string, unknown>) => {
     const action = (args.action as string) || 'send';
-    
+    const auth = args.auth as Record<string, unknown> | undefined;
+
     switch (action) {
       case 'start':
         return createSession({
           journey_slug: args.journey as string,
           context: args.message as string,
+          auth,
         });
       case 'end':
-        return endSession(args.session_id as string);
+        return endSession(args.session_id as string, auth);
       case 'resume':
-        return resumeSession({ session_id: args.session_id as string });
+        return resumeSession({ session_id: args.session_id as string, auth });
       case 'status':
         if (args.session_id) {
           return getJourneyStatus({ session_id: args.session_id as string });

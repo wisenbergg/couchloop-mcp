@@ -1,24 +1,29 @@
 /**
  * MCP Tool: status
- * 
+ *
  * Dashboard and quick status checks for session, history, context, protection, and preferences.
  * Provides personalized status with actionable next steps.
+ *
+ * SECURITY: All database queries are scoped to the authenticated user.
+ * No cross-user data leakage is possible — every query path requires a resolved userId.
  */
 
 import { z } from 'zod';
 import { getDb } from '../db/client.js';
-import { sessions, checkpoints, insights } from '../db/schema.js';
-import { eq, desc, count } from 'drizzle-orm';
+import { sessions, checkpoints, insights, users } from '../db/schema.js';
+import { eq, desc, count, and } from 'drizzle-orm';
 import { WorkflowEngine } from '../workflows/engine.js';
 import { getContextManager } from '../developer/managers/context-manager.js';
 import { ContextMetadata, ContextEntry } from '../types/context.js';
 import { getProtectionStatus, listBackups } from './protect-files.js';
 import { getUserContext } from './insight.js';
+import { extractUserFromContext, type AuthContext } from '../types/auth.js';
 import { logger } from '../utils/logger.js';
 
 const StatusInputSchema = z.object({
   check: z.enum(['session', 'history', 'context', 'protection', 'preferences', 'all']).describe('What to check'),
   session_id: z.string().optional().describe('Session ID for session-specific status'),
+  auth: z.record(z.unknown()).optional().describe('Authentication context'),
 });
 
 export type StatusInput = z.infer<typeof StatusInputSchema>;
@@ -53,24 +58,60 @@ export const statusTool = {
   handler: handleStatus,
 };
 
+// ============================================================
+// USER RESOLUTION (single point of entry for all status queries)
+// ============================================================
+
+/**
+ * Resolve the calling user's internal UUID from auth context.
+ * Returns null if user has never interacted with the system.
+ * This is the ONLY function that touches the users table — all
+ * downstream queries receive an already-validated userId.
+ */
+async function resolveUserId(authContext?: AuthContext): Promise<string | null> {
+  const db = getDb();
+  const externalId = await extractUserFromContext(authContext);
+
+  const [user] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.externalId, externalId))
+    .limit(1);
+
+  return user?.id ?? null;
+}
+
 export async function handleStatus(args: unknown) {
   try {
     const input = StatusInputSchema.parse(args);
-    
+
     logger.info('Running status check', { check: input.check });
-    
+
+    // Resolve the calling user ONCE — all queries scope to this userId
+    const userId = await resolveUserId(input.auth as AuthContext | undefined);
+
+    if (!userId) {
+      return {
+        success: true,
+        check: input.check,
+        timestamp: new Date().toISOString(),
+        summary: 'No user data found. Start a session or save a memory to get started.',
+        next_steps: ['Start your first session with "start a reflection" or "let\'s begin"'],
+      };
+    }
+
     const result: StatusResult = {
       check: input.check,
       timestamp: new Date().toISOString(),
     };
 
-    // Run appropriate checks based on type
+    // Run appropriate checks based on type — all scoped to userId
     if (input.check === 'session' || input.check === 'all') {
-      result.session = await getSessionStatus(input.session_id);
+      result.session = await getSessionStatus(userId, input.session_id);
     }
 
     if (input.check === 'history' || input.check === 'all') {
-      result.history = await getHistoryStatus();
+      result.history = await getHistoryStatus(userId);
     }
 
     if (input.check === 'context' || input.check === 'all') {
@@ -82,7 +123,7 @@ export async function handleStatus(args: unknown) {
     }
 
     if (input.check === 'preferences' || input.check === 'all') {
-      result.preferences = await getPreferencesStatus();
+      result.preferences = await getPreferencesStatus(input.auth as AuthContext | undefined);
     }
 
     // Generate personalized summary and next steps
@@ -120,25 +161,31 @@ interface SessionStatus {
   status?: string;
 }
 
-async function getSessionStatus(sessionId?: string): Promise<SessionStatus> {
+async function getSessionStatus(userId: string, sessionId?: string): Promise<SessionStatus> {
   try {
     const db = getDb();
-    
-    // Find active or specified session
+
     let session;
-    
+
     if (sessionId) {
+      // Explicit session lookup — MUST belong to this user
       [session] = await db
         .select()
         .from(sessions)
-        .where(eq(sessions.id, sessionId))
+        .where(and(
+          eq(sessions.id, sessionId),
+          eq(sessions.userId, userId)
+        ))
         .limit(1);
     } else {
-      // Get most recent active session
+      // Most recent active session FOR THIS USER
       [session] = await db
         .select()
         .from(sessions)
-        .where(eq(sessions.status, 'active'))
+        .where(and(
+          eq(sessions.userId, userId),
+          eq(sessions.status, 'active')
+        ))
         .orderBy(desc(sessions.lastActiveAt))
         .limit(1);
     }
@@ -154,7 +201,8 @@ async function getSessionStatus(sessionId?: string): Promise<SessionStatus> {
     const engine = new WorkflowEngine();
     const progress = await engine.getSessionProgress(session.id);
 
-    // Get checkpoint count
+    // Get checkpoint count (session is already user-scoped, but checkpoints
+    // are keyed by sessionId which is user-owned)
     const sessionCheckpoints = await db
       .select()
       .from(checkpoints)
@@ -208,30 +256,37 @@ interface HistoryStatus {
   patterns_detected: string[];
 }
 
-async function getHistoryStatus(): Promise<HistoryStatus> {
+async function getHistoryStatus(userId: string): Promise<HistoryStatus> {
   try {
     const db = getDb();
-    
-    // Get recent sessions
+
+    // All queries scoped to this user's data only
+
     const recentSessions = await db
       .select()
       .from(sessions)
+      .where(eq(sessions.userId, userId))
       .orderBy(desc(sessions.startedAt))
       .limit(5);
 
-    // Get total session count efficiently
-    const sessionCountResult = await db.select({ value: count() }).from(sessions);
+    const sessionCountResult = await db
+      .select({ value: count() })
+      .from(sessions)
+      .where(eq(sessions.userId, userId));
     const sessionCount = sessionCountResult[0]?.value ?? 0;
 
-    // Get recent insights
     const recentInsights = await db
       .select()
       .from(insights)
+      .where(eq(insights.userId, userId))
       .orderBy(desc(insights.createdAt))
       .limit(5);
 
-    // Get only tags for pattern detection (not full rows)
-    const allInsightTags = await db.select({ tags: insights.tags }).from(insights);
+    // Tags query also scoped to this user
+    const allInsightTags = await db
+      .select({ tags: insights.tags })
+      .from(insights)
+      .where(eq(insights.userId, userId));
     const insightCount = allInsightTags.length;
 
     // Detect patterns from insight tags
@@ -298,12 +353,12 @@ async function getContextStatus(): Promise<ContextStatus> {
   try {
     const contextManager = await getContextManager();
     const checkResult = await contextManager.check(true);
-    
+
     const metadata = (checkResult.data || {}) as ContextMetadata;
     const entries = await contextManager.retrieve();
-    
+
     const allEntries = (Array.isArray(entries.data) ? entries.data : []) as ContextEntry[];
-    
+
     // Categorize entries
     const entriesByCategory: Record<string, number> = {};
     const recentDecisions: string[] = [];
@@ -312,7 +367,7 @@ async function getContextStatus(): Promise<ContextStatus> {
 
     for (const entry of allEntries as Array<{ category: string; content: string }>) {
       entriesByCategory[entry.category] = (entriesByCategory[entry.category] || 0) + 1;
-      
+
       if (entry.category === 'decision') {
         recentDecisions.push(entry.content.substring(0, 80));
       } else if (entry.category === 'constraint') {
@@ -329,7 +384,7 @@ async function getContextStatus(): Promise<ContextStatus> {
       recent_decisions: recentDecisions.slice(0, 3),
       recent_constraints: recentConstraints.slice(0, 3),
       stored_patterns: storedPatterns.slice(0, 3),
-      warning: metadata.context_window_usage_percent > 80 
+      warning: metadata.context_window_usage_percent > 80
         ? 'Context window is getting full. Consider archiving old entries.'
         : undefined,
     };
@@ -402,12 +457,13 @@ interface PreferencesStatus {
   last_updated?: string;
 }
 
-async function getPreferencesStatus(): Promise<PreferencesStatus> {
+async function getPreferencesStatus(authContext?: AuthContext): Promise<PreferencesStatus> {
   try {
-    // Get user preferences (using anonymous user for now)
+    // Pass auth context through so getUserContext resolves the correct user
     const userContext = await getUserContext({
       include_recent_insights: false,
       include_session_history: false,
+      auth: authContext,
     });
 
     const prefs = (userContext as { preferences?: Record<string, unknown> }).preferences || {};
