@@ -13,21 +13,26 @@ let supabase: SupabaseClient | null = null;
 export async function initDatabase() {
   try {
     const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
 
-    if (!supabaseUrl || !supabaseServiceKey) {
+    if (!supabaseUrl || !supabaseKey) {
+      const missing = [];
+      if (!supabaseUrl) missing.push('SUPABASE_URL');
+      if (!supabaseKey) missing.push('SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY');
+      console.error(`FATAL: Missing required env vars: ${missing.join(', ')}`);
+      throw new Error(`Missing required env vars: ${missing.join(', ')}`);
+    }
+
+    if (supabaseUrl.includes('xxx') || supabaseKey.includes('your-')) {
+      console.error('FATAL: Supabase credentials contain placeholder values');
       throw new Error(
-        'SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required',
+        'Supabase credentials contain placeholder values. Set real values in your env.',
       );
     }
 
-    if (supabaseUrl.includes('xxx') || supabaseServiceKey.includes('your-')) {
-      throw new Error(
-        'Supabase credentials contain placeholder values. Set real values in your .env file.',
-      );
-    }
+    logger.info(`Initializing Supabase client (using ${process.env.SUPABASE_SERVICE_ROLE_KEY ? 'service_role' : 'anon'} key)`);
 
-    supabase = createClient(supabaseUrl, supabaseServiceKey, {
+    supabase = createClient(supabaseUrl, supabaseKey, {
       auth: {
         autoRefreshToken: false,
         persistSession: false,
