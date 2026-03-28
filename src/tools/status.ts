@@ -10,9 +10,7 @@
  */
 
 import { z } from 'zod';
-import { getDb } from '../db/client.js';
-import { sessions, checkpoints, insights, users } from '../db/schema.js';
-import { eq, desc, count, and } from 'drizzle-orm';
+import { getSupabaseClient, throwOnError } from '../db/supabase-helpers.js';
 import { WorkflowEngine } from '../workflows/engine.js';
 import { getContextManager } from '../developer/managers/context-manager.js';
 import { ContextMetadata, ContextEntry } from '../types/context.js';
@@ -70,14 +68,16 @@ export const statusTool = {
  * downstream queries receive an already-validated userId.
  */
 async function resolveUserId(authContext?: AuthContext): Promise<string | null> {
-  const db = getDb();
+  const supabase = getSupabaseClient();
   const externalId = await extractUserFromContext(authContext);
 
-  const [user] = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(eq(users.externalId, externalId))
-    .limit(1);
+  const user = throwOnError(
+    await supabase
+      .from('users')
+      .select('id')
+      .eq('external_id', externalId)
+      .maybeSingle()
+  );
 
   return user?.id ?? null;
 }
@@ -164,31 +164,32 @@ interface SessionStatus {
 
 async function getSessionStatus(userId: string, sessionId?: string): Promise<SessionStatus> {
   try {
-    const db = getDb();
+    const supabase = getSupabaseClient();
 
     let session;
 
     if (sessionId) {
       // Explicit session lookup — MUST belong to this user
-      [session] = await db
-        .select()
-        .from(sessions)
-        .where(and(
-          eq(sessions.id, sessionId),
-          eq(sessions.userId, userId)
-        ))
-        .limit(1);
+      session = throwOnError(
+        await supabase
+          .from('sessions')
+          .select('*')
+          .eq('id', sessionId)
+          .eq('user_id', userId)
+          .maybeSingle()
+      );
     } else {
       // Most recent active session FOR THIS USER
-      [session] = await db
-        .select()
-        .from(sessions)
-        .where(and(
-          eq(sessions.userId, userId),
-          eq(sessions.status, 'active')
-        ))
-        .orderBy(desc(sessions.lastActiveAt))
-        .limit(1);
+      session = throwOnError(
+        await supabase
+          .from('sessions')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('status', 'active')
+          .order('last_active_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      );
     }
 
     if (!session) {
@@ -204,27 +205,30 @@ async function getSessionStatus(userId: string, sessionId?: string): Promise<Ses
 
     // Get checkpoint count (session is already user-scoped, but checkpoints
     // are keyed by sessionId which is user-owned)
-    const sessionCheckpoints = await db
-      .select()
-      .from(checkpoints)
-      .where(eq(checkpoints.sessionId, session.id));
+    const sessionCheckpoints = throwOnError(
+      await supabase
+        .from('checkpoints')
+        .select('*')
+        .eq('session_id', session.id)
+    );
 
     // Calculate time elapsed
-    const startTime = new Date(session.startedAt);
+    // Supabase returns ISO strings, not Date objects
+    const startTime = new Date(session.started_at);
     const now = new Date();
     const timeElapsedMinutes = Math.round((now.getTime() - startTime.getTime()) / 60000);
 
     return {
       has_active_session: true,
       session_id: session.id,
-      journey_name: session.journeyId || undefined,
+      journey_name: session.journey_id || undefined,
       current_step: progress.currentStep,
       total_steps: progress.totalSteps,
       percent_complete: progress.percentComplete,
-      checkpoints_saved: sessionCheckpoints.length,
+      checkpoints_saved: (sessionCheckpoints ?? []).length,
       time_elapsed_minutes: timeElapsedMinutes,
-      started_at: session.startedAt.toISOString(),
-      last_activity: session.lastActiveAt?.toISOString(),
+      started_at: session.started_at,
+      last_activity: session.last_active_at ?? undefined,
       status: session.status,
     };
   } catch (error) {
@@ -259,40 +263,48 @@ interface HistoryStatus {
 
 async function getHistoryStatus(userId: string): Promise<HistoryStatus> {
   try {
-    const db = getDb();
+    const supabase = getSupabaseClient();
 
     // All queries scoped to this user's data only
 
-    const recentSessions = await db
-      .select()
-      .from(sessions)
-      .where(eq(sessions.userId, userId))
-      .orderBy(desc(sessions.startedAt))
-      .limit(5);
+    const recentSessions = throwOnError(
+      await supabase
+        .from('sessions')
+        .select('*')
+        .eq('user_id', userId)
+        .order('started_at', { ascending: false })
+        .limit(5)
+    );
 
-    const sessionCountResult = await db
-      .select({ value: count() })
-      .from(sessions)
-      .where(eq(sessions.userId, userId));
-    const sessionCount = sessionCountResult[0]?.value ?? 0;
+    const sessionCountResult = await supabase
+      .from('sessions')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId);
+    if (sessionCountResult.error) throw new Error(sessionCountResult.error.message);
+    const sessionCount = sessionCountResult.count ?? 0;
 
-    const recentInsights = await db
-      .select()
-      .from(insights)
-      .where(eq(insights.userId, userId))
-      .orderBy(desc(insights.createdAt))
-      .limit(5);
+    const recentInsights = throwOnError(
+      await supabase
+        .from('insights')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(5)
+    );
 
     // Tags query also scoped to this user
-    const allInsightTags = await db
-      .select({ tags: insights.tags })
-      .from(insights)
-      .where(eq(insights.userId, userId));
-    const insightCount = allInsightTags.length;
+    const allInsightTags = throwOnError(
+      await supabase
+        .from('insights')
+        .select('tags')
+        .eq('user_id', userId)
+    );
+    const safeInsightTags = allInsightTags ?? [];
+    const insightCount = safeInsightTags.length;
 
     // Detect patterns from insight tags
     const tagCounts: Record<string, number> = {};
-    for (const insight of allInsightTags) {
+    for (const insight of safeInsightTags) {
       const tags = insight.tags as string[] | null;
       if (tags) {
         for (const tag of tags) {
@@ -303,24 +315,24 @@ async function getHistoryStatus(userId: string): Promise<HistoryStatus> {
 
     // Find recurring patterns (tags that appear 3+ times)
     const patterns = Object.entries(tagCounts)
-      .filter(([, count]) => count >= 3)
+      .filter(([, cnt]) => cnt >= 3)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
-      .map(([tag, count]) => `${tag} (${count} occurrences)`);
+      .map(([tag, cnt]) => `${tag} (${cnt} occurrences)`);
 
     return {
-      recent_sessions: recentSessions.map(s => ({
-        id: s.id,
-        journey: s.journeyId || undefined,
-        status: s.status,
-        started_at: s.startedAt.toISOString(),
+      recent_sessions: (recentSessions ?? []).map((s: Record<string, unknown>) => ({
+        id: s.id as string,
+        journey: (s.journey_id as string) || undefined,
+        status: s.status as string,
+        started_at: s.started_at as string,
       })),
-      total_sessions: sessionCount,
+      total_sessions: sessionCount ?? 0,
       total_insights: insightCount,
-      recent_insights: recentInsights.map(i => ({
-        content: i.content.substring(0, 100) + (i.content.length > 100 ? '...' : ''),
+      recent_insights: (recentInsights ?? []).map((i: Record<string, unknown>) => ({
+        content: (i.content as string).substring(0, 100) + ((i.content as string).length > 100 ? '...' : ''),
         tags: i.tags as string[] | undefined,
-        created_at: i.createdAt.toISOString(),
+        created_at: i.created_at as string,
       })),
       patterns_detected: patterns,
     };

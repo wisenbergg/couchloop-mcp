@@ -1,8 +1,6 @@
 import { z } from 'zod';
-import { eq } from 'drizzle-orm';
-import { getDb } from '../db/client.js';
+import { getSupabaseClient, throwOnError } from '../db/supabase-helpers.js';
 import { getShrinkChatClient } from '../clients/shrinkChatClient.js';
-import { sessions, checkpoints, journeys, crisisEvents, governanceEvaluations } from '../db/schema.js';
 import { logger } from '../utils/logger.js';
 import { sanitizeResponse } from '../utils/sanitize.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -81,7 +79,7 @@ async function sendMessageInternal(args: unknown) {
     const input = SendMessageSchema.parse(args);
     // Defense-in-depth: sanitize text input beyond Zod validation
     const message = sanitizeText(input.message);
-    const db = getDb();
+    const supabase = getSupabaseClient();
 
     // Get or create session implicitly if not provided
     // FIX 1: Session object returned directly — no redundant re-fetch
@@ -94,13 +92,21 @@ async function sendMessageInternal(args: unknown) {
     logger.info(`Sending message for session ${sessionId}${isNew ? ' (newly created)' : ''}`);
 
     // Get or create thread ID + fetch journey in parallel (FIX 2)
-    let threadId = session.threadId;
+    let threadId = session.thread_id;
     const threadIdPromise = !threadId
-      ? (threadId = uuidv4(), db.update(sessions).set({ threadId }).where(eq(sessions.id, sessionId)))
+      ? (threadId = uuidv4(), supabase.from('sessions').update({ thread_id: threadId }).eq('id', sessionId))
       : null;
 
-    const journeyPromise = session.journeyId
-      ? db.select().from(journeys).where(eq(journeys.id, session.journeyId)).limit(1).then(res => res[0])
+    const journeyPromise = session.journey_id
+      ? supabase
+          .from('journeys')
+          .select('*')
+          .eq('id', session.journey_id)
+          .maybeSingle()
+          .then(({ data, error }) => {
+            if (error) logger.error('[sendMessage] Journey fetch error:', error);
+            return data;
+          })
       : null;
 
     // FIX 2: Run threadId update + journey fetch in parallel
@@ -110,15 +116,15 @@ async function sendMessageInternal(args: unknown) {
     ]);
 
     const memoryContext = JSON.stringify({
-      userId: session.userId || 'anonymous',
+      userId: session.user_id || 'anonymous',
       conversationType: input.conversation_type || 'supportive',
       sessionGoals: [],
       emotionalState: (session.metadata as SessionMetadata | undefined)?.emotionalState || 'neutral',
     });
 
     const enhancedContext = {
-      journeyStep: journey && session.currentStep < journey.steps.length
-        ? journey.steps[session.currentStep]
+      journeyStep: journey && session.current_step < journey.steps.length
+        ? journey.steps[session.current_step]
         : null,
       progressIndicators: (session.metadata as SessionMetadata | undefined)?.progressIndicators || [],
     };
@@ -134,7 +140,7 @@ async function sendMessageInternal(args: unknown) {
       threadId,
       message,
       {
-        userId: session.userId,
+        userId: session.user_id,
         memoryContext,
         enhancedContext,
         history,
@@ -176,7 +182,7 @@ Suggested approach: ${response.crisis_suggested_actions?.join(', ') || 'De-escal
         threadId,
         revisionPrompt,
         {
-          userId: session.userId,
+          userId: session.user_id,
           memoryContext,
           enhancedContext,
           history: [...history,
@@ -204,9 +210,9 @@ Suggested approach: ${response.crisis_suggested_actions?.join(', ') || 'De-escal
 
     // Additional checkpoint if requested
     if (input.save_checkpoint) {
-      await db.insert(checkpoints).values({
-        sessionId: session.id,
-        stepId: session.currentStep.toString(),
+      throwOnError(await supabase.from('checkpoints').insert({
+        session_id: session.id,
+        step_id: session.current_step.toString(),
         key: input.checkpoint_key || 'message_response',
         value: {
           message: message,
@@ -214,14 +220,15 @@ Suggested approach: ${response.crisis_suggested_actions?.join(', ') || 'De-escal
           selfCorrected,
           timestamp: new Date().toISOString(),
         },
-      });
+      }).select());
     }
 
     // Advance step if requested
-    if (input.advance_step && session.journeyId) {
-      await db.update(sessions)
-        .set({ currentStep: session.currentStep + 1, updatedAt: new Date() })
-        .where(eq(sessions.id, session.id));
+    if (input.advance_step && session.journey_id) {
+      throwOnError(await supabase
+        .from('sessions')
+        .update({ current_step: session.current_step + 1, updated_at: new Date().toISOString() })
+        .eq('id', session.id));
     }
 
     // === ASYNC GOVERNANCE EVALUATION ===
@@ -229,7 +236,7 @@ Suggested approach: ${response.crisis_suggested_actions?.join(', ') || 'De-escal
     // This analyzes for hallucination, inconsistency, tone drift, and unsafe reasoning
     runAsyncGovernanceEvaluation(
       session.id,
-      session.userId || undefined,
+      session.user_id || undefined,
       responseContent,
       history.map(h => ({
         role: h.role as 'user' | 'assistant',
@@ -253,7 +260,7 @@ Suggested approach: ${response.crisis_suggested_actions?.join(', ') || 'De-escal
         sessionId: session.id,
         threadId,
         selfCorrected,
-        currentStep: input.advance_step ? session.currentStep + 1 : session.currentStep,
+        currentStep: input.advance_step ? session.current_step + 1 : session.current_step,
       },
       timestamp: new Date().toISOString(),
     };
@@ -289,7 +296,7 @@ async function runAsyncGovernanceEvaluation(
 ): Promise<void> {
   try {
     const engine = getGovernanceEngine();
-    
+
     const context: SessionContext = {
       sessionId,
       userId,
@@ -301,11 +308,11 @@ async function runAsyncGovernanceEvaluation(
     const evaluationTime = Date.now() - startTime;
 
     // Log the evaluation with real results - normalize patterns to always be arrays
-    const db = getDb();
-    await db.insert(governanceEvaluations).values({
-      sessionId,
-      draftResponse: responseContent.substring(0, 1000),
-      evaluationResults: {
+    const supabase = getSupabaseClient();
+    await supabase.from('governance_evaluations').insert({
+      session_id: sessionId,
+      draft_response: responseContent.substring(0, 1000),
+      evaluation_results: {
         hallucination: {
           detected: result.hallucination.detected,
           confidence: result.hallucination.confidence,
@@ -330,14 +337,16 @@ async function runAsyncGovernanceEvaluation(
         recommendedAction: result.recommendedAction,
         confidence: result.confidence
       },
-      interventionApplied: null, // Async evaluation doesn't intervene, just logs
-      finalResponse: null,
+      intervention_applied: null, // Async evaluation doesn't intervene, just logs
+      final_response: null,
+    }).then(({ error }) => {
+      if (error) logger.error('[Governance] Failed to insert evaluation:', error);
     });
 
     // Log summary
     const issuesDetected = [
       result.hallucination.detected && 'hallucination',
-      result.inconsistency.detected && 'inconsistency', 
+      result.inconsistency.detected && 'inconsistency',
       result.toneDrift.detected && 'toneDrift',
       result.unsafeReasoning.detected && 'unsafeReasoning'
     ].filter(Boolean);
@@ -361,17 +370,19 @@ async function handleCrisisDetection(
   threadId: string,
   response: ShrinkResponse
 ): Promise<void> {
-  const db = getDb();
+  const supabase = getSupabaseClient();
 
-  await db.insert(crisisEvents).values({
-    id: uuidv4(),
-    sessionId,
-    threadId,
-    crisisLevel: typeof response.crisis_level === 'number' ? response.crisis_level : 10,
+  await supabase.from('crisis_events').insert({
+    id: `ce_${crypto.randomUUID()}`,
+    session_id: sessionId,
+    thread_id: threadId,
+    crisis_level: typeof response.crisis_level === 'number' ? response.crisis_level : 10,
     response: response.content || response.reply,
     resources: response.resources || [],
-    escalationPath: response.escalationPath,
+    escalation_path: response.escalationPath,
     handled: true,
+  }).then(({ error }) => {
+    if (error) logger.error('[Crisis] Failed to insert crisis event:', error);
   });
 
   logger.info(`Crisis event logged for session ${sessionId}`);
@@ -395,7 +406,7 @@ async function handleLocalFallback(args: unknown): Promise<unknown> {
     metadata: {
       fallbackMode: true,
       sessionId: session.id,
-      currentStep: session.currentStep,
+      currentStep: session.current_step,
     },
   };
 }

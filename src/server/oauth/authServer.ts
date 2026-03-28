@@ -6,16 +6,9 @@ if (!process.env.NODE_ENV || process.env.NODE_ENV === "development") {
 
 import bcrypt from "bcryptjs";
 import nodeCrypto from "crypto";
-import { and, eq } from "drizzle-orm";
 import jwt, { type SignOptions } from "jsonwebtoken";
 import { v4 as uuidv4 } from "uuid";
-import { getDb } from "../../db/client.js";
-import {
-  authorizationCodes,
-  oauthClients,
-  oauthTokens,
-  users,
-} from "../../db/schema.js";
+import { getSupabaseClient, throwOnError } from "../../db/supabase-helpers.js";
 import { logger } from "../../utils/logger.js";
 
 interface TokenPayload {
@@ -54,14 +47,16 @@ export class OAuthServer {
     clientId: string,
     clientSecret?: string,
   ): Promise<{ clientId: string; redirectUris: string[] } | null> {
-    const db = getDb();
+    const supabase = getSupabaseClient();
 
     try {
-      const [client] = await db
-        .select()
-        .from(oauthClients)
-        .where(eq(oauthClients.clientId, clientId))
-        .limit(1);
+      const client = throwOnError(
+        await supabase
+          .from("oauth_clients")
+          .select("*")
+          .eq("client_id", clientId)
+          .maybeSingle(),
+      );
 
       if (!client) {
         logger.warn(`Invalid client ID: ${clientId}`);
@@ -72,7 +67,7 @@ export class OAuthServer {
       if (clientSecret) {
         const validSecret = await bcrypt.compare(
           clientSecret,
-          client.clientSecret,
+          client.client_secret,
         );
         if (!validSecret) {
           logger.warn(`Invalid client secret for client: ${clientId}`);
@@ -81,8 +76,8 @@ export class OAuthServer {
       }
 
       return {
-        clientId: client.clientId,
-        redirectUris: client.redirectUris,
+        clientId: client.client_id,
+        redirectUris: client.redirect_uris,
       };
     } catch (error) {
       logger.error("Error validating client:", error);
@@ -99,20 +94,22 @@ export class OAuthServer {
     redirectUri: string,
     scope: string = "read write",
   ): Promise<string> {
-    const db = getDb();
+    const supabase = getSupabaseClient();
     const code = uuidv4();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes
 
     try {
-      await db.insert(authorizationCodes).values({
-        code,
-        userId,
-        clientId,
-        redirectUri,
-        scope,
-        expiresAt,
-        used: false,
-      });
+      throwOnError(
+        await supabase.from("authorization_codes").insert({
+          code,
+          user_id: userId,
+          client_id: clientId,
+          redirect_uri: redirectUri,
+          scope,
+          expires_at: expiresAt,
+          used: false,
+        }).select(),
+      );
 
       logger.info(`Generated auth code for user ${userId}, client ${clientId}`);
       return code;
@@ -137,7 +134,7 @@ export class OAuthServer {
     expires_in: number;
     scope: string;
   }> {
-    const db = getDb();
+    const supabase = getSupabaseClient();
 
     try {
       // Validate client
@@ -147,23 +144,21 @@ export class OAuthServer {
       }
 
       // Get and validate auth code
-      const [authCode] = await db
-        .select()
-        .from(authorizationCodes)
-        .where(
-          and(
-            eq(authorizationCodes.code, code),
-            eq(authorizationCodes.clientId, clientId),
-          ),
-        )
-        .limit(1);
+      const authCode = throwOnError(
+        await supabase
+          .from("authorization_codes")
+          .select("*")
+          .eq("code", code)
+          .eq("client_id", clientId)
+          .maybeSingle(),
+      );
 
       if (!authCode) {
         throw new Error("Invalid authorization code");
       }
 
-      // Check if code is expired
-      if (new Date() > authCode.expiresAt) {
+      // Check if code is expired (Supabase returns ISO strings)
+      if (new Date() > new Date(authCode.expires_at)) {
         throw new Error("Authorization code expired");
       }
 
@@ -173,43 +168,47 @@ export class OAuthServer {
       }
 
       // Validate redirect URI
-      if (authCode.redirectUri !== redirectUri) {
+      if (authCode.redirect_uri !== redirectUri) {
         throw new Error("Redirect URI mismatch");
       }
 
       // Mark code as used
-      await db
-        .update(authorizationCodes)
-        .set({ used: true })
-        .where(eq(authorizationCodes.code, code));
+      throwOnError(
+        await supabase
+          .from("authorization_codes")
+          .update({ used: true })
+          .eq("code", code),
+      );
 
       // Generate tokens
       const accessToken = this.generateAccessToken(
-        authCode.userId,
+        authCode.user_id,
         clientId,
         authCode.scope || "read write",
       );
 
       const refreshToken = this.generateRefreshToken(
-        authCode.userId,
+        authCode.user_id,
         clientId,
         authCode.scope || "read write",
       );
 
       // Store tokens in database
-      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
 
-      await db.insert(oauthTokens).values({
-        userId: authCode.userId,
-        accessToken,
-        refreshToken,
-        expiresAt,
-        scope: authCode.scope,
-        tokenType: "Bearer",
-      });
+      throwOnError(
+        await supabase.from("oauth_tokens").insert({
+          user_id: authCode.user_id,
+          access_token: accessToken,
+          refresh_token: refreshToken,
+          expires_at: expiresAt,
+          scope: authCode.scope,
+          token_type: "Bearer",
+        }).select(),
+      );
 
       logger.info(
-        `Issued tokens for user ${authCode.userId}, client ${clientId}`,
+        `Issued tokens for user ${authCode.user_id}, client ${clientId}`,
       );
 
       return {
@@ -272,14 +271,16 @@ export class OAuthServer {
       const decoded = jwt.verify(token, this.jwtSecret) as TokenPayload;
 
       // Check if token exists in database and is not expired
-      const db = getDb();
-      const [dbToken] = await db
-        .select()
-        .from(oauthTokens)
-        .where(eq(oauthTokens.accessToken, token))
-        .limit(1);
+      const supabase = getSupabaseClient();
+      const dbToken = throwOnError(
+        await supabase
+          .from("oauth_tokens")
+          .select("*")
+          .eq("access_token", token)
+          .maybeSingle(),
+      );
 
-      if (!dbToken || new Date() > dbToken.expiresAt) {
+      if (!dbToken || new Date() > new Date(dbToken.expires_at)) {
         return null;
       }
 
@@ -298,18 +299,20 @@ export class OAuthServer {
     token_type: string;
     expires_in: number;
   }> {
-    const db = getDb();
+    const supabase = getSupabaseClient();
 
     try {
       // Verify refresh token
       const decoded = jwt.verify(refreshToken, this.jwtSecret) as TokenPayload;
 
       // Find existing token
-      const [existingToken] = await db
-        .select()
-        .from(oauthTokens)
-        .where(eq(oauthTokens.refreshToken, refreshToken))
-        .limit(1);
+      const existingToken = throwOnError(
+        await supabase
+          .from("oauth_tokens")
+          .select("*")
+          .eq("refresh_token", refreshToken)
+          .maybeSingle(),
+      );
 
       if (!existingToken) {
         throw new Error("Invalid refresh token");
@@ -323,16 +326,18 @@ export class OAuthServer {
       );
 
       // Update token in database
-      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
-      await db
-        .update(oauthTokens)
-        .set({
-          accessToken: newAccessToken,
-          expiresAt,
-          updatedAt: new Date(),
-        })
-        .where(eq(oauthTokens.id, existingToken.id));
+      throwOnError(
+        await supabase
+          .from("oauth_tokens")
+          .update({
+            access_token: newAccessToken,
+            expires_at: expiresAt,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existingToken.id),
+      );
 
       logger.info(`Refreshed token for user ${decoded.sub}`);
 
@@ -351,10 +356,15 @@ export class OAuthServer {
    * Revoke token
    */
   async revokeToken(token: string): Promise<void> {
-    const db = getDb();
+    const supabase = getSupabaseClient();
 
     try {
-      await db.delete(oauthTokens).where(eq(oauthTokens.accessToken, token));
+      throwOnError(
+        await supabase
+          .from("oauth_tokens")
+          .delete()
+          .eq("access_token", token),
+      );
 
       logger.info("Revoked token");
     } catch (error) {
@@ -367,28 +377,33 @@ export class OAuthServer {
    * Create or get user from external ID
    */
   async getOrCreateUser(externalId: string): Promise<string> {
-    const db = getDb();
+    const supabase = getSupabaseClient();
 
     try {
       // Check if user exists
-      const [existingUser] = await db
-        .select()
-        .from(users)
-        .where(eq(users.externalId, externalId))
-        .limit(1);
+      const existingUser = throwOnError(
+        await supabase
+          .from("users")
+          .select("*")
+          .eq("external_id", externalId)
+          .maybeSingle(),
+      );
 
       if (existingUser) {
         return existingUser.id;
       }
 
       // Create new user
-      const [newUser] = await db
-        .insert(users)
-        .values({
-          externalId,
-        })
-        .returning();
+      const rows = throwOnError(
+        await supabase
+          .from("users")
+          .insert({
+            external_id: externalId,
+          })
+          .select(),
+      );
 
+      const newUser = rows?.[0];
       if (!newUser) {
         throw new Error("Failed to create user");
       }

@@ -7,9 +7,7 @@
 
 import type { DetectionResult, SessionContext } from '../evaluationEngine.js';
 import type { CriterionConfig } from '../config.js';
-import { getDb } from '../../db/client.js';
-import { checkpoints } from '../../db/schema.js';
-import { eq, desc } from 'drizzle-orm';
+import { getSupabaseClient, throwOnError } from '../../db/supabase-helpers.js';
 
 interface Claim {
   content: string;
@@ -106,17 +104,19 @@ export class InconsistencyChecker {
     }
 
     // Load from database
-    const db = getDb();
-    const sessionCheckpoints = await db
-      .select()
-      .from(checkpoints)
-      .where(eq(checkpoints.sessionId, context.sessionId!))
-      .orderBy(desc(checkpoints.createdAt))
-      .limit(this.lookbackLimit * 2); // Get both user and assistant messages
+    const supabase = getSupabaseClient();
+    const sessionCheckpoints = throwOnError(
+      await supabase
+        .from('checkpoints')
+        .select('*')
+        .eq('session_id', context.sessionId!)
+        .order('created_at', { ascending: false })
+        .limit(this.lookbackLimit * 2) // Get both user and assistant messages
+    );
 
     const history: Array<{ role: string; content: string }> = [];
 
-    for (const checkpoint of sessionCheckpoints) {
+    for (const checkpoint of sessionCheckpoints ?? []) {
       if (checkpoint.key === 'user-message' || checkpoint.key === 'assistant-message') {
         const value = checkpoint.value as Record<string, string> | null;
         history.push({

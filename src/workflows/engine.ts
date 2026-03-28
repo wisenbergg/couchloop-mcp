@@ -1,136 +1,154 @@
-import { getDb } from '../db/client.js';
-import { sessions, journeys, checkpoints } from '../db/schema.js';
-import { eq } from 'drizzle-orm';
+import { getSupabaseClient, throwOnError } from '../db/supabase-helpers.js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { JourneyStep } from '../types/journey.js';
 import { logger } from '../utils/logger.js';
 
 export class WorkflowEngine {
-  private _db: ReturnType<typeof getDb> | null = null;
+  private _supabase: SupabaseClient | null = null;
 
-  private get db() {
-    if (!this._db) {
-      this._db = getDb();
+  private get supabase() {
+    if (!this._supabase) {
+      this._supabase = getSupabaseClient();
     }
-    return this._db;
+    return this._supabase;
   }
 
   async initializeSession(userId: string, journeyId: string): Promise<string> {
-    const sessionResult = await this.db
-      .insert(sessions)
-      .values({
-        userId,
-        journeyId,
-        status: 'active',
-        currentStep: 0,
-        metadata: {},
-      })
-      .returning();
+    const sessionResult = throwOnError(
+      await this.supabase
+        .from('sessions')
+        .insert({
+          user_id: userId,
+          journey_id: journeyId,
+          status: 'active',
+          current_step: 0,
+          metadata: {},
+        })
+        .select()
+    );
 
-    const session = sessionResult[0]!;
+    const session = (sessionResult ?? [])[0]!;
     logger.info(`Initialized session ${session.id} for journey ${journeyId}`);
     return session.id;
   }
 
   async getCurrentStep(sessionId: string): Promise<JourneyStep | null> {
-    const [session] = await this.db
-      .select()
-      .from(sessions)
-      .where(eq(sessions.id, sessionId))
-      .limit(1);
+    const session = throwOnError(
+      await this.supabase
+        .from('sessions')
+        .select('*')
+        .eq('id', sessionId)
+        .maybeSingle()
+    );
 
-    if (!session || !session.journeyId) {
+    if (!session || !session.journey_id) {
       return null;
     }
 
-    const [journey] = await this.db
-      .select()
-      .from(journeys)
-      .where(eq(journeys.id, session.journeyId))
-      .limit(1);
+    const journey = throwOnError(
+      await this.supabase
+        .from('journeys')
+        .select('*')
+        .eq('id', session.journey_id)
+        .maybeSingle()
+    );
 
     if (!journey || !journey.steps) {
       return null;
     }
 
-    return journey.steps[session.currentStep] ?? null;
+    return (journey.steps as JourneyStep[])[session.current_step] ?? null;
   }
 
   async advanceStep(sessionId: string): Promise<{
     nextStep: JourneyStep | null;
     isComplete: boolean;
   }> {
-    const [session] = await this.db
-      .select()
-      .from(sessions)
-      .where(eq(sessions.id, sessionId))
-      .limit(1);
+    const session = throwOnError(
+      await this.supabase
+        .from('sessions')
+        .select('*')
+        .eq('id', sessionId)
+        .maybeSingle()
+    );
 
-    if (!session || !session.journeyId) {
+    if (!session || !session.journey_id) {
       return { nextStep: null, isComplete: false };
     }
 
-    const [journey] = await this.db
-      .select()
-      .from(journeys)
-      .where(eq(journeys.id, session.journeyId))
-      .limit(1);
+    const journey = throwOnError(
+      await this.supabase
+        .from('journeys')
+        .select('*')
+        .eq('id', session.journey_id)
+        .maybeSingle()
+    );
 
     if (!journey || !journey.steps) {
       return { nextStep: null, isComplete: false };
     }
 
-    const nextStepIndex = session.currentStep + 1;
+    const steps = journey.steps as JourneyStep[];
+    const nextStepIndex = session.current_step + 1;
 
-    if (nextStepIndex >= journey.steps.length) {
+    if (nextStepIndex >= steps.length) {
       // Journey is complete
-      await this.db
-        .update(sessions)
-        .set({
-          status: 'completed',
-          completedAt: new Date(),
-          lastActiveAt: new Date(),
-        })
-        .where(eq(sessions.id, sessionId));
+      throwOnError(
+        await this.supabase
+          .from('sessions')
+          .update({
+            status: 'completed',
+            completed_at: new Date().toISOString(),
+            last_active_at: new Date().toISOString(),
+          })
+          .eq('id', sessionId)
+      );
 
       logger.info(`Session ${sessionId} completed`);
       return { nextStep: null, isComplete: true };
     }
 
     // Advance to next step
-    await this.db
-      .update(sessions)
-      .set({
-        currentStep: nextStepIndex,
-        lastActiveAt: new Date(),
-      })
-      .where(eq(sessions.id, sessionId));
+    throwOnError(
+      await this.supabase
+        .from('sessions')
+        .update({
+          current_step: nextStepIndex,
+          last_active_at: new Date().toISOString(),
+        })
+        .eq('id', sessionId)
+    );
 
-    const nextStep = journey.steps[nextStepIndex] ?? null;
+    const nextStep = steps[nextStepIndex] ?? null;
     logger.info(`Session ${sessionId} advanced to step ${nextStepIndex}`);
 
     return { nextStep, isComplete: false };
   }
 
   async pauseSession(sessionId: string): Promise<void> {
-    await this.db
-      .update(sessions)
-      .set({
-        status: 'paused',
-        lastActiveAt: new Date(),
-      })
-      .where(eq(sessions.id, sessionId));
+    throwOnError(
+      await this.supabase
+        .from('sessions')
+        .update({
+          status: 'paused',
+          last_active_at: new Date().toISOString(),
+        })
+        .eq('id', sessionId)
+    );
 
     logger.info(`Session ${sessionId} paused`);
   }
 
   async abandonSession(sessionId: string): Promise<void> {
-    await this.db
-      .update(sessions)
-      .set({
-        status: 'abandoned',
-        lastActiveAt: new Date(),
-      })
-      .where(eq(sessions.id, sessionId));
+    throwOnError(
+      await this.supabase
+        .from('sessions')
+        .update({
+          status: 'abandoned',
+          last_active_at: new Date().toISOString(),
+        })
+        .eq('id', sessionId)
+    );
 
     logger.info(`Session ${sessionId} abandoned`);
   }
@@ -141,11 +159,13 @@ export class WorkflowEngine {
     percentComplete: number;
     checkpointCount: number;
   }> {
-    const [session] = await this.db
-      .select()
-      .from(sessions)
-      .where(eq(sessions.id, sessionId))
-      .limit(1);
+    const session = throwOnError(
+      await this.supabase
+        .from('sessions')
+        .select('*')
+        .eq('id', sessionId)
+        .maybeSingle()
+    );
 
     if (!session) {
       return {
@@ -157,32 +177,36 @@ export class WorkflowEngine {
     }
 
     let totalSteps = 0;
-    if (session.journeyId) {
-      const [journey] = await this.db
-        .select()
-        .from(journeys)
-        .where(eq(journeys.id, session.journeyId))
-        .limit(1);
+    if (session.journey_id) {
+      const journey = throwOnError(
+        await this.supabase
+          .from('journeys')
+          .select('*')
+          .eq('id', session.journey_id)
+          .maybeSingle()
+      );
 
       if (journey && journey.steps) {
-        totalSteps = journey.steps.length;
+        totalSteps = (journey.steps as unknown[]).length;
       }
     }
 
-    const sessionCheckpoints = await this.db
-      .select()
-      .from(checkpoints)
-      .where(eq(checkpoints.sessionId, sessionId));
+    const sessionCheckpoints = throwOnError(
+      await this.supabase
+        .from('checkpoints')
+        .select('id')
+        .eq('session_id', sessionId)
+    );
 
     const percentComplete = totalSteps > 0
-      ? Math.round((session.currentStep / totalSteps) * 100)
+      ? Math.round((session.current_step / totalSteps) * 100)
       : 0;
 
     return {
-      currentStep: session.currentStep,
+      currentStep: session.current_step,
       totalSteps,
       percentComplete,
-      checkpointCount: sessionCheckpoints.length,
+      checkpointCount: (sessionCheckpoints ?? []).length,
     };
   }
 

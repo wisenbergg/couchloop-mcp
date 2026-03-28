@@ -1,52 +1,51 @@
-import { getDb } from '../db/client.js';
-import { insights, users, sessions } from '../db/schema.js';
-import { eq, desc, and } from 'drizzle-orm';
+import { getSupabaseClient, throwOnError } from '../db/supabase-helpers.js';
+import type { Insight } from '../db/schema.js';
 import { SaveInsightSchema, GetUserContextSchema, type SaveInsightInput, type GetUserContextInput } from '../types/insight.js';
 import { extractUserFromContext } from '../types/auth.js';
 import { handleError, NotFoundError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
-import type { Insight } from '../db/schema.js';
 
 // Types for getUserContext response
 export interface RecentSession {
   id: string;
   status: string;
-  started_at: Date;
-  completed_at: Date | null;
+  started_at: string;
+  completed_at: string | null;
   journey_id: string | null;
 }
 
 export async function saveInsight(args: SaveInsightInput) {
   try {
     const input = SaveInsightSchema.parse(args);
-    const db = getDb();
+    const supabase = getSupabaseClient();
 
     // Extract user ID from auth context or generate anonymous user
     const externalUserId = await extractUserFromContext(input.auth);
-    const userResult = await db
-      .insert(users)
-      .values({
-        externalId: externalUserId,
-        preferences: {},
-      })
-      .onConflictDoUpdate({
-        target: users.externalId,
-        set: { updatedAt: new Date() },
-      })
-      .returning();
-
-    const user = userResult[0]!;
+    const user = throwOnError(
+      await supabase
+        .from('users')
+        .upsert(
+          {
+            external_id: externalUserId,
+            preferences: {},
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'external_id' }
+        )
+        .select()
+        .single()
+    );
 
     // Verify session if provided
     if (input.session_id) {
-      const [session] = await db
-        .select()
-        .from(sessions)
-        .where(and(
-          eq(sessions.id, input.session_id),
-          eq(sessions.userId, user.id)
-        ))
-        .limit(1);
+      const session = throwOnError(
+        await supabase
+          .from('sessions')
+          .select('*')
+          .eq('id', input.session_id)
+          .eq('user_id', user.id)
+          .maybeSingle()
+      );
 
       if (!session) {
         throw new NotFoundError('Session', input.session_id);
@@ -54,17 +53,18 @@ export async function saveInsight(args: SaveInsightInput) {
     }
 
     // Save insight
-    const insightResult = await db
-      .insert(insights)
-      .values({
-        userId: user.id,
-        sessionId: input.session_id || null,
-        content: input.content,
-        tags: input.tags || [],
-      })
-      .returning();
-
-    const insight = insightResult[0]!;
+    const insight = throwOnError(
+      await supabase
+        .from('insights')
+        .insert({
+          user_id: user.id,
+          session_id: input.session_id || null,
+          content: input.content,
+          tags: input.tags || [],
+        })
+        .select()
+        .single()
+    );
 
     logger.info(`Saved insight: ${insight.id}`);
 
@@ -82,25 +82,30 @@ export async function saveInsight(args: SaveInsightInput) {
 export async function getInsights(args: { session_id?: string; limit?: number; auth?: Record<string, unknown> }) {
   try {
     const { session_id, limit = 10, auth } = args;
-    const db = getDb();
+    const supabase = getSupabaseClient();
 
     // Extract user ID from auth context or generate anonymous user
     const externalUserId = await extractUserFromContext(auth);
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.externalId, externalUserId))
-      .limit(1);
+    const user = throwOnError(
+      await supabase
+        .from('users')
+        .select('*')
+        .eq('external_id', externalUserId)
+        .maybeSingle()
+    );
 
     if (!user) {
       // Create user if doesn't exist
-      const [newUser] = await db
-        .insert(users)
-        .values({
-          externalId: externalUserId,
-          preferences: {},
-        })
-        .returning();
+      const newUser = throwOnError(
+        await supabase
+          .from('users')
+          .insert({
+            external_id: externalUserId,
+            preferences: {},
+          })
+          .select()
+          .single()
+      );
 
       if (!newUser) {
         throw new NotFoundError('User');
@@ -111,30 +116,22 @@ export async function getInsights(args: { session_id?: string; limit?: number; a
       };
     }
 
-    let userInsights;
+    let query = supabase
+      .from('insights')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(limit);
 
     if (session_id) {
-      userInsights = await db
-        .select()
-        .from(insights)
-        .where(and(
-          eq(insights.userId, user.id),
-          eq(insights.sessionId, session_id)
-        ))
-        .orderBy(desc(insights.createdAt))
-        .limit(limit);
-    } else {
-      userInsights = await db
-        .select()
-        .from(insights)
-        .where(eq(insights.userId, user.id))
-        .orderBy(desc(insights.createdAt))
-        .limit(limit);
+      query = query.eq('session_id', session_id);
     }
 
+    const userInsights = throwOnError(await query);
+
     return {
-      insights: userInsights,
-      count: userInsights.length,
+      insights: userInsights ?? [],
+      count: (userInsights ?? []).length,
     };
   } catch (error) {
     logger.error('Error getting insights:', error);
@@ -145,25 +142,30 @@ export async function getInsights(args: { session_id?: string; limit?: number; a
 export async function getUserContext(args: GetUserContextInput) {
   try {
     const input = GetUserContextSchema.parse(args);
-    const db = getDb();
+    const supabase = getSupabaseClient();
 
     // Extract user ID from auth context or generate anonymous user
     const externalUserId = await extractUserFromContext(input.auth);
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.externalId, externalUserId))
-      .limit(1);
+    const user = throwOnError(
+      await supabase
+        .from('users')
+        .select('*')
+        .eq('external_id', externalUserId)
+        .maybeSingle()
+    );
 
     if (!user) {
       // Create user if doesn't exist
-      const [newUser] = await db
-        .insert(users)
-        .values({
-          externalId: externalUserId,
-          preferences: {},
-        })
-        .returning();
+      const newUser = throwOnError(
+        await supabase
+          .from('users')
+          .insert({
+            external_id: externalUserId,
+            preferences: {},
+          })
+          .select()
+          .single()
+      );
 
       return {
         user: newUser,
@@ -176,47 +178,46 @@ export async function getUserContext(args: GetUserContextInput) {
     // Get recent insights if requested
     let recentInsights: Insight[] = [];
     if (input.include_recent_insights) {
-      recentInsights = await db
-        .select()
-        .from(insights)
-        .where(eq(insights.userId, user.id))
-        .orderBy(desc(insights.createdAt))
-        .limit(5);
+      recentInsights = throwOnError(
+        await supabase
+          .from('insights')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(5)
+      ) ?? [];
     }
 
     // Get recent sessions if requested
     let recentSessions: RecentSession[] = [];
     if (input.include_session_history) {
-      recentSessions = await db
-        .select({
-          id: sessions.id,
-          status: sessions.status,
-          started_at: sessions.startedAt,
-          completed_at: sessions.completedAt,
-          journey_id: sessions.journeyId,
-        })
-        .from(sessions)
-        .where(eq(sessions.userId, user.id))
-        .orderBy(desc(sessions.startedAt))
-        .limit(5);
+      recentSessions = throwOnError(
+        await supabase
+          .from('sessions')
+          .select('id, status, started_at, completed_at, journey_id')
+          .eq('user_id', user.id)
+          .order('started_at', { ascending: false })
+          .limit(5)
+      ) ?? [];
     }
 
     // Get active session
-    const [activeSession] = await db
-      .select()
-      .from(sessions)
-      .where(and(
-        eq(sessions.userId, user.id),
-        eq(sessions.status, 'active')
-      ))
-      .orderBy(desc(sessions.lastActiveAt))
-      .limit(1);
+    const activeSession = throwOnError(
+      await supabase
+        .from('sessions')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .order('last_active_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    );
 
     return {
       user: {
         id: user.id,
         preferences: user.preferences,
-        created_at: user.createdAt,
+        created_at: user.created_at,
       },
       recent_insights: recentInsights,
       recent_sessions: recentSessions,

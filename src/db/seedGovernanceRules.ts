@@ -1,20 +1,20 @@
 /**
  * Seed default governance rules into the database
- * 
+ *
  * Run with: npx tsx src/db/seedGovernanceRules.ts
  */
 
 import dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' });
 
-import { initDatabase, getDb } from './client.js';
-import { governanceRules } from './schema.js';
+import { initDatabase } from './client.js';
+import { getSupabaseClient, throwOnError } from './supabase-helpers.js';
 import { logger } from '../utils/logger.js';
 
 const DEFAULT_RULES = [
   // === PRE-EXECUTION RULES ===
   {
-    ruleType: 'package_validation',
+    rule_type: 'package_validation',
     criteria: {
       description: 'Detect typosquatting and suspicious package names',
       patterns: ['lodas', 'expresss', 'reacct', 'axois', 'requets', 'momment'],
@@ -33,7 +33,7 @@ const DEFAULT_RULES = [
     },
   },
   {
-    ruleType: 'security_scan',
+    rule_type: 'security_scan',
     criteria: {
       description: 'Block dangerous code patterns',
       patterns: [
@@ -57,7 +57,7 @@ const DEFAULT_RULES = [
     },
   },
   {
-    ruleType: 'path_traversal',
+    rule_type: 'path_traversal',
     criteria: {
       description: 'Prevent path traversal attacks',
       patterns: ['../', '..\\\\', '%2e%2e', '..%2f'],
@@ -76,7 +76,7 @@ const DEFAULT_RULES = [
 
   // === POST-EXECUTION RULES ===
   {
-    ruleType: 'code_quality',
+    rule_type: 'code_quality',
     criteria: {
       description: 'Review generated code for quality issues',
       patterns: [
@@ -98,7 +98,7 @@ const DEFAULT_RULES = [
     },
   },
   {
-    ruleType: 'code_smell',
+    rule_type: 'code_smell',
     criteria: {
       description: 'Detect code bloat and over-engineering',
       metrics: {
@@ -122,7 +122,7 @@ const DEFAULT_RULES = [
 
   // === BEHAVIORAL RULES (Therapeutic) ===
   {
-    ruleType: 'hallucination_detection',
+    rule_type: 'hallucination_detection',
     criteria: {
       description: 'Detect potentially hallucinated medical/safety claims',
       patterns: [
@@ -146,7 +146,7 @@ const DEFAULT_RULES = [
     },
   },
   {
-    ruleType: 'tone_drift',
+    rule_type: 'tone_drift',
     criteria: {
       description: 'Monitor for inappropriate tone shifts',
       baselineTone: ['supportive', 'empathetic', 'professional'],
@@ -164,7 +164,7 @@ const DEFAULT_RULES = [
     },
   },
   {
-    ruleType: 'crisis_detection',
+    rule_type: 'crisis_detection',
     criteria: {
       description: 'Detect crisis indicators for immediate intervention',
       patterns: [
@@ -190,27 +190,36 @@ const DEFAULT_RULES = [
 async function seedGovernanceRules() {
   try {
     await initDatabase();
-    const db = getDb();
+    const supabase = getSupabaseClient();
 
     logger.info('Seeding governance rules...');
 
-    // Clear existing rules
-    await db.delete(governanceRules);
+    // Clear existing rules (Supabase requires a filter on delete)
+    throwOnError(
+      await supabase
+        .from('governance_rules')
+        .delete()
+        .not('id', 'is', null),
+    );
     logger.info('Cleared existing rules');
 
     // Insert new rules
     for (const rule of DEFAULT_RULES) {
-      await db.insert(governanceRules).values(rule);
-      logger.info(`Added rule: ${rule.ruleType}`);
+      throwOnError(
+        await supabase.from('governance_rules').insert(rule).select(),
+      );
+      logger.info(`Added rule: ${rule.rule_type}`);
     }
 
     logger.info(`Successfully seeded ${DEFAULT_RULES.length} governance rules`);
 
     // Display summary
-    const rules = await db.select().from(governanceRules);
+    const rules = throwOnError(
+      await supabase.from('governance_rules').select('*'),
+    ) ?? [];
     console.log('\n=== Governance Rules Summary ===');
-    console.table(rules.map(r => ({
-      type: r.ruleType,
+    console.table(rules.map((r: Record<string, unknown>) => ({
+      type: r.rule_type,
       action: r.action,
       priority: r.priority,
       category: (r.metadata as Record<string, unknown>)?.category,
