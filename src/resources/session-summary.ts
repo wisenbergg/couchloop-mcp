@@ -1,22 +1,22 @@
-import { getDb } from '../db/client.js';
-import { sessions, journeys, checkpoints, users } from '../db/schema.js';
-import { eq, and, desc } from 'drizzle-orm';
+import { getSupabaseClient, throwOnError } from '../db/supabase-helpers.js';
 import { logger } from '../utils/logger.js';
 import { nanoid } from 'nanoid';
 
 export async function getSessionSummary() {
   try {
-    const db = getDb();
+    const supabase = getSupabaseClient();
 
     // NOTE: Resources in MCP don't receive parameters, so we can't pass auth context.
     // Using a mock user ID for now. This will be addressed when we implement
     // a proper session store or modify the MCP server to maintain user context.
     const mockUserId = 'usr_' + nanoid();
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.externalId, mockUserId))
-      .limit(1);
+    const user = throwOnError(
+      await supabase
+        .from('users')
+        .select('*')
+        .eq('external_id', mockUserId)
+        .maybeSingle()
+    );
 
     if (!user) {
       return JSON.stringify({
@@ -26,15 +26,16 @@ export async function getSessionSummary() {
     }
 
     // Get active session
-    const [activeSession] = await db
-      .select()
-      .from(sessions)
-      .where(and(
-        eq(sessions.userId, user.id),
-        eq(sessions.status, 'active')
-      ))
-      .orderBy(desc(sessions.lastActiveAt))
-      .limit(1);
+    const activeSession = throwOnError(
+      await supabase
+        .from('sessions')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .order('last_active_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    );
 
     if (!activeSession) {
       return JSON.stringify({
@@ -44,45 +45,49 @@ export async function getSessionSummary() {
     }
 
     // Get journey if linked
-    let journey = null;
+    let journey: Record<string, unknown> | null = null;
     let currentStep = null;
-    if (activeSession.journeyId) {
-      [journey] = await db
-        .select()
-        .from(journeys)
-        .where(eq(journeys.id, activeSession.journeyId))
-        .limit(1);
+    if (activeSession.journey_id) {
+      journey = throwOnError(
+        await supabase
+          .from('journeys')
+          .select('*')
+          .eq('id', activeSession.journey_id)
+          .maybeSingle()
+      );
 
-      if (journey && journey.steps && journey.steps[activeSession.currentStep]) {
-        currentStep = journey.steps[activeSession.currentStep];
+      if (journey && journey.steps && (journey.steps as unknown[])[activeSession.current_step]) {
+        currentStep = (journey.steps as unknown[])[activeSession.current_step];
       }
     }
 
     // Get checkpoints
-    const sessionCheckpoints = await db
-      .select()
-      .from(checkpoints)
-      .where(eq(checkpoints.sessionId, activeSession.id))
-      .orderBy(checkpoints.createdAt);
+    const sessionCheckpoints = throwOnError(
+      await supabase
+        .from('checkpoints')
+        .select('*')
+        .eq('session_id', activeSession.id)
+        .order('created_at', { ascending: true })
+    );
 
     return JSON.stringify({
       active: true,
       session: {
         id: activeSession.id,
         status: activeSession.status,
-        started_at: activeSession.startedAt,
-        last_active_at: activeSession.lastActiveAt,
-        current_step_index: activeSession.currentStep,
+        started_at: activeSession.started_at,
+        last_active_at: activeSession.last_active_at,
+        current_step_index: activeSession.current_step,
       },
       journey: journey ? {
         name: journey.name,
         slug: journey.slug,
-        total_steps: journey.steps?.length || 0,
+        total_steps: (journey.steps as unknown[] | null)?.length || 0,
       } : null,
       current_step: currentStep,
-      checkpoints: sessionCheckpoints.map(c => ({
+      checkpoints: (sessionCheckpoints ?? []).map((c: Record<string, unknown>) => ({
         key: c.key,
-        created_at: c.createdAt,
+        created_at: c.created_at,
       })),
     }, null, 2);
   } catch (error) {

@@ -1,19 +1,19 @@
-import { getDb } from '../db/client.js';
-import { journeys } from '../db/schema.js';
-import { eq } from 'drizzle-orm';
+import { getSupabaseClient, throwOnError } from '../db/supabase-helpers.js';
 import { logger } from '../utils/logger.js';
 
 export function createJourneyStatusHandler(slug: string) {
   return async function getJourneyStatus() {
     try {
-      const db = getDb();
+      const supabase = getSupabaseClient();
 
       // Get journey by slug
-      const [journey] = await db
-        .select()
-        .from(journeys)
-        .where(eq(journeys.slug, slug))
-        .limit(1);
+      const journey = throwOnError(
+        await supabase
+          .from('journeys')
+          .select('*')
+          .eq('slug', slug)
+          .maybeSingle()
+      );
 
       if (!journey) {
         return JSON.stringify({
@@ -27,11 +27,11 @@ export function createJourneyStatusHandler(slug: string) {
         slug: journey.slug,
         name: journey.name,
         description: journey.description,
-        estimated_minutes: journey.estimatedMinutes,
+        estimated_minutes: journey.estimated_minutes,
         tags: journey.tags,
         steps: journey.steps,
-        created_at: journey.createdAt,
-        updated_at: journey.updatedAt,
+        created_at: journey.created_at,
+        updated_at: journey.updated_at,
       }, null, 2);
     } catch (error) {
       logger.error(`Error getting journey ${slug}:`, error);

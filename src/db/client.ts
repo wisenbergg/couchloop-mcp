@@ -1,93 +1,61 @@
-import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
-import { createClient } from '@supabase/supabase-js';
-import { logger } from '../utils/logger.js';
-import * as schema from './schema.js';
+/**
+ * Database client — Supabase JS SDK only.
+ *
+ * All database access goes through the Supabase client.
+ * Drizzle ORM has been removed.
+ */
 
-let db: ReturnType<typeof drizzle> | null = null;
-let supabase: ReturnType<typeof createClient> | null = null;
-let sql: ReturnType<typeof postgres> | null = null;
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { logger } from '../utils/logger.js';
+
+let supabase: SupabaseClient | null = null;
 
 export async function initDatabase() {
   try {
-    const databaseUrl = process.env.DATABASE_URL;
     const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
     const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    if (!databaseUrl) {
-      throw new Error('DATABASE_URL is not configured');
+    if (!supabaseUrl || !supabaseServiceKey) {
+      throw new Error(
+        'SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required',
+      );
     }
 
-    // Make Supabase optional - MCP server can work with just database
-    const hasSupabase = supabaseUrl && supabaseAnonKey &&
-                       supabaseServiceKey &&
-                       !supabaseUrl.includes('xxx') &&
-                       !supabaseAnonKey.includes('your-') &&
-                       !supabaseServiceKey.includes('your-');
+    if (supabaseUrl.includes('xxx') || supabaseServiceKey.includes('your-')) {
+      throw new Error(
+        'Supabase credentials contain placeholder values. Set real values in your .env file.',
+      );
+    }
 
-    // Initialize Postgres connection for Drizzle
-    // Optimized pool configuration for better performance under load
-    // FIX 4: Reduced pool size for transaction-mode pooler (port 6543 PgBouncer)
-    // Supabase pooler manages its own connection limits; oversized client pool
-    // can exhaust server-side slots, especially with multiple Railway instances
-    sql = postgres(databaseUrl, {
-      max: 10,              // Right-sized for transaction-mode pooler
-      idle_timeout: 30,     // Shorter idle — pooler handles connection reuse
-      connect_timeout: 10,  // Keep same connection timeout
-      prepare: false,       // Required for transaction-mode pooler
+    supabase = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
     });
 
-    // Initialize Drizzle ORM
-    db = drizzle(sql, { schema });
-
-    // Initialize Supabase client only if configuration is valid
-    if (hasSupabase) {
-      supabase = createClient(supabaseUrl, supabaseServiceKey, {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-      });
-      logger.info('Supabase client initialized');
-    } else {
-      logger.info('Supabase configuration incomplete or uses placeholders - running without Supabase client');
+    // Test the connection
+    const { error } = await supabase.from('users').select('id').limit(1);
+    if (error) {
+      throw new Error(`Supabase connection test failed: ${error.message}`);
     }
 
-    // Test the connection
-    await sql`SELECT 1`;
-    logger.info('Database connection established successfully');
+    logger.info('Supabase client initialized and connection verified');
 
-    return { db, supabase, sql };
+    return { supabase };
   } catch (error) {
     logger.error('Failed to initialize database:', error);
     throw error;
   }
 }
 
-export function getDb() {
-  if (!db) {
-    throw new Error('Database not initialized. Call initDatabase() first.');
-  }
-  return db;
-}
-
-export function getSupabase() {
-  if (!supabase) {
-    logger.warn('Supabase client not initialized - check environment configuration');
-    return null;
-  }
+export function getSupabase(): SupabaseClient | null {
   return supabase;
 }
 
 export async function closeDatabase() {
-  if (sql) {
-    await sql.end();
-    sql = null;
-    db = null;
-    supabase = null;
-    logger.info('Database connections closed');
-  }
+  supabase = null;
+  logger.info('Database connection closed');
 }
 
-export { db, supabase };
+export { supabase };

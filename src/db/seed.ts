@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { config } from 'dotenv';
-import { initDatabase, getDb, closeDatabase } from './client.js';
-import { journeys } from './schema.js';
+import { initDatabase } from './client.js';
+import { getSupabaseClient, throwOnError } from './supabase-helpers.js';
 import { journeyDefinitions } from '../workflows/index.js';
 import { logger } from '../utils/logger.js';
 
@@ -14,41 +14,34 @@ async function seedDatabase() {
 
     // Initialize database
     await initDatabase();
-    const db = getDb();
+    const supabase = getSupabaseClient();
 
     // Insert journey definitions
     logger.info('Inserting journey definitions...');
 
     for (const journey of journeyDefinitions) {
-      await db
-        .insert(journeys)
-        .values({
-          slug: journey.slug,
-          name: journey.name,
-          description: journey.description,
-          steps: journey.steps,
-          estimatedMinutes: journey.estimatedMinutes,
-          tags: journey.tags,
-        })
-        .onConflictDoUpdate({
-          target: journeys.slug,
-          set: {
-            name: journey.name,
-            description: journey.description,
-            steps: journey.steps,
-            estimatedMinutes: journey.estimatedMinutes,
-            tags: journey.tags,
-            updatedAt: new Date(),
-          },
-        });
+      throwOnError(
+        await supabase
+          .from('journeys')
+          .upsert(
+            {
+              slug: journey.slug,
+              name: journey.name,
+              description: journey.description,
+              steps: journey.steps,
+              estimated_minutes: journey.estimatedMinutes,
+              tags: journey.tags,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'slug' },
+          )
+          .select(),
+      );
 
       logger.info(`✓ Seeded journey: ${journey.name}`);
     }
 
     logger.info(`Successfully seeded ${journeyDefinitions.length} journeys`);
-
-    // Close database connection
-    await closeDatabase();
 
     logger.info('Database seed completed successfully!');
     process.exit(0);

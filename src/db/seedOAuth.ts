@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 import { config } from 'dotenv';
 import bcrypt from 'bcryptjs';
-import { initDatabase, getDb } from './client.js';
-import { oauthClients } from './schema.js';
-import { eq } from 'drizzle-orm';
+import { initDatabase } from './client.js';
+import { getSupabaseClient, throwOnError } from './supabase-helpers.js';
 import { logger } from '../utils/logger.js';
 
 // Load environment variables
@@ -15,7 +14,7 @@ async function seedOAuthClient() {
 
     // Initialize database
     await initDatabase();
-    const db = getDb();
+    const supabase = getSupabaseClient();
 
     // Require client secret from environment
     const clientSecret = process.env.OAUTH_CLIENT_SECRET;
@@ -28,49 +27,55 @@ async function seedOAuthClient() {
 
     // Insert ChatGPT OAuth client
     const clientData = {
-      clientId: process.env.OAUTH_CLIENT_ID || 'couchloop_chatgpt',
-      clientSecret: hashedSecret,
+      client_id: process.env.OAUTH_CLIENT_ID || 'couchloop_chatgpt',
+      client_secret: hashedSecret,
       name: 'CouchLoop ChatGPT Plugin',
-      redirectUris: [
+      redirect_uris: [
         process.env.OAUTH_REDIRECT_URI || 'https://chat.openai.com/aip/plugin/oauth/callback',
         'http://localhost:3000/callback', // For local testing
       ],
-      grantTypes: ['authorization_code', 'refresh_token'],
+      grant_types: ['authorization_code', 'refresh_token'],
       scopes: ['read', 'write', 'crisis', 'memory'],
     };
 
     // Check if client already exists
-    const [existingClient] = await db
-      .select()
-      .from(oauthClients)
-      .where(eq(oauthClients.clientId, clientData.clientId))
-      .limit(1);
+    const existingClient = throwOnError(
+      await supabase
+        .from('oauth_clients')
+        .select('*')
+        .eq('client_id', clientData.client_id)
+        .maybeSingle(),
+    );
 
     if (existingClient) {
       // Update existing client
-      await db
-        .update(oauthClients)
-        .set({
-          clientSecret: hashedSecret,
-          redirectUris: clientData.redirectUris,
-          grantTypes: clientData.grantTypes,
-          scopes: clientData.scopes,
-        })
-        .where(eq(oauthClients.clientId, clientData.clientId));
+      throwOnError(
+        await supabase
+          .from('oauth_clients')
+          .update({
+            client_secret: hashedSecret,
+            redirect_uris: clientData.redirect_uris,
+            grant_types: clientData.grant_types,
+            scopes: clientData.scopes,
+          })
+          .eq('client_id', clientData.client_id),
+      );
 
       logger.info(`✓ Updated OAuth client: ${clientData.name}`);
     } else {
       // Insert new client
-      await db.insert(oauthClients).values(clientData);
+      throwOnError(
+        await supabase.from('oauth_clients').insert(clientData).select(),
+      );
       logger.info(`✓ Created OAuth client: ${clientData.name}`);
     }
 
     logger.info('OAuth client seed completed successfully!');
     logger.info('');
     logger.info('OAuth Client Details:');
-    logger.info(`  Client ID: ${clientData.clientId}`);
+    logger.info(`  Client ID: ${clientData.client_id}`);
     logger.info(`  Client Secret: ${clientSecret}`);
-    logger.info(`  Redirect URIs: ${clientData.redirectUris.join(', ')}`);
+    logger.info(`  Redirect URIs: ${clientData.redirect_uris.join(', ')}`);
     logger.info('');
     logger.info('⚠️  IMPORTANT: Save the client secret securely. It cannot be retrieved later.');
 

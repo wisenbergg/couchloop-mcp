@@ -1,6 +1,5 @@
-import { getDb } from '../db/client.js';
-import { sessions, journeys, checkpoints, users } from '../db/schema.js';
-import { eq, and, sql } from 'drizzle-orm';
+import { getSupabaseClient, throwOnError } from '../db/supabase-helpers.js';
+import type { Session, Journey, Checkpoint, User } from '../db/schema.js';
 import { ListJourneysSchema, GetJourneyStatusSchema } from '../types/journey.js';
 import { extractUserFromContext } from '../types/auth.js';
 import { handleError, NotFoundError } from '../utils/errors.js';
@@ -9,22 +8,25 @@ import { logger } from '../utils/logger.js';
 export async function listJourneys(args: unknown) {
   try {
     const input = ListJourneysSchema.parse(args);
-    const db = getDb();
+    const supabase = getSupabaseClient();
 
     // Query journeys
-    let availableJourneys;
+    let availableJourneys: Journey[];
 
     // Filter by tag if provided
     if (input.tag) {
-      // Use SQL array contains operator for PostgreSQL
-      availableJourneys = await db
-        .select()
-        .from(journeys)
-        .where(sql`${input.tag} = ANY(${journeys.tags})`);
+      availableJourneys = throwOnError(
+        await supabase
+          .from('journeys')
+          .select('*')
+          .contains('tags', [input.tag]),
+      ) ?? [];
     } else {
-      availableJourneys = await db
-        .select()
-        .from(journeys);
+      availableJourneys = throwOnError(
+        await supabase
+          .from('journeys')
+          .select('*'),
+      ) ?? [];
     }
 
     return {
@@ -33,7 +35,7 @@ export async function listJourneys(args: unknown) {
         slug: j.slug,
         name: j.name,
         description: j.description,
-        estimated_minutes: j.estimatedMinutes,
+        estimated_minutes: j.estimated_minutes,
         tags: j.tags,
         step_count: j.steps?.length || 0,
       })),
@@ -48,62 +50,72 @@ export async function listJourneys(args: unknown) {
 export async function getJourneyStatus(args: unknown) {
   try {
     const input = GetJourneyStatusSchema.parse(args);
-    const db = getDb();
+    const supabase = getSupabaseClient();
 
     // Resolve calling user for ownership check
     const externalUserId = await extractUserFromContext(input.auth);
-    const [user] = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(eq(users.externalId, externalUserId))
-      .limit(1);
+    const user = throwOnError(
+      await supabase
+        .from('users')
+        .select('id')
+        .eq('external_id', externalUserId)
+        .maybeSingle(),
+    ) as Pick<User, 'id'> | null;
 
     // Get session — scoped to this user
-    const [session] = await db
-      .select()
-      .from(sessions)
-      .where(user
-        ? and(eq(sessions.id, input.session_id), eq(sessions.userId, user.id))
-        : eq(sessions.id, input.session_id)
-      )
-      .limit(1);
+    let sessionQuery = supabase
+      .from('sessions')
+      .select('*')
+      .eq('id', input.session_id);
+
+    if (user) {
+      sessionQuery = sessionQuery.eq('user_id', user.id);
+    }
+
+    const session = throwOnError(
+      await sessionQuery.maybeSingle(),
+    ) as Session | null;
 
     if (!session) {
       throw new NotFoundError('Session', input.session_id);
     }
 
     // Get journey if linked
-    let journey = null;
+    let journey: Journey | null = null;
     const progress = {
-      current_step: session.currentStep,
+      current_step: session.current_step,
       total_steps: 0,
       percent_complete: 0,
     };
 
-    if (session.journeyId) {
-      [journey] = await db
-        .select()
-        .from(journeys)
-        .where(eq(journeys.id, session.journeyId))
-        .limit(1);
+    if (session.journey_id) {
+      journey = throwOnError(
+        await supabase
+          .from('journeys')
+          .select('*')
+          .eq('id', session.journey_id)
+          .maybeSingle(),
+      ) as Journey | null;
 
       if (journey && journey.steps) {
         progress.total_steps = journey.steps.length;
         progress.percent_complete = journey.steps.length > 0
-          ? Math.round((session.currentStep / journey.steps.length) * 100)
+          ? Math.round((session.current_step / journey.steps.length) * 100)
           : 0;
       }
     }
 
     // Get checkpoints
-    const sessionCheckpoints = await db
-      .select()
-      .from(checkpoints)
-      .where(eq(checkpoints.sessionId, session.id))
-      .orderBy(checkpoints.createdAt);
+    const sessionCheckpoints = throwOnError(
+      await supabase
+        .from('checkpoints')
+        .select('*')
+        .eq('session_id', session.id)
+        .order('created_at', { ascending: true }),
+    ) as Checkpoint[];
 
     // Calculate time elapsed
-    const startTime = new Date(session.startedAt).getTime();
+    const startTime = new Date(session.started_at).getTime();
     const currentTime = Date.now();
     const timeElapsedMinutes = Math.round((currentTime - startTime) / (1000 * 60));
 
@@ -111,21 +123,21 @@ export async function getJourneyStatus(args: unknown) {
       session: {
         id: session.id,
         status: session.status,
-        started_at: session.startedAt,
-        last_active_at: session.lastActiveAt,
-        completed_at: session.completedAt,
+        started_at: session.started_at,
+        last_active_at: session.last_active_at,
+        completed_at: session.completed_at,
       },
       journey: journey ? {
         id: journey.id,
         name: journey.name,
         slug: journey.slug,
-        estimated_minutes: journey.estimatedMinutes,
+        estimated_minutes: journey.estimated_minutes,
       } : null,
       progress: progress,
       checkpoints: sessionCheckpoints.map(c => ({
         id: c.id,
         key: c.key,
-        created_at: c.createdAt,
+        created_at: c.created_at,
       })),
       time_elapsed_minutes: timeElapsedMinutes,
     };
