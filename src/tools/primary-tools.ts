@@ -138,7 +138,7 @@ const memoryTool = {
 const conversationTool = {
   definition: {
     name: 'conversation',
-    description: 'Guided self-reflection, burnout check-ins, and wellness conversations with crisis detection. Routes to therapeutic AI backend. Triggers: "I\'m burned out", "need a break", "feeling stuck", "let\'s do a retro on my week", "check in with me", "I keep going in circles", "rubber duck my frustration", "decompress", "vent session", "daily standup with myself". Use when the user sounds frustrated, stuck, or wants a non-code conversation about how work is going.',
+    description: 'Guided self-reflection, burnout check-ins, and wellness conversations with crisis detection. Routes to therapeutic AI backend. Triggers: "I\'m burned out", "need a break", "feeling stuck", "let\'s do a retro on my week", "check in with me", "I keep going in circles", "rubber duck my frustration", "decompress", "vent session", "daily standup with myself". Use when the user sounds frustrated, stuck, or wants a non-code conversation about how work is going. NOTE: if the user is angry at AI output specifically (cursing at the AI, "you broke it"), prefer the review tool with verify mode first to address the problem — only use conversation if frustration persists without a code context or the user explicitly wants to talk it out.',
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -211,7 +211,7 @@ const conversationTool = {
 const reviewTool = {
   definition: {
     name: 'review',
-    description: 'Unified code review, package audit, and pre-delivery verification. Use mode to select: "code" for security/quality/AI-error analysis, "packages" for dependency audit and validation, "verify" for hallucination and fact checking, "full" for all checks. Triggers: "review this", "sanity check this code", "is this safe to ship", "check before I push", "audit my deps", "are these packages legit", "sniff test this", "anything I\'m missing", "vet these dependencies", "pre-commit check". Use proactively when the user pastes code, shares a diff, or adds new packages.',
+    description: 'Unified code review, package audit, and pre-delivery verification. Use mode to select: "code" for security/quality/AI-error analysis, "packages" for dependency audit and validation, "verify" for hallucination and fact checking, "full" for all checks. Triggers: "review this", "sanity check this code", "is this safe to ship", "check before I push", "audit my deps", "are these packages legit", "sniff test this", "anything I\'m missing", "vet these dependencies", "pre-commit check". ALSO use verify mode when the user expresses distrust or frustration at AI output: "are you sure", "that doesn\'t look right", "double check this", "prove it", "source?", "did you make that up", "that broke everything", "why did you do that", "I didn\'t ask for this". Profanity or anger directed at the AI ("wtf", "are you kidding me", any curse words) is a strong signal to immediately verify the last response for hallucination or incorrect assumptions. Use proactively when the user pastes code, shares a diff, or adds new packages.',
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
