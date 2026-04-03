@@ -1,12 +1,11 @@
 /**
  * MCP Tool: verify
- * 
+ *
  * Pre-delivery verification for AI-generated content.
  * Catches hallucinations, incorrect packages, bad code, and unsafe responses
  * BEFORE they reach the user.
  */
 
-import crypto from 'crypto';
 import { z } from 'zod';
 import { AIErrorPreventer } from '../developer/evaluators/ai-error-preventer.js';
 import { PackageBlocker } from '../developer/blockers/package-blocker.js';
@@ -71,9 +70,9 @@ export const verifyTool = {
 export async function handleVerify(args: unknown) {
   try {
     const input = VerifyInputSchema.parse(args);
-    
+
     logger.info('Running verification check', { type: input.type });
-    
+
     const results: VerificationResult = {
       verified: true,
       type: input.type,
@@ -123,16 +122,16 @@ export async function handleVerify(args: unknown) {
     }
 
     // Calculate overall confidence
-    results.confidence = results.issues.length === 0 ? 1.0 : 
+    results.confidence = results.issues.length === 0 ? 1.0 :
       Math.max(0.1, 1 - (results.issues.length * 0.15));
 
     return {
       success: true,
       ...results,
-      summary: results.verified 
+      summary: results.verified
         ? `✓ Verified. ${results.checks_run.length} checks passed.`
         : `✗ Issues found. ${results.issues.length} problems detected in ${results.checks_run.join(', ')}.`,
-      recommendation: results.verified 
+      recommendation: results.verified
         ? 'Safe to present to user.'
         : 'Review issues before presenting. Apply suggested fixes if available.',
     };
@@ -224,8 +223,8 @@ async function verifyPackages(content: string, registry: string): Promise<Packag
 
   // Determine language from registry
   const language = registry === 'npm' ? 'javascript' :
-                   registry === 'pypi' ? 'python' :
-                   registry === 'maven' ? 'java' : 'unknown';
+    registry === 'pypi' ? 'python' :
+      registry === 'maven' ? 'java' : 'unknown';
 
   const result: PackageVerificationResult = {
     packages_checked: packages,
@@ -278,7 +277,7 @@ async function verifyPackages(content: string, registry: string): Promise<Packag
 
 function extractPackageNames(content: string): string[] {
   const packages: Set<string> = new Set();
-  
+
   // npm install patterns
   const npmInstall = content.match(/npm\s+i(?:nstall)?\s+([^\n&|;]+)/gi);
   if (npmInstall) {
@@ -299,7 +298,7 @@ function extractPackageNames(content: string): string[] {
       const pkg = match.match(/['"]([^'"./][^'"]*)['"]/)?.[1];
       if (pkg) {
         // Get base package name (handle scoped packages)
-        const basePkg = pkg.startsWith('@') 
+        const basePkg = pkg.startsWith('@')
           ? pkg.split('/').slice(0, 2).join('/')
           : pkg.split('/')[0];
         if (basePkg) {
@@ -377,15 +376,15 @@ interface GovernanceVerificationResult {
 
 async function verifyResponse(content: string, sessionId?: string): Promise<GovernanceVerificationResult> {
   const engine = new EvaluationEngine();
-  
+
   const context: SessionContext = {
-    sessionId: sessionId || crypto.randomUUID(),
+    sessionId: sessionId || 'verification-check',
   };
 
   const evaluation = await engine.evaluate(content, context);
 
   const issues: string[] = [];
-  
+
   if (evaluation.hallucination.detected) {
     issues.push(`Potential hallucination detected (${Math.round(evaluation.hallucination.confidence * 100)}% confidence)`);
     if (evaluation.hallucination.patterns) {
