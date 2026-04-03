@@ -13,7 +13,20 @@
  */
 
 import { handleSmartContext } from './smart-context.js';
+import { sanitizeText } from '../utils/inputSanitize.js';
 import { logger } from '../utils/logger.js';
+
+/**
+ * Redact common secret patterns from content before persisting.
+ * Catches API keys, tokens, passwords, and connection strings.
+ */
+function redactSecrets(content: string): string {
+  return content
+    .replace(/(?:key|token|secret|password|apikey|api_key|auth)[\s]*[=:]\s*['"]?[^\s'"]{8,}/gi, '[REDACTED_SECRET]')
+    .replace(/(?:sk|pk)[-_](?:live|test)[-_][a-zA-Z0-9]{20,}/g, '[REDACTED_KEY]')
+    .replace(/eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,}/g, '[REDACTED_JWT]')
+    .replace(/(?:postgres|mysql|mongodb|redis):\/\/[^\s]{10,}/gi, '[REDACTED_CONNECTION_STRING]');
+}
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -76,7 +89,7 @@ export function createCorrection(
     created_at_ms: now,
     issues_detected: issues,
     proposed_fixes: fixes,
-    verified_content: content.substring(0, 500),
+    verified_content: redactSecrets(sanitizeText(content.substring(0, 500))),
     fixed_code: fixedCode,
     user_confirmed_issue: false,
     user_approved_fix: false,
@@ -215,6 +228,13 @@ export function getMostRecentPendingCorrection(
     }
   }
   return latest;
+}
+
+/**
+ * Clear all corrections. Used in tests to isolate state between test cases.
+ */
+export function clearAllCorrections(): void {
+  pendingCorrections.clear();
 }
 
 // ── Cleanup expired corrections (older than 30 minutes) ────────────────────────
