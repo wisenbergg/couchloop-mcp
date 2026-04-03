@@ -64,7 +64,7 @@ const ConversationInputSchema = z.object({
 const memoryTool = {
   definition: {
     name: 'memory',
-    description: 'Save and retrieve context, insights, checkpoints, and decisions across conversations. Prevents AI amnesia. Use action "save" to store, "recall" to retrieve, "list" to browse. Triggers: "remember this", "save this for later", "don\'t forget", "what did we work on last time", "recall our decisions", "what do you remember", "where did we leave off". With no arguments, returns a summary of everything saved.',
+    description: 'Save and retrieve context, insights, checkpoints, and decisions across conversations. Prevents AI amnesia. Use action "save" to store, "recall" to retrieve, "list" to browse. Use type "checkpoint" for quick sprint progress ("save where I am", "bookmark this"), type "decision" for long-term milestones and architectural choices that should persist ("lock this in", "this is a major decision"). Triggers: "remember this", "save this for later", "don\'t forget", "what did we work on last time", "recall our decisions", "what do you remember", "where did we leave off". With no arguments, returns a summary of everything saved.',
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -86,7 +86,7 @@ const memoryTool = {
         type: {
           type: 'string',
           enum: ['checkpoint', 'insight', 'decision', 'requirement', 'constraint', 'pattern'],
-          description: 'Type of context (for save action — affects categorization)',
+          description: 'checkpoint: short-term sprint progress, quick save points, "save where I am". insight: learnings and realizations. decision: long-term architectural or milestone decisions that should persist across projects. requirement/constraint: project rules. pattern: reusable code patterns.',
         },
         tags: {
           type: 'array',
