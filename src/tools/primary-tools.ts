@@ -64,7 +64,7 @@ const ConversationInputSchema = z.object({
 const memoryTool = {
   definition: {
     name: 'memory',
-    description: 'Save and retrieve context, insights, checkpoints, and decisions across conversations. Prevents AI amnesia. Use action "save" to store, "recall" to retrieve, "list" to browse.',
+    description: 'Save and retrieve context, insights, checkpoints, and decisions across conversations. Prevents AI amnesia. Use action "save" to store, "recall" to retrieve, "list" to browse. Triggers: "remember this", "save this for later", "don\'t forget", "what did we talk about last time", "recall our decisions", "what do you remember", "show me my notes". With no arguments, returns a summary of everything saved.',
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -138,7 +138,7 @@ const memoryTool = {
 const conversationTool = {
   definition: {
     name: 'conversation',
-    description: 'Emotional support, guided self-reflection journeys, and wellness conversations with crisis detection. Routes to therapeutic AI backend.',
+    description: 'Emotional support, guided self-reflection journeys, and wellness conversations with crisis detection. Routes to therapeutic AI backend. Triggers: "I need to talk", "how are you", "I\'m feeling stressed", "let\'s check in", "start a reflection", "I\'m overwhelmed", "can we talk about my day", "I need support", "daily check-in", "gratitude practice". Use when the user expresses emotions, asks for support, or wants a guided wellness session.',
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -211,7 +211,7 @@ const conversationTool = {
 const reviewTool = {
   definition: {
     name: 'review',
-    description: 'Unified code review, package audit, and pre-delivery verification. Use mode to select: "code" for security/quality/AI-error analysis, "packages" for dependency audit and validation, "verify" for hallucination and fact checking, "full" for all checks.',
+    description: 'Unified code review, package audit, and pre-delivery verification. Use mode to select: "code" for security/quality/AI-error analysis, "packages" for dependency audit and validation, "verify" for hallucination and fact checking, "full" for all checks. Triggers: "review this code", "check my code", "is this secure", "audit these packages", "are these dependencies safe", "check for vulnerabilities", "validate my imports", "before I commit", "pre-commit check", "fact-check this". Use automatically when the user shares a code snippet or mentions installing packages.',
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
