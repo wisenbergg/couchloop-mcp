@@ -34,11 +34,37 @@ const SESSION_TTL_MS: number = parseInt(
   process.env.SESSION_TTL_MS || "1800000",
 ); // 30 minutes
 
+// ── Shared tool/resource/prompt definitions (computed once, reused across sessions) ──
+let sharedTools: Awaited<ReturnType<typeof setupTools>> | null = null;
+let sharedResources: Awaited<ReturnType<typeof setupResources>> | null = null;
+let sharedInitPromise: Promise<void> | null = null;
+
+async function ensureSharedInit(): Promise<void> {
+  if (sharedTools && sharedResources) return;
+  if (sharedInitPromise) return sharedInitPromise;
+
+  sharedInitPromise = (async () => {
+    const [tools, resources] = await Promise.all([setupTools(), setupResources()]);
+    sharedTools = tools;
+    sharedResources = resources;
+    logger.info(`Shared MCP init complete: ${tools.length} tools, ${resources.length} resources`);
+  })();
+
+  return sharedInitPromise;
+}
+
 /**
- * Create and configure an MCP server instance
+ * Create and configure an MCP server instance.
+ * Tools, resources, and prompts are initialized once and shared across all sessions.
  */
 async function createMCPServer(): Promise<Server> {
-  // Create MCP server instance
+  // Ensure shared definitions are ready (no-op after first call)
+  await ensureSharedInit();
+
+  const tools = sharedTools!;
+  const resources = sharedResources!;
+
+  // Create MCP server instance (lightweight — just wires handlers to shared data)
   const server = new Server(
     {
       name: "couchloop-mcp",
@@ -53,10 +79,6 @@ async function createMCPServer(): Promise<Server> {
       },
     },
   );
-
-  // Set up tools and resources
-  const tools = await setupTools();
-  const resources = await setupResources();
 
   // Set up tool handlers
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
@@ -386,6 +408,9 @@ async function createMCPServer(): Promise<Server> {
   return server;
 }
 
+// Timeout for session creation — prevents hangs when DB or tool init is slow
+const SESSION_INIT_TIMEOUT_MS = parseInt(process.env.SESSION_INIT_TIMEOUT_MS || "5000");
+
 /**
  * Handle SSE/HTTP requests for ChatGPT MCP connection
  * This endpoint handles both GET (SSE) and POST (HTTP) requests
@@ -399,22 +424,24 @@ export async function handleSSE(req: Request, res: Response) {
     let session = sessionId ? activeSessions.get(sessionId) : undefined;
 
     if (!session) {
-      // Create new session
+      // Create new session with timeout guard
       const newSessionId = `session_${crypto.randomBytes(16).toString("hex")}`;
 
-      // Create transport with stateful mode (session management)
-      const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: () => newSessionId,
+      const initSession = async () => {
+        const transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: () => newSessionId,
+        });
+        const server = await createMCPServer();
+        await server.connect(transport);
+        return { transport, server, lastActivity: Date.now() };
+      };
+
+      // Race session creation against a timeout to prevent indefinite hangs
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error(`Session init timed out after ${SESSION_INIT_TIMEOUT_MS}ms`)), SESSION_INIT_TIMEOUT_MS);
       });
 
-      // Create and configure server
-      const server = await createMCPServer();
-
-      // Connect transport to server
-      await server.connect(transport);
-
-      // Store session
-      session = { transport, server, lastActivity: Date.now() };
+      session = await Promise.race([initSession(), timeoutPromise]);
       activeSessions.set(newSessionId, session);
 
       logger.info(`New MCP session created: ${newSessionId}`);
@@ -483,24 +510,24 @@ export async function handleMCPLenient(req: Request, res: Response) {
     let session = sessionId ? activeSessions.get(sessionId) : undefined;
 
     if (!session) {
-      // Create new session
+      // Create new session with timeout guard
       const newSessionId = `session_${crypto.randomBytes(16).toString("hex")}`;
 
-      // Create transport with lenient options
-      const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: () => newSessionId,
-        // Enable JSON-only responses for better compatibility
-        enableJsonResponse: true,
-      } as { sessionIdGenerator: () => string; enableJsonResponse?: boolean });
+      const initSession = async () => {
+        const transport = new StreamableHTTPServerTransport({
+          sessionIdGenerator: () => newSessionId,
+          enableJsonResponse: true,
+        } as { sessionIdGenerator: () => string; enableJsonResponse?: boolean });
+        const server = await createMCPServer();
+        await server.connect(transport);
+        return { transport, server, lastActivity: Date.now() };
+      };
 
-      // Create and configure server
-      const server = await createMCPServer();
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error(`Lenient session init timed out after ${SESSION_INIT_TIMEOUT_MS}ms`)), SESSION_INIT_TIMEOUT_MS);
+      });
 
-      // Connect transport to server
-      await server.connect(transport);
-
-      // Store session
-      session = { transport, server, lastActivity: Date.now() };
+      session = await Promise.race([initSession(), timeoutPromise]);
       activeSessions.set(newSessionId, session);
 
       logger.info(`New lenient MCP session created: ${newSessionId}`);

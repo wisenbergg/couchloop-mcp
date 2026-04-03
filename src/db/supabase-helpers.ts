@@ -5,18 +5,25 @@
  * throwOnError()      — unwraps { data, error } and throws on failure.
  */
 
-import { getSupabase } from './client.js';
+import { getSupabase, getSupabaseOrReconnect } from './client.js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 /**
  * Returns the initialized Supabase client or throws.
  * Use this instead of getSupabase() so callers never need null checks.
+ *
+ * If the client is null (failed init or cold start), attempts a lazy
+ * reconnect before giving up. This prevents the server from staying
+ * in a permanently degraded state after a transient DB failure.
  */
 export function getSupabaseClient(): SupabaseClient {
   const client = getSupabase();
   if (!client) {
+    // Kick off async reconnect for the next caller — this call still throws
+    // synchronously so existing error handling is preserved.
+    getSupabaseOrReconnect().catch(() => {/* will be retried next call */});
     throw new Error(
-      'Supabase client not initialized. Ensure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set.',
+      'Supabase client not initialized — reconnect in progress. Retry shortly.',
     );
   }
   return client;
