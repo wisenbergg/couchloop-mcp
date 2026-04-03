@@ -9,6 +9,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { logger } from '../utils/logger.js';
 
 let supabase: SupabaseClient | null = null;
+let reconnectPromise: Promise<SupabaseClient> | null = null;
 
 export async function initDatabase() {
   try {
@@ -60,6 +61,29 @@ export async function initDatabase() {
 
 export function getSupabase(): SupabaseClient | null {
   return supabase;
+}
+
+/**
+ * Lazy reconnect — if the client is null (failed init or cold start),
+ * attempt to reinitialize once. Concurrent callers share the same promise.
+ */
+export async function getSupabaseOrReconnect(): Promise<SupabaseClient> {
+  if (supabase) return supabase;
+
+  // Deduplicate concurrent reconnect attempts
+  if (reconnectPromise) return reconnectPromise;
+
+  reconnectPromise = initDatabase()
+    .then(({ supabase: client }) => {
+      reconnectPromise = null;
+      return client;
+    })
+    .catch((err) => {
+      reconnectPromise = null;
+      throw err;
+    });
+
+  return reconnectPromise;
 }
 
 export async function closeDatabase() {
