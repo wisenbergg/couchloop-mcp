@@ -34,6 +34,14 @@ import { getCheckpoints } from './checkpoint.js';
 import { getInsights, getUserContext } from './insight.js';
 import { handleVerify } from './verify.js';
 import { statusTool } from './status.js';
+import {
+  createCorrection,
+  confirmIssue,
+  approveFix,
+  dismissCorrection,
+  getMostRecentPendingCorrection,
+  CorrectionState,
+} from './correction-flow.js';
 import { runToolWithPolicy, type PolicyContext } from '../policy/index.js';
 import { logger } from '../utils/logger.js';
 
@@ -211,11 +219,11 @@ const conversationTool = {
 const reviewTool = {
   definition: {
     name: 'review',
-    description: 'Unified code review, package audit, and pre-delivery verification. Use mode to select: "code" for security/quality/AI-error analysis, "packages" for dependency audit and validation, "verify" for hallucination and fact checking, "full" for all checks. Triggers: "review this", "sanity check this code", "is this safe to ship", "check before I push", "audit my deps", "are these packages legit", "sniff test this", "anything I\'m missing", "vet these dependencies", "pre-commit check". ALSO use verify mode when the user expresses distrust or frustration at AI output: "are you sure", "that doesn\'t look right", "double check this", "prove it", "source?", "did you make that up", "that broke everything", "why did you do that", "I didn\'t ask for this". Profanity or anger directed at the AI ("wtf", "are you kidding me", any curse words) is a strong signal to immediately verify the last response for hallucination or incorrect assumptions. When verify detects an error: (1) acknowledge the specific mistake plainly — no apology loops or over-empathizing, (2) explain what went wrong and why, (3) propose the fix, (4) ask for permission before applying it. After verify, ALSO call the memory tool to save the mistake pattern (type "constraint", tags ["ai-mistake", "do-not-repeat"]) so the same error is not repeated in future conversations. Use proactively when the user pastes code, shares a diff, or adds new packages.',
+    description: 'Unified code review, package audit, pre-delivery verification, and error correction. Modes: "code" for security/quality analysis, "packages" for dependency audit, "verify" for hallucination/fact check (starts correction flow), "confirm" for user confirming detected issue, "apply-fix" for user approving the fix, "dismiss" for user saying "that\'s not the issue", "full" for all checks. Triggers: "review this", "sanity check this", "is this safe to ship", "check before I push", "audit my deps", "sniff test this", "vet these dependencies". ALSO use verify mode when the user expresses distrust or frustration: "are you sure", "that doesn\'t look right", "prove it", "did you make that up", "that broke everything", "why did you do that", "I didn\'t ask for this". Profanity or anger directed at the AI is a strong signal to immediately run verify. CORRECTION FLOW: verify detects issue → present it plainly and ask "is this what you mean?" → user confirms (call with mode "confirm") → explain fix and ask permission → user approves (call with mode "apply-fix") → apply. If user says no (mode "dismiss"), ask them to explain. Memory auto-saves the mistake ONLY after user confirms. Use proactively when the user pastes code, shares a diff, or adds new packages.',
     annotations: {
-      readOnlyHint: true,
+      readOnlyHint: false,
       destructiveHint: false,
-      idempotentHint: true,
+      idempotentHint: false,
       openWorldHint: true,
     },
     inputSchema: {
@@ -223,12 +231,16 @@ const reviewTool = {
       properties: {
         mode: {
           type: 'string',
-          enum: ['code', 'packages', 'verify', 'full'],
-          description: 'code: security vulnerabilities, code smells, AI-generated errors. packages: validate existence, audit versions, find vulnerabilities. verify: pre-delivery hallucination/fact check. full: all checks.',
+          enum: ['code', 'packages', 'verify', 'confirm', 'apply-fix', 'dismiss', 'full'],
+          description: 'code: security/quality analysis. packages: dependency audit. verify: hallucination/fact check — starts a correction flow. confirm: user confirms the detected issue is correct (requires correction_id). apply-fix: user approves the proposed fix (requires correction_id). dismiss: user says "that\'s not the issue" (requires correction_id). full: all checks.',
         },
         content: {
           type: 'string',
           description: 'Code to review, content to verify, or general input for analysis',
+        },
+        correction_id: {
+          type: 'string',
+          description: 'ID of a pending correction (for confirm, apply-fix, dismiss modes). If omitted, uses the most recent pending correction.',
         },
         packages: {
           type: 'array',
@@ -248,12 +260,22 @@ const reviewTool = {
           type: 'boolean',
           description: 'Attempt to auto-fix issues (default: false, code mode only)',
         },
+        session_id: {
+          type: 'string',
+          description: 'Session ID for scoping correction flow state. Required for confirm, apply-fix, dismiss modes.',
+        },
+        auth: {
+          type: 'object',
+          description: 'Authentication context for user identification. Passed through to memory when saving mistakes.',
+        },
       },
       required: ['mode'],
     },
   },
   handler: async (args: Record<string, unknown>) => {
     const mode = args.mode as string;
+    const sessionId = (args.session_id as string) || 'anonymous';
+    const auth = args.auth as Record<string, unknown> | undefined;
 
     switch (mode) {
       case 'code':
@@ -275,16 +297,118 @@ const reviewTool = {
           registry: args.registry,
         });
 
-      case 'verify':
+      case 'verify': {
         if (!args.content) {
           return { success: false, error: 'content is required for verify mode' };
         }
-        return handleVerify({
+        const verifyResult = await handleVerify({
           type: 'all',
           content: args.content,
           language: args.language,
           registry: args.registry,
-        });
+        }) as Record<string, unknown>;
+
+        const issues = verifyResult.issues as string[] | undefined;
+        const fixes = verifyResult.fixes as string[] | undefined;
+
+        // If issues found, create a correction and enter PENDING_ACKNOWLEDGMENT
+        // Do NOT save to memory yet — wait for user to confirm the issue is correct
+        if (verifyResult.success && !verifyResult.verified && issues && issues.length > 0) {
+          const fixedCode = (verifyResult.code_verification as Record<string, unknown> | undefined)?.fixed_code as string | undefined;
+          const correction = createCorrection(
+            issues,
+            fixes && fixes.length > 0 ? fixes : ['No automatic fix available — manual correction needed.'],
+            args.content as string,
+            sessionId,
+            fixedCode,
+            auth,
+          );
+
+          return {
+            ...verifyResult,
+            correction: {
+              correction_id: correction.id,
+              state: correction.state,
+              what_i_found: issues,
+              instruction: 'I found potential issues. Present them plainly to the user and ask: "Is this what you are referring to?" Do NOT propose fixes yet. Do NOT save to memory yet. Wait for the user to confirm with review mode "confirm".',
+            },
+          };
+        }
+
+        return verifyResult;
+      }
+
+      // ── User confirms the detected issue is correct ──
+      case 'confirm': {
+        const correctionId = args.correction_id as string | undefined;
+        const correction = correctionId
+          ? await confirmIssue(correctionId, sessionId)
+          : await (async () => {
+              const pending = getMostRecentPendingCorrection(sessionId, CorrectionState.PENDING_ACKNOWLEDGMENT);
+              if (!pending) throw new Error('No pending correction to confirm. Run verify first.');
+              return confirmIssue(pending.id, sessionId);
+            })();
+
+        return {
+          success: true,
+          correction: {
+            correction_id: correction.id,
+            state: correction.state,
+            proposed_fixes: correction.proposed_fixes,
+            fixed_code: correction.fixed_code || null,
+            saved_to_memory: correction.saved_to_memory,
+            memory_save_error: correction.memory_save_error || null,
+            instruction: 'The user confirmed the issue. Now explain the fix clearly and ask: "Want me to go ahead with this fix?" Wait for approval before applying. Use review mode "apply-fix" when the user approves.',
+          },
+        };
+      }
+
+      // ── User approves the fix ──
+      case 'apply-fix': {
+        const applyId = args.correction_id as string | undefined;
+        const applied = applyId
+          ? approveFix(applyId, sessionId)
+          : (() => {
+              const pending = getMostRecentPendingCorrection(sessionId, CorrectionState.PENDING_FIX_APPROVAL);
+              if (!pending) throw new Error('No pending correction to apply. Run verify and confirm first.');
+              return approveFix(pending.id, sessionId);
+            })();
+
+        return {
+          success: true,
+          correction: {
+            correction_id: applied.id,
+            state: applied.state,
+            proposed_fixes: applied.proposed_fixes,
+            fixed_code: applied.fixed_code || null,
+            instruction: 'The user approved the fix. Apply it now.',
+          },
+        };
+      }
+
+      // ── User says "no, that's not the issue" ──
+      case 'dismiss': {
+        // Dismiss accepts any non-terminal state (both PENDING_ACKNOWLEDGMENT and
+        // PENDING_FIX_APPROVAL), so no expectedState filter — intentionally broader
+        // than confirm/apply-fix which target specific states.
+        const dismissId = args.correction_id as string | undefined;
+        const dismissed = dismissId
+          ? dismissCorrection(dismissId, sessionId)
+          : (() => {
+              const pending = getMostRecentPendingCorrection(sessionId);
+              if (!pending) throw new Error('No pending correction to dismiss.');
+              return dismissCorrection(pending.id, sessionId);
+            })();
+
+        return {
+          success: true,
+          correction: {
+            correction_id: dismissed.id,
+            state: dismissed.state,
+            instruction: 'The detected issue was not what the user meant. Ask the user to explain what went wrong so you can help correctly. Do NOT guess.',
+          },
+        };
+      }
 
       case 'full': {
         const results: Record<string, unknown> = {};
@@ -294,11 +418,32 @@ const reviewTool = {
             language: args.language,
             auto_fix: args.auto_fix,
           });
-          results.verification = await handleVerify({
+          const fullVerifyResult = await handleVerify({
             type: 'all',
             content: args.content,
             language: args.language,
-          });
+          }) as Record<string, unknown>;
+          results.verification = fullVerifyResult;
+
+          const fullIssues = fullVerifyResult.issues as string[] | undefined;
+          const fullFixes = fullVerifyResult.fixes as string[] | undefined;
+          if (fullVerifyResult.success && !fullVerifyResult.verified && fullIssues && fullIssues.length > 0) {
+            const fixedCode = (fullVerifyResult.code_verification as Record<string, unknown> | undefined)?.fixed_code as string | undefined;
+            const correction = createCorrection(
+              fullIssues,
+              fullFixes && fullFixes.length > 0 ? fullFixes : ['No automatic fix available — manual correction needed.'],
+              args.content as string,
+              sessionId,
+              fixedCode,
+              auth,
+            );
+            results.correction = {
+              correction_id: correction.id,
+              state: correction.state,
+              what_i_found: fullIssues,
+              instruction: 'I found potential issues. Present them plainly to the user and ask: "Is this what you are referring to?" Do NOT propose fixes yet. Wait for confirmation.',
+            };
+          }
         }
         if (args.packages) {
           results.package_audit = await handleComprehensivePackageAudit({
@@ -313,7 +458,7 @@ const reviewTool = {
       }
 
       default:
-        return { success: false, error: `Unknown mode: ${mode}. Use: code, packages, verify, or full` };
+        return { success: false, error: `Unknown mode: ${mode}. Use: code, packages, verify, confirm, apply-fix, dismiss, or full` };
     }
   },
 };
