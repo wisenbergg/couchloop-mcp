@@ -24,17 +24,6 @@ export async function initDatabase() {
       throw new Error(`Missing required env vars: ${missing.join(', ')}`);
     }
 
-    // Only reject obvious placeholder patterns — not substrings of real URLs
-    const isPlaceholder = (val: string) =>
-      val === 'xxx' || val.startsWith('your-') || val === 'placeholder' || val === 'changeme';
-
-    if (isPlaceholder(supabaseUrl) || isPlaceholder(supabaseKey)) {
-      console.error('FATAL: Supabase credentials are placeholder values');
-      throw new Error(
-        'Supabase credentials are placeholder values. Set real values in your env.',
-      );
-    }
-
     logger.info(`Initializing Supabase client (using ${process.env.SUPABASE_SERVICE_ROLE_KEY ? 'service_role' : 'anon'} key)`);
 
     supabase = createClient(supabaseUrl, supabaseKey, {
