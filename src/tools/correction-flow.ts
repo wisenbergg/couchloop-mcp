@@ -7,6 +7,9 @@
  *
  * Memory auto-save happens at PENDING_FIX_APPROVAL (after user confirms the issue is correct),
  * not at detection time — because until the user confirms, we don't know if we caught the right problem.
+ *
+ * SECURITY: Corrections are scoped by session_id. All lookups and mutations
+ * require a session_id to prevent cross-user state leakage in shared processes.
  */
 
 import { handleSmartContext } from './smart-context.js';
@@ -23,8 +26,10 @@ export enum CorrectionState {
 
 export interface CorrectionEntry {
   id: string;
+  session_id: string;
   state: CorrectionState;
   created_at: string;
+  created_at_ms: number;
   issues_detected: string[];
   proposed_fixes: string[];
   verified_content: string;
@@ -32,9 +37,11 @@ export interface CorrectionEntry {
   user_confirmed_issue: boolean;
   user_approved_fix: boolean;
   saved_to_memory: boolean;
+  memory_save_error?: string;
+  auth?: Record<string, unknown>;
 }
 
-// ── In-memory store (scoped by MCP session, not DB session) ────────────────────
+// ── In-memory store keyed by correction ID, scoped by session_id ───────────────
 
 const pendingCorrections = new Map<string, CorrectionEntry>();
 
@@ -55,13 +62,18 @@ export function createCorrection(
   issues: string[],
   fixes: string[],
   content: string,
+  sessionId: string,
   fixedCode?: string,
+  auth?: Record<string, unknown>,
 ): CorrectionEntry {
   const id = generateCorrectionId();
+  const now = Date.now();
   const entry: CorrectionEntry = {
     id,
+    session_id: sessionId,
     state: CorrectionState.PENDING_ACKNOWLEDGMENT,
-    created_at: new Date().toISOString(),
+    created_at: new Date(now).toISOString(),
+    created_at_ms: now,
     issues_detected: issues,
     proposed_fixes: fixes,
     verified_content: content.substring(0, 500),
@@ -69,21 +81,26 @@ export function createCorrection(
     user_confirmed_issue: false,
     user_approved_fix: false,
     saved_to_memory: false,
+    auth,
   };
 
   pendingCorrections.set(id, entry);
-  logger.info(`[Correction] Created ${id} in PENDING_ACKNOWLEDGMENT state`);
+  logger.info(`[Correction] Created ${id} for session ${sessionId} in PENDING_ACKNOWLEDGMENT state`);
   return entry;
 }
 
 /**
  * User confirms the detected issue is correct.
  * Transitions to PENDING_FIX_APPROVAL and auto-saves to memory.
+ * Requires session_id to prevent cross-user confirmation.
  */
-export async function confirmIssue(correctionId: string): Promise<CorrectionEntry> {
+export async function confirmIssue(correctionId: string, sessionId: string): Promise<CorrectionEntry> {
   const entry = pendingCorrections.get(correctionId);
   if (!entry) {
     throw new Error(`Correction ${correctionId} not found. It may have expired.`);
+  }
+  if (entry.session_id !== sessionId) {
+    throw new Error(`Correction ${correctionId} does not belong to this session.`);
   }
   if (entry.state !== CorrectionState.PENDING_ACKNOWLEDGMENT) {
     throw new Error(`Correction ${correctionId} is in state ${entry.state}, expected ${CorrectionState.PENDING_ACKNOWLEDGMENT}.`);
@@ -92,17 +109,20 @@ export async function confirmIssue(correctionId: string): Promise<CorrectionEntr
   entry.state = CorrectionState.PENDING_FIX_APPROVAL;
   entry.user_confirmed_issue = true;
 
-  // Now that the user confirmed the issue is real, save to memory
+  // Now that the user confirmed the issue is real, save to memory with auth context
   try {
     await handleSmartContext({
       content: `AI mistake confirmed by user: ${entry.issues_detected.join('; ')}. Original content: ${entry.verified_content}`,
       type: 'constraint',
       tags: ['ai-mistake', 'do-not-repeat'],
+      session_id: entry.session_id,
+      auth: entry.auth,
     });
     entry.saved_to_memory = true;
     logger.info(`[Correction] ${correctionId} → PENDING_FIX_APPROVAL, saved to memory`);
   } catch (err) {
     logger.warn(`[Correction] Failed to save mistake to memory:`, err);
+    entry.memory_save_error = err instanceof Error ? err.message : 'Unknown error';
   }
 
   return entry;
@@ -111,14 +131,18 @@ export async function confirmIssue(correctionId: string): Promise<CorrectionEntr
 /**
  * User approves the proposed fix.
  * Transitions to APPLIED and cleans up.
+ * Requires session_id to prevent cross-user approval.
  */
-export function approveFix(correctionId: string): CorrectionEntry {
+export function approveFix(correctionId: string, sessionId: string): CorrectionEntry {
   const entry = pendingCorrections.get(correctionId);
   if (!entry) {
     throw new Error(`Correction ${correctionId} not found. It may have expired.`);
   }
+  if (entry.session_id !== sessionId) {
+    throw new Error(`Correction ${correctionId} does not belong to this session.`);
+  }
   if (entry.state !== CorrectionState.PENDING_FIX_APPROVAL) {
-    throw new Error(`Correction ${correctionId} is in state ${entry.state}, expected ${CorrectionState.PENDING_FIX_APPROVAL}.`);
+    throw new Error(`Correction ${correctionId} is in state ${entry.state}, expected ${CorrectionState.PENDING_FIX_APPROVAL}. Did you call confirm first?`);
   }
 
   entry.state = CorrectionState.APPLIED;
@@ -134,12 +158,19 @@ export function approveFix(correctionId: string): CorrectionEntry {
 
 /**
  * User says "no, that's not the issue".
- * Transitions to DISMISSED — the LLM should ask the user to explain.
+ * Can only dismiss from PENDING_ACKNOWLEDGMENT or PENDING_FIX_APPROVAL — not terminal states.
+ * Requires session_id to prevent cross-user dismissal.
  */
-export function dismissCorrection(correctionId: string): CorrectionEntry {
+export function dismissCorrection(correctionId: string, sessionId: string): CorrectionEntry {
   const entry = pendingCorrections.get(correctionId);
   if (!entry) {
     throw new Error(`Correction ${correctionId} not found. It may have expired.`);
+  }
+  if (entry.session_id !== sessionId) {
+    throw new Error(`Correction ${correctionId} does not belong to this session.`);
+  }
+  if (entry.state === CorrectionState.APPLIED || entry.state === CorrectionState.DISMISSED) {
+    throw new Error(`Correction ${correctionId} is already in terminal state ${entry.state} and cannot be dismissed.`);
   }
 
   entry.state = CorrectionState.DISMISSED;
@@ -160,17 +191,27 @@ export function getCorrection(correctionId: string): CorrectionEntry | undefined
 }
 
 /**
- * Get the most recent pending correction (for cases where the user
- * responds without referencing a specific correction ID).
+ * Get the most recent pending correction for a specific session.
+ * Only returns corrections belonging to the given session_id.
+ * Optionally filter by expected state to avoid returning entries
+ * that the caller's operation would immediately reject.
  */
-export function getMostRecentPendingCorrection(): CorrectionEntry | undefined {
+export function getMostRecentPendingCorrection(
+  sessionId: string,
+  expectedState?: CorrectionState,
+): CorrectionEntry | undefined {
   let latest: CorrectionEntry | undefined;
   for (const entry of pendingCorrections.values()) {
-    if (entry.state === CorrectionState.PENDING_ACKNOWLEDGMENT ||
-        entry.state === CorrectionState.PENDING_FIX_APPROVAL) {
-      if (!latest || entry.created_at > latest.created_at) {
-        latest = entry;
-      }
+    if (entry.session_id !== sessionId) continue;
+    if (expectedState) {
+      if (entry.state !== expectedState) continue;
+    } else {
+      // Default: return any non-terminal correction
+      if (entry.state !== CorrectionState.PENDING_ACKNOWLEDGMENT &&
+          entry.state !== CorrectionState.PENDING_FIX_APPROVAL) continue;
+    }
+    if (!latest || entry.created_at_ms > latest.created_at_ms) {
+      latest = entry;
     }
   }
   return latest;
@@ -178,11 +219,11 @@ export function getMostRecentPendingCorrection(): CorrectionEntry | undefined {
 
 // ── Cleanup expired corrections (older than 30 minutes) ────────────────────────
 
-setInterval(() => {
+const cleanupInterval = setInterval(() => {
   const cutoff = Date.now() - 30 * 60 * 1000;
   let cleaned = 0;
   for (const [id, entry] of pendingCorrections.entries()) {
-    if (new Date(entry.created_at).getTime() < cutoff) {
+    if (entry.created_at_ms < cutoff) {
       pendingCorrections.delete(id);
       cleaned++;
     }
@@ -191,3 +232,4 @@ setInterval(() => {
     logger.info(`[Correction] Cleaned up ${cleaned} expired corrections`);
   }
 }, 5 * 60 * 1000);
+cleanupInterval.unref();
