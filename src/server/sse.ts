@@ -48,7 +48,10 @@ async function ensureSharedInit(): Promise<void> {
     sharedTools = tools;
     sharedResources = resources;
     logger.info(`Shared MCP init complete: ${tools.length} tools, ${resources.length} resources`);
-  })();
+  })().catch((err) => {
+    sharedInitPromise = null;
+    throw err;
+  });
 
   return sharedInitPromise;
 }
