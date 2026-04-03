@@ -275,16 +275,53 @@ const reviewTool = {
           registry: args.registry,
         });
 
-      case 'verify':
+      case 'verify': {
         if (!args.content) {
           return { success: false, error: 'content is required for verify mode' };
         }
-        return handleVerify({
+        const verifyResult = await handleVerify({
           type: 'all',
           content: args.content,
           language: args.language,
           registry: args.registry,
-        });
+        }) as Record<string, unknown>;
+
+        // If issues were found, structure the response as a correction flow
+        // and auto-save the mistake pattern to memory
+        const issues = verifyResult.issues as string[] | undefined;
+        const fixes = verifyResult.fixes as string[] | undefined;
+        if (verifyResult.success && !verifyResult.verified && issues && issues.length > 0) {
+          const mistakeDescription = issues.join('; ');
+          const proposedFixes = fixes && fixes.length > 0
+            ? fixes
+            : ['No automatic fix available — manual correction needed.'];
+
+          // Auto-save to memory so this mistake isn't repeated
+          try {
+            await handleSmartContext({
+              content: `AI mistake detected: ${mistakeDescription}. Context: ${(args.content as string).substring(0, 200)}`,
+              type: 'constraint',
+              tags: ['ai-mistake', 'do-not-repeat'],
+            });
+            logger.info('[Verify] Auto-saved mistake pattern to memory');
+          } catch (saveErr) {
+            logger.warn('[Verify] Failed to auto-save mistake to memory:', saveErr);
+          }
+
+          return {
+            ...verifyResult,
+            correction: {
+              what_went_wrong: mistakeDescription,
+              proposed_fixes: proposedFixes,
+              awaiting_permission: true,
+              instruction: 'Issues were found. Review the proposed fixes above and confirm before they are applied. Do not apply changes without explicit user approval.',
+            },
+            saved_to_memory: true,
+          };
+        }
+
+        return verifyResult;
+      }
 
       case 'full': {
         const results: Record<string, unknown> = {};
@@ -294,11 +331,35 @@ const reviewTool = {
             language: args.language,
             auto_fix: args.auto_fix,
           });
-          results.verification = await handleVerify({
+          const fullVerifyResult = await handleVerify({
             type: 'all',
             content: args.content,
             language: args.language,
-          });
+          }) as Record<string, unknown>;
+          results.verification = fullVerifyResult;
+
+          // Auto-save mistakes from full mode verification too
+          const fullIssues = fullVerifyResult.issues as string[] | undefined;
+          const fullFixes = fullVerifyResult.fixes as string[] | undefined;
+          if (fullVerifyResult.success && !fullVerifyResult.verified && fullIssues && fullIssues.length > 0) {
+            const mistakeDescription = fullIssues.join('; ');
+            try {
+              await handleSmartContext({
+                content: `AI mistake detected: ${mistakeDescription}. Context: ${(args.content as string).substring(0, 200)}`,
+                type: 'constraint',
+                tags: ['ai-mistake', 'do-not-repeat'],
+              });
+            } catch (saveErr) {
+              logger.warn('[Verify/Full] Failed to auto-save mistake to memory:', saveErr);
+            }
+            results.correction = {
+              what_went_wrong: mistakeDescription,
+              proposed_fixes: fullFixes && fullFixes.length > 0 ? fullFixes : ['No automatic fix available — manual correction needed.'],
+              awaiting_permission: true,
+              instruction: 'Issues were found. Review the proposed fixes above and confirm before they are applied. Do not apply changes without explicit user approval.',
+            };
+            results.saved_to_memory = true;
+          }
         }
         if (args.packages) {
           results.package_audit = await handleComprehensivePackageAudit({
