@@ -64,7 +64,7 @@ const ConversationInputSchema = z.object({
 const memoryTool = {
   definition: {
     name: 'memory',
-    description: 'Save and retrieve context, insights, checkpoints, and decisions across conversations. Prevents AI amnesia. Use action "save" to store, "recall" to retrieve, "list" to browse.',
+    description: 'Save and retrieve context, insights, checkpoints, and decisions across conversations. Prevents AI amnesia. Use action "save" to store, "recall" to retrieve, "list" to browse. Use type "checkpoint" for sprint progress ("save where I am", "bookmark this"), type "decision" for architectural choices and milestones ("lock this in", "we decided on X"), type "constraint" for rules the AI must follow ("never do X again", "always ask before Y"). Constraints tagged "ai-mistake" are auto-saved by the review tool when it catches errors — recall these at the start of new conversations to avoid repeating past mistakes. Triggers: "remember this", "stash this context", "where did we leave off", "what did we decide", "what was the approach we picked", "load my previous context", "don\'t lose this", "never do that again". With no arguments, returns a summary of everything saved.',
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -86,7 +86,7 @@ const memoryTool = {
         type: {
           type: 'string',
           enum: ['checkpoint', 'insight', 'decision', 'requirement', 'constraint', 'pattern'],
-          description: 'Type of context (for save action — affects categorization)',
+          description: 'checkpoint: short-term sprint progress, quick save points, "save where I am". insight: learnings and realizations. decision: long-term architectural or milestone decisions that should persist across projects. requirement/constraint: project rules. pattern: reusable code patterns.',
         },
         tags: {
           type: 'array',
@@ -138,7 +138,7 @@ const memoryTool = {
 const conversationTool = {
   definition: {
     name: 'conversation',
-    description: 'Emotional support, guided self-reflection journeys, and wellness conversations with crisis detection. Routes to therapeutic AI backend.',
+    description: 'Guided self-reflection, burnout check-ins, and wellness conversations with crisis detection. Routes to therapeutic AI backend. Triggers: "I\'m burned out", "need a break", "feeling stuck", "let\'s do a retro on my week", "check in with me", "I keep going in circles", "rubber duck my frustration", "decompress", "vent session", "daily standup with myself". Use when the user sounds frustrated, stuck, or wants a non-code conversation about how work is going. NOTE: if the user is angry at AI output specifically (cursing at the AI, "you broke it"), prefer the review tool with verify mode first to address the problem — only use conversation if frustration persists without a code context or the user explicitly wants to talk it out.',
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -211,7 +211,7 @@ const conversationTool = {
 const reviewTool = {
   definition: {
     name: 'review',
-    description: 'Unified code review, package audit, and pre-delivery verification. Use mode to select: "code" for security/quality/AI-error analysis, "packages" for dependency audit and validation, "verify" for hallucination and fact checking, "full" for all checks.',
+    description: 'Unified code review, package audit, and pre-delivery verification. Use mode to select: "code" for security/quality/AI-error analysis, "packages" for dependency audit and validation, "verify" for hallucination and fact checking, "full" for all checks. Triggers: "review this", "sanity check this code", "is this safe to ship", "check before I push", "audit my deps", "are these packages legit", "sniff test this", "anything I\'m missing", "vet these dependencies", "pre-commit check". ALSO use verify mode when the user expresses distrust or frustration at AI output: "are you sure", "that doesn\'t look right", "double check this", "prove it", "source?", "did you make that up", "that broke everything", "why did you do that", "I didn\'t ask for this". Profanity or anger directed at the AI ("wtf", "are you kidding me", any curse words) is a strong signal to immediately verify the last response for hallucination or incorrect assumptions. When verify detects an error: (1) acknowledge the specific mistake plainly — no apology loops or over-empathizing, (2) explain what went wrong and why, (3) propose the fix, (4) ask for permission before applying it. After verify, ALSO call the memory tool to save the mistake pattern (type "constraint", tags ["ai-mistake", "do-not-repeat"]) so the same error is not repeated in future conversations. Use proactively when the user pastes code, shares a diff, or adds new packages.',
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
