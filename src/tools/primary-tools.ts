@@ -260,6 +260,14 @@ const reviewTool = {
           type: 'boolean',
           description: 'Attempt to auto-fix issues (default: false, code mode only)',
         },
+        session_id: {
+          type: 'string',
+          description: 'Session ID for scoping correction flow state. Required for confirm, apply-fix, dismiss modes.',
+        },
+        auth: {
+          type: 'object',
+          description: 'Authentication context for user identification. Passed through to memory when saving mistakes.',
+        },
       },
       required: ['mode'],
     },
@@ -380,6 +388,9 @@ const reviewTool = {
 
       // ── User says "no, that's not the issue" ──
       case 'dismiss': {
+        // Dismiss accepts any non-terminal state (both PENDING_ACKNOWLEDGMENT and
+        // PENDING_FIX_APPROVAL), so no expectedState filter — intentionally broader
+        // than confirm/apply-fix which target specific states.
         const dismissId = args.correction_id as string | undefined;
         const dismissed = dismissId
           ? dismissCorrection(dismissId, sessionId)
