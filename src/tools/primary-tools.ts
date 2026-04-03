@@ -64,7 +64,7 @@ const ConversationInputSchema = z.object({
 const memoryTool = {
   definition: {
     name: 'memory',
-    description: 'Save and retrieve context, insights, checkpoints, and decisions across conversations. Prevents AI amnesia. Use action "save" to store, "recall" to retrieve, "list" to browse. Triggers: "remember this", "save this for later", "don\'t forget", "what did we talk about last time", "recall our decisions", "what do you remember", "show me my notes". With no arguments, returns a summary of everything saved.',
+    description: 'Save and retrieve context, insights, checkpoints, and decisions across conversations. Prevents AI amnesia. Use action "save" to store, "recall" to retrieve, "list" to browse. Triggers: "remember this", "save this for later", "don\'t forget", "what did we work on last time", "recall our decisions", "what do you remember", "where did we leave off". With no arguments, returns a summary of everything saved.',
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
