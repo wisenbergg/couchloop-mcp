@@ -40,6 +40,7 @@ import {
   approveFix,
   dismissCorrection,
   getMostRecentPendingCorrection,
+  CorrectionState,
 } from './correction-flow.js';
 import { runToolWithPolicy, type PolicyContext } from '../policy/index.js';
 import { logger } from '../utils/logger.js';
@@ -220,9 +221,9 @@ const reviewTool = {
     name: 'review',
     description: 'Unified code review, package audit, pre-delivery verification, and error correction. Modes: "code" for security/quality analysis, "packages" for dependency audit, "verify" for hallucination/fact check (starts correction flow), "confirm" for user confirming detected issue, "apply-fix" for user approving the fix, "dismiss" for user saying "that\'s not the issue", "full" for all checks. Triggers: "review this", "sanity check this", "is this safe to ship", "check before I push", "audit my deps", "sniff test this", "vet these dependencies". ALSO use verify mode when the user expresses distrust or frustration: "are you sure", "that doesn\'t look right", "prove it", "did you make that up", "that broke everything", "why did you do that", "I didn\'t ask for this". Profanity or anger directed at the AI is a strong signal to immediately run verify. CORRECTION FLOW: verify detects issue → present it plainly and ask "is this what you mean?" → user confirms (call with mode "confirm") → explain fix and ask permission → user approves (call with mode "apply-fix") → apply. If user says no (mode "dismiss"), ask them to explain. Memory auto-saves the mistake ONLY after user confirms. Use proactively when the user pastes code, shares a diff, or adds new packages.',
     annotations: {
-      readOnlyHint: true,
+      readOnlyHint: false,
       destructiveHint: false,
-      idempotentHint: true,
+      idempotentHint: false,
       openWorldHint: true,
     },
     inputSchema: {
@@ -265,6 +266,8 @@ const reviewTool = {
   },
   handler: async (args: Record<string, unknown>) => {
     const mode = args.mode as string;
+    const sessionId = (args.session_id as string) || 'anonymous';
+    const auth = args.auth as Record<string, unknown> | undefined;
 
     switch (mode) {
       case 'code':
@@ -308,7 +311,9 @@ const reviewTool = {
             issues,
             fixes && fixes.length > 0 ? fixes : ['No automatic fix available — manual correction needed.'],
             args.content as string,
+            sessionId,
             fixedCode,
+            auth,
           );
 
           return {
@@ -329,11 +334,11 @@ const reviewTool = {
       case 'confirm': {
         const correctionId = args.correction_id as string | undefined;
         const correction = correctionId
-          ? await confirmIssue(correctionId)
+          ? await confirmIssue(correctionId, sessionId)
           : await (async () => {
-              const pending = getMostRecentPendingCorrection();
+              const pending = getMostRecentPendingCorrection(sessionId, CorrectionState.PENDING_ACKNOWLEDGMENT);
               if (!pending) throw new Error('No pending correction to confirm. Run verify first.');
-              return confirmIssue(pending.id);
+              return confirmIssue(pending.id, sessionId);
             })();
 
         return {
@@ -344,6 +349,7 @@ const reviewTool = {
             proposed_fixes: correction.proposed_fixes,
             fixed_code: correction.fixed_code || null,
             saved_to_memory: correction.saved_to_memory,
+            memory_save_error: correction.memory_save_error || null,
             instruction: 'The user confirmed the issue. Now explain the fix clearly and ask: "Want me to go ahead with this fix?" Wait for approval before applying. Use review mode "apply-fix" when the user approves.',
           },
         };
@@ -353,11 +359,11 @@ const reviewTool = {
       case 'apply-fix': {
         const applyId = args.correction_id as string | undefined;
         const applied = applyId
-          ? approveFix(applyId)
+          ? approveFix(applyId, sessionId)
           : (() => {
-              const pending = getMostRecentPendingCorrection();
+              const pending = getMostRecentPendingCorrection(sessionId, CorrectionState.PENDING_FIX_APPROVAL);
               if (!pending) throw new Error('No pending correction to apply. Run verify and confirm first.');
-              return approveFix(pending.id);
+              return approveFix(pending.id, sessionId);
             })();
 
         return {
@@ -376,11 +382,11 @@ const reviewTool = {
       case 'dismiss': {
         const dismissId = args.correction_id as string | undefined;
         const dismissed = dismissId
-          ? dismissCorrection(dismissId)
+          ? dismissCorrection(dismissId, sessionId)
           : (() => {
-              const pending = getMostRecentPendingCorrection();
+              const pending = getMostRecentPendingCorrection(sessionId);
               if (!pending) throw new Error('No pending correction to dismiss.');
-              return dismissCorrection(pending.id);
+              return dismissCorrection(pending.id, sessionId);
             })();
 
         return {
@@ -416,7 +422,9 @@ const reviewTool = {
               fullIssues,
               fullFixes && fullFixes.length > 0 ? fullFixes : ['No automatic fix available — manual correction needed.'],
               args.content as string,
+              sessionId,
               fixedCode,
+              auth,
             );
             results.correction = {
               correction_id: correction.id,
@@ -439,7 +447,7 @@ const reviewTool = {
       }
 
       default:
-        return { success: false, error: `Unknown mode: ${mode}. Use: code, packages, verify, or full` };
+        return { success: false, error: `Unknown mode: ${mode}. Use: code, packages, verify, confirm, apply-fix, dismiss, or full` };
     }
   },
 };
