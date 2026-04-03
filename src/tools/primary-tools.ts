@@ -34,6 +34,13 @@ import { getCheckpoints } from './checkpoint.js';
 import { getInsights, getUserContext } from './insight.js';
 import { handleVerify } from './verify.js';
 import { statusTool } from './status.js';
+import {
+  createCorrection,
+  confirmIssue,
+  approveFix,
+  dismissCorrection,
+  getMostRecentPendingCorrection,
+} from './correction-flow.js';
 import { runToolWithPolicy, type PolicyContext } from '../policy/index.js';
 import { logger } from '../utils/logger.js';
 
@@ -211,7 +218,7 @@ const conversationTool = {
 const reviewTool = {
   definition: {
     name: 'review',
-    description: 'Unified code review, package audit, and pre-delivery verification. Use mode to select: "code" for security/quality/AI-error analysis, "packages" for dependency audit and validation, "verify" for hallucination and fact checking, "full" for all checks. Triggers: "review this", "sanity check this code", "is this safe to ship", "check before I push", "audit my deps", "are these packages legit", "sniff test this", "anything I\'m missing", "vet these dependencies", "pre-commit check". ALSO use verify mode when the user expresses distrust or frustration at AI output: "are you sure", "that doesn\'t look right", "double check this", "prove it", "source?", "did you make that up", "that broke everything", "why did you do that", "I didn\'t ask for this". Profanity or anger directed at the AI ("wtf", "are you kidding me", any curse words) is a strong signal to immediately verify the last response for hallucination or incorrect assumptions. When verify detects an error: (1) acknowledge the specific mistake plainly — no apology loops or over-empathizing, (2) explain what went wrong and why, (3) propose the fix, (4) ask for permission before applying it. After verify, ALSO call the memory tool to save the mistake pattern (type "constraint", tags ["ai-mistake", "do-not-repeat"]) so the same error is not repeated in future conversations. Use proactively when the user pastes code, shares a diff, or adds new packages.',
+    description: 'Unified code review, package audit, pre-delivery verification, and error correction. Modes: "code" for security/quality analysis, "packages" for dependency audit, "verify" for hallucination/fact check (starts correction flow), "confirm" for user confirming detected issue, "apply-fix" for user approving the fix, "dismiss" for user saying "that\'s not the issue", "full" for all checks. Triggers: "review this", "sanity check this", "is this safe to ship", "check before I push", "audit my deps", "sniff test this", "vet these dependencies". ALSO use verify mode when the user expresses distrust or frustration: "are you sure", "that doesn\'t look right", "prove it", "did you make that up", "that broke everything", "why did you do that", "I didn\'t ask for this". Profanity or anger directed at the AI is a strong signal to immediately run verify. CORRECTION FLOW: verify detects issue → present it plainly and ask "is this what you mean?" → user confirms (call with mode "confirm") → explain fix and ask permission → user approves (call with mode "apply-fix") → apply. If user says no (mode "dismiss"), ask them to explain. Memory auto-saves the mistake ONLY after user confirms. Use proactively when the user pastes code, shares a diff, or adds new packages.',
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
@@ -223,12 +230,16 @@ const reviewTool = {
       properties: {
         mode: {
           type: 'string',
-          enum: ['code', 'packages', 'verify', 'full'],
-          description: 'code: security vulnerabilities, code smells, AI-generated errors. packages: validate existence, audit versions, find vulnerabilities. verify: pre-delivery hallucination/fact check. full: all checks.',
+          enum: ['code', 'packages', 'verify', 'confirm', 'apply-fix', 'dismiss', 'full'],
+          description: 'code: security/quality analysis. packages: dependency audit. verify: hallucination/fact check — starts a correction flow. confirm: user confirms the detected issue is correct (requires correction_id). apply-fix: user approves the proposed fix (requires correction_id). dismiss: user says "that\'s not the issue" (requires correction_id). full: all checks.',
         },
         content: {
           type: 'string',
           description: 'Code to review, content to verify, or general input for analysis',
+        },
+        correction_id: {
+          type: 'string',
+          description: 'ID of a pending correction (for confirm, apply-fix, dismiss modes). If omitted, uses the most recent pending correction.',
         },
         packages: {
           type: 'array',
@@ -286,41 +297,100 @@ const reviewTool = {
           registry: args.registry,
         }) as Record<string, unknown>;
 
-        // If issues were found, structure the response as a correction flow
-        // and auto-save the mistake pattern to memory
         const issues = verifyResult.issues as string[] | undefined;
         const fixes = verifyResult.fixes as string[] | undefined;
-        if (verifyResult.success && !verifyResult.verified && issues && issues.length > 0) {
-          const mistakeDescription = issues.join('; ');
-          const proposedFixes = fixes && fixes.length > 0
-            ? fixes
-            : ['No automatic fix available — manual correction needed.'];
 
-          // Auto-save to memory so this mistake isn't repeated
-          try {
-            await handleSmartContext({
-              content: `AI mistake detected: ${mistakeDescription}. Context: ${(args.content as string).substring(0, 200)}`,
-              type: 'constraint',
-              tags: ['ai-mistake', 'do-not-repeat'],
-            });
-            logger.info('[Verify] Auto-saved mistake pattern to memory');
-          } catch (saveErr) {
-            logger.warn('[Verify] Failed to auto-save mistake to memory:', saveErr);
-          }
+        // If issues found, create a correction and enter PENDING_ACKNOWLEDGMENT
+        // Do NOT save to memory yet — wait for user to confirm the issue is correct
+        if (verifyResult.success && !verifyResult.verified && issues && issues.length > 0) {
+          const fixedCode = (verifyResult.code_verification as Record<string, unknown> | undefined)?.fixed_code as string | undefined;
+          const correction = createCorrection(
+            issues,
+            fixes && fixes.length > 0 ? fixes : ['No automatic fix available — manual correction needed.'],
+            args.content as string,
+            fixedCode,
+          );
 
           return {
             ...verifyResult,
             correction: {
-              what_went_wrong: mistakeDescription,
-              proposed_fixes: proposedFixes,
-              awaiting_permission: true,
-              instruction: 'Issues were found. Review the proposed fixes above and confirm before they are applied. Do not apply changes without explicit user approval.',
+              correction_id: correction.id,
+              state: correction.state,
+              what_i_found: issues,
+              instruction: 'I found potential issues. Present them plainly to the user and ask: "Is this what you are referring to?" Do NOT propose fixes yet. Do NOT save to memory yet. Wait for the user to confirm with review mode "confirm".',
             },
-            saved_to_memory: true,
           };
         }
 
         return verifyResult;
+      }
+
+      // ── User confirms the detected issue is correct ──
+      case 'confirm': {
+        const correctionId = args.correction_id as string | undefined;
+        const correction = correctionId
+          ? await confirmIssue(correctionId)
+          : await (async () => {
+              const pending = getMostRecentPendingCorrection();
+              if (!pending) throw new Error('No pending correction to confirm. Run verify first.');
+              return confirmIssue(pending.id);
+            })();
+
+        return {
+          success: true,
+          correction: {
+            correction_id: correction.id,
+            state: correction.state,
+            proposed_fixes: correction.proposed_fixes,
+            fixed_code: correction.fixed_code || null,
+            saved_to_memory: correction.saved_to_memory,
+            instruction: 'The user confirmed the issue. Now explain the fix clearly and ask: "Want me to go ahead with this fix?" Wait for approval before applying. Use review mode "apply-fix" when the user approves.',
+          },
+        };
+      }
+
+      // ── User approves the fix ──
+      case 'apply-fix': {
+        const applyId = args.correction_id as string | undefined;
+        const applied = applyId
+          ? approveFix(applyId)
+          : (() => {
+              const pending = getMostRecentPendingCorrection();
+              if (!pending) throw new Error('No pending correction to apply. Run verify and confirm first.');
+              return approveFix(pending.id);
+            })();
+
+        return {
+          success: true,
+          correction: {
+            correction_id: applied.id,
+            state: applied.state,
+            proposed_fixes: applied.proposed_fixes,
+            fixed_code: applied.fixed_code || null,
+            instruction: 'The user approved the fix. Apply it now.',
+          },
+        };
+      }
+
+      // ── User says "no, that's not the issue" ──
+      case 'dismiss': {
+        const dismissId = args.correction_id as string | undefined;
+        const dismissed = dismissId
+          ? dismissCorrection(dismissId)
+          : (() => {
+              const pending = getMostRecentPendingCorrection();
+              if (!pending) throw new Error('No pending correction to dismiss.');
+              return dismissCorrection(pending.id);
+            })();
+
+        return {
+          success: true,
+          correction: {
+            correction_id: dismissed.id,
+            state: dismissed.state,
+            instruction: 'The detected issue was not what the user meant. Ask the user to explain what went wrong so you can help correctly. Do NOT guess.',
+          },
+        };
       }
 
       case 'full': {
@@ -338,27 +408,22 @@ const reviewTool = {
           }) as Record<string, unknown>;
           results.verification = fullVerifyResult;
 
-          // Auto-save mistakes from full mode verification too
           const fullIssues = fullVerifyResult.issues as string[] | undefined;
           const fullFixes = fullVerifyResult.fixes as string[] | undefined;
           if (fullVerifyResult.success && !fullVerifyResult.verified && fullIssues && fullIssues.length > 0) {
-            const mistakeDescription = fullIssues.join('; ');
-            try {
-              await handleSmartContext({
-                content: `AI mistake detected: ${mistakeDescription}. Context: ${(args.content as string).substring(0, 200)}`,
-                type: 'constraint',
-                tags: ['ai-mistake', 'do-not-repeat'],
-              });
-            } catch (saveErr) {
-              logger.warn('[Verify/Full] Failed to auto-save mistake to memory:', saveErr);
-            }
+            const fixedCode = (fullVerifyResult.code_verification as Record<string, unknown> | undefined)?.fixed_code as string | undefined;
+            const correction = createCorrection(
+              fullIssues,
+              fullFixes && fullFixes.length > 0 ? fullFixes : ['No automatic fix available — manual correction needed.'],
+              args.content as string,
+              fixedCode,
+            );
             results.correction = {
-              what_went_wrong: mistakeDescription,
-              proposed_fixes: fullFixes && fullFixes.length > 0 ? fullFixes : ['No automatic fix available — manual correction needed.'],
-              awaiting_permission: true,
-              instruction: 'Issues were found. Review the proposed fixes above and confirm before they are applied. Do not apply changes without explicit user approval.',
+              correction_id: correction.id,
+              state: correction.state,
+              what_i_found: fullIssues,
+              instruction: 'I found potential issues. Present them plainly to the user and ask: "Is this what you are referring to?" Do NOT propose fixes yet. Wait for confirmation.',
             };
-            results.saved_to_memory = true;
           }
         }
         if (args.packages) {
