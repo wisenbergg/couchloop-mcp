@@ -228,3 +228,97 @@ export async function getUserContext(args: GetUserContextInput) {
     return handleError(error);
   }
 }
+
+/**
+ * recallInsights — relevance-ranked recall for the memory tool.
+ *
+ * Priority order:
+ *   1. High-signal tags: constraint, decision, ai-mistake (always surfaced first)
+ *   2. Query match: ilike on content when a search term is provided
+ *   3. Recent: everything else, newest first
+ *
+ * Returns at most `limit` items total, deduplicated by id.
+ */
+export async function recallInsights(args: {
+  query?: string;
+  session_id?: string;
+  limit?: number;
+  auth?: Record<string, unknown>;
+}): Promise<{ insights: Pick<Insight, 'content' | 'tags' | 'created_at'>[]; count: number }> {
+  const { query, session_id, limit = 5, auth } = args;
+
+  try {
+    const supabase = getSupabaseClient();
+    const externalUserId = await extractUserFromContext(auth);
+    const user = throwOnError(
+      await supabase
+        .from('users')
+        .select('id')
+        .eq('external_id', externalUserId)
+        .maybeSingle()
+    );
+
+    if (!user) {
+      return { insights: [], count: 0 };
+    }
+
+    // Tier 1: high-signal constraints and decisions
+    let priorityQuery = supabase
+      .from('insights')
+      .select('content, tags, created_at')
+      .eq('user_id', user.id)
+      .overlaps('tags', ['constraint', 'decision', 'ai-mistake'])
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (session_id) {
+      priorityQuery = priorityQuery.eq('session_id', session_id);
+    }
+    const priorityItems = (throwOnError(await priorityQuery) ?? []) as Pick<Insight, 'content' | 'tags' | 'created_at'>[];
+
+    // Tier 2: query match (ilike on content) when a search term is provided
+    let queryItems: Pick<Insight, 'content' | 'tags' | 'created_at'>[] = [];
+    if (query) {
+      let contentQuery = supabase
+        .from('insights')
+        .select('content, tags, created_at')
+        .eq('user_id', user.id)
+        .ilike('content', `%${query}%`)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+      if (session_id) {
+        contentQuery = contentQuery.eq('session_id', session_id);
+      }
+      queryItems = (throwOnError(await contentQuery) ?? []) as Pick<Insight, 'content' | 'tags' | 'created_at'>[];
+    }
+
+    // Tier 3: recent items
+    let recentQuery = supabase
+      .from('insights')
+      .select('content, tags, created_at')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (session_id) {
+      recentQuery = recentQuery.eq('session_id', session_id);
+    }
+    const recentItems = (throwOnError(await recentQuery) ?? []) as Pick<Insight, 'content' | 'tags' | 'created_at'>[];
+
+    // Merge: priority first, then query matches, then recent — deduplicate by content+date
+    const seen = new Set<string>();
+    const merged: Pick<Insight, 'content' | 'tags' | 'created_at'>[] = [];
+
+    for (const item of [...priorityItems, ...queryItems, ...recentItems]) {
+      const key = `${item.content}|${item.created_at}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        merged.push(item);
+      }
+      if (merged.length >= limit) break;
+    }
+
+    return { insights: merged, count: merged.length };
+  } catch (error) {
+    logger.error('Error recalling insights:', error);
+    return { insights: [], count: 0 };
+  }
+}

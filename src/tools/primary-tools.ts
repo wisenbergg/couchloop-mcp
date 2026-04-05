@@ -31,7 +31,7 @@ import { handleComprehensivePackageAudit } from './comprehensive-package-audit.j
 import { handleSmartContext } from './smart-context.js';
 import { listJourneys, getJourneyStatus } from './journey.js';
 import { getCheckpoints } from './checkpoint.js';
-import { getInsights, getUserContext } from './insight.js';
+import { getInsights, recallInsights } from './insight.js';
 import { handleVerify } from './verify.js';
 import { statusTool } from './status.js';
 import {
@@ -121,10 +121,57 @@ const memoryTool = {
 
     switch (action) {
       case 'recall': {
-        const checkpointData = await getCheckpoints({ session_id: sessionId, auth });
-        const insightData = await getInsights({ session_id: sessionId, limit: 10, auth });
-        const userContext = await getUserContext({ include_recent_insights: true, include_session_history: true, auth });
-        return { checkpoints: checkpointData, insights: insightData, user_context: userContext };
+        const [checkpointData, insightData] = await Promise.all([
+          getCheckpoints({ session_id: sessionId, auth }),
+          recallInsights({
+            query: typeof parsed.content === 'string' ? parsed.content : undefined,
+            session_id: sessionId,
+            limit: 5,
+            auth,
+          }),
+        ]);
+
+        // Strip to compact essential fields only — prevents 19KB+ dumps
+        const rawCheckpoints = ('checkpoints' in checkpointData ? (checkpointData.checkpoints as Array<Record<string, unknown>>) : []);
+        const rawInsights = ('insights' in insightData ? (insightData.insights as Array<Record<string, unknown>>) : []);
+
+        // Checkpoints come back oldest-first; reverse for recency, cap at 5
+        const recentCheckpoints = rawCheckpoints.slice(-5).reverse().map(cp => ({
+          key: cp['key'],
+          value: cp['value'],
+          saved: cp['created_at'],
+        }));
+
+        const recentInsights = rawInsights.map(ins => ({
+          content: ins['content'],
+          tags: ins['tags'],
+          saved: ins['created_at'],
+        }));
+
+        const summary: {
+          last_checkpoint: { key: unknown; value: unknown; saved: unknown } | null;
+          checkpoints: Array<{ key: unknown; value: unknown; saved: unknown }>;
+          recent_insights: Array<{ content: unknown; tags: unknown; saved: unknown }>;
+          count: { checkpoints: number; insights: number };
+        } = {
+          last_checkpoint: recentCheckpoints[0] ?? null,
+          checkpoints: recentCheckpoints,
+          recent_insights: recentInsights,
+          count: {
+            checkpoints: recentCheckpoints.length,
+            insights: recentInsights.length,
+          },
+        };
+
+        // Hard cap: if serialized result exceeds 8KB, trim arrays further
+        if (JSON.stringify(summary).length > 8192) {
+          summary.checkpoints = summary.checkpoints.slice(0, 3);
+          summary.recent_insights = summary.recent_insights.slice(0, 3);
+          summary.count.checkpoints = summary.checkpoints.length;
+          summary.count.insights = summary.recent_insights.length;
+        }
+
+        return summary;
       }
       case 'list':
         return getInsights({ session_id: sessionId, limit: 20, auth });
