@@ -121,8 +121,14 @@ const memoryTool = {
 
     switch (action) {
       case 'recall': {
+        // Only fetch session checkpoints when a session_id is explicitly provided.
+        // Without one, getCheckpoints would create a new empty session — unnecessary overhead.
+        const checkpointPromise = sessionId
+          ? getCheckpoints({ session_id: sessionId, auth })
+          : Promise.resolve(null);
+
         const [checkpointData, insightData] = await Promise.all([
-          getCheckpoints({ session_id: sessionId, auth }),
+          checkpointPromise,
           recallInsights({
             query: typeof parsed.content === 'string' ? parsed.content : undefined,
             session_id: sessionId,
@@ -132,7 +138,9 @@ const memoryTool = {
         ]);
 
         // Strip to compact essential fields only — prevents 19KB+ dumps
-        const rawCheckpoints = ('checkpoints' in checkpointData ? (checkpointData.checkpoints as Array<Record<string, unknown>>) : []);
+        const rawCheckpoints = (checkpointData && 'checkpoints' in checkpointData
+          ? (checkpointData.checkpoints as Array<Record<string, unknown>>)
+          : []);
         const rawInsights = ('insights' in insightData ? (insightData.insights as Array<Record<string, unknown>>) : []);
 
         // Checkpoints come back oldest-first; reverse for recency, cap at 5
