@@ -90,8 +90,8 @@ export function enhancedCors(
   const origin = req.headers.origin;
 
   if (isDevelopment) {
-    // In development, allow all origins but log them
-    res.setHeader('Access-Control-Allow-Origin', origin || '*');
+    // In development, allow known origins or localhost fallback
+    res.setHeader('Access-Control-Allow-Origin', origin || 'http://localhost:3001');
     if (origin) {
       logger.debug(`[CORS] Development request from: ${origin}`);
     }

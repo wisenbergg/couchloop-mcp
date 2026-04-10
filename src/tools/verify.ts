@@ -6,6 +6,7 @@
  * BEFORE they reach the user.
  */
 
+import crypto from 'crypto';
 import { z } from 'zod';
 import { AIErrorPreventer } from '../developer/evaluators/ai-error-preventer.js';
 import { PackageBlocker } from '../developer/blockers/package-blocker.js';
@@ -378,7 +379,7 @@ async function verifyResponse(content: string, sessionId?: string): Promise<Gove
   const engine = new EvaluationEngine();
 
   const context: SessionContext = {
-    sessionId: sessionId || 'verification-check',
+    sessionId: sessionId || crypto.randomUUID(),
   };
 
   const evaluation = await engine.evaluate(content, context);

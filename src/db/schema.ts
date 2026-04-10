@@ -191,6 +191,16 @@ export interface GovernanceAuditLog {
 
 // ── Deprecated type aliases (backward compat during migration) ──
 
+export interface ContextEntry {
+  id: string;
+  category: string;
+  content: string;
+  tags: string[];
+  usage_count: number;
+  last_accessed: string | null;
+  created_at: string;
+}
+
 export type NewUser = Partial<User>;
 export type NewSession = Partial<Session>;
 export type NewCheckpoint = Partial<Checkpoint>;
@@ -202,3 +212,4 @@ export type NewCrisisEvent = Partial<CrisisEvent>;
 export type NewGovernanceEvaluation = Partial<GovernanceEvaluation>;
 export type NewGovernanceRule = Partial<GovernanceRule>;
 export type NewGovernanceAuditLog = Partial<GovernanceAuditLog>;
+export type NewContextEntry = Partial<ContextEntry>;

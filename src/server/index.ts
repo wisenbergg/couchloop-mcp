@@ -56,6 +56,22 @@ app.use(cookieParser());
 app.use(enhancedCors);
 app.use(localNetworkAccessMiddleware);
 
+/**
+ * Allowed CORS origins for MCP endpoints.
+ * Configurable via ALLOWED_ORIGINS env var (comma-separated).
+ */
+function getAllowedOrigins(): string[] {
+  return process.env.ALLOWED_ORIGINS?.split(',') || [
+    'https://chat.openai.com',
+    'https://chatgpt.com',
+    'https://claude.ai',
+    'https://copilot.microsoft.com',
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:5173',
+  ];
+}
+
 // Serve static files from public directory
 app.use(express.static(path.join(__dirname, "../../public")));
 
@@ -298,7 +314,11 @@ app.get(
  * CORS preflight for SSE endpoint
  */
 app.options("/sse", (_req: Request, res: Response) => {
-  res.header("Access-Control-Allow-Origin", "*");
+  const origin = _req.headers.origin;
+  const allowed = getAllowedOrigins();
+  if (origin && allowed.includes(origin)) {
+    res.header("Access-Control-Allow-Origin", origin);
+  }
   res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.header(
     "Access-Control-Allow-Headers",
@@ -312,15 +332,19 @@ app.options("/sse", (_req: Request, res: Response) => {
  * Streamable HTTP endpoint for ChatGPT MCP connection
  * Handles both SSE (GET) and HTTP messages (POST)
  */
-app.get("/sse", handleSSE);
-app.post("/sse", express.json(), handleSSE);
+app.get("/sse", rateLimit(100, 60000), handleSSE);
+app.post("/sse", rateLimit(100, 60000), express.json(), handleSSE);
 
 /**
  * OPTIONS /mcp
  * CORS preflight for lenient MCP endpoint
  */
 app.options("/mcp", (_req: Request, res: Response) => {
-  res.header("Access-Control-Allow-Origin", "*");
+  const origin = _req.headers.origin;
+  const allowed = getAllowedOrigins();
+  if (origin && allowed.includes(origin)) {
+    res.header("Access-Control-Allow-Origin", origin);
+  }
   res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.header(
     "Access-Control-Allow-Headers",
@@ -365,8 +389,8 @@ function showMCPInfo(req: Request, res: Response, next: NextFunction) {
  * MCP endpoint for ChatGPT Developer Mode
  * Uses custom handler that directly implements MCP protocol
  */
-app.get("/mcp", showMCPInfo, handleSSE);
-app.post("/mcp", handleSSE);
+app.get("/mcp", showMCPInfo, rateLimit(100, 60000), handleSSE);
+app.post("/mcp", rateLimit(100, 60000), handleSSE);
 
 /**
  * GET /.well-known/mcp/server-card.json
