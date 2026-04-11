@@ -11,6 +11,7 @@ startCommand:
         JWT_SECRET: config.jwtSecret,
         SUPABASE_URL: config.supabaseUrl || '',
         SUPABASE_ANON_KEY: config.supabaseAnonKey || '',
+        SHRINK_CHAT_API_URL: config.shrinkChatApiUrl || 'https://couchloopchat.com',
         NODE_ENV: 'production'
       }
     })
@@ -30,6 +31,9 @@ startCommand:
       supabaseAnonKey:
         type: string
         description: Supabase anonymous key (optional — only needed for journey features)
+      shrinkChatApiUrl:
+        type: string
+        description: Shrink-Chat API base URL for conversation features (e.g. https://couchloopchat.com)
     required:
       - jwtSecret
   exampleConfig:

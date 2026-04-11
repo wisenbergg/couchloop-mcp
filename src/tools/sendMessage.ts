@@ -20,7 +20,7 @@ interface HistoryEntry {
   content: string;
 }
 
-// Overall timeout for sendMessage - increased to 60s for slow AI responses
+// Overall timeout for sendMessage
 const SEND_MESSAGE_TIMEOUT: number = parseInt(process.env.SEND_MESSAGE_TIMEOUT || '60000');
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
