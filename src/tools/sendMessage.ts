@@ -135,20 +135,39 @@ async function sendMessageInternal(args: unknown) {
     // Get shrink-chat client
     const client = getShrinkChatClient();
 
-    // Send message
-    let response = await client.sendMessage(
-      threadId,
-      message,
-      {
-        userId: session.user_id,
-        memoryContext,
-        enhancedContext,
-        history,
-        systemPrompt: input.system_prompt,
-        conversationType: input.conversation_type,
-        idempotencyKey: uuidv4(),
-      }
-    );
+    // Send message via streaming to keep the HTTP connection alive and avoid proxy timeouts.
+    // Falls back to non-streaming if streaming fails.
+    let response: ShrinkResponse;
+    try {
+      response = await client.sendMessageViaStream(
+        threadId,
+        message,
+        {
+          userId: session.user_id,
+          memoryContext,
+          enhancedContext,
+          history,
+          systemPrompt: input.system_prompt,
+          conversationType: input.conversation_type,
+          idempotencyKey: uuidv4(),
+        }
+      );
+    } catch (streamError) {
+      logger.warn('[sendMessage] Streaming failed, falling back to non-streaming:', streamError);
+      response = await client.sendMessage(
+        threadId,
+        message,
+        {
+          userId: session.user_id,
+          memoryContext,
+          enhancedContext,
+          history,
+          systemPrompt: input.system_prompt,
+          conversationType: input.conversation_type,
+          idempotencyKey: uuidv4(),
+        }
+      );
+    }
 
     // === ULTRA SIMPLE SELF-CORRECTION ===
     // Just use shrink-chat's own crisis detection!

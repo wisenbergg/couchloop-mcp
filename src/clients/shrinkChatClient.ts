@@ -312,6 +312,76 @@ export class ShrinkChatClient {
   }
 
   /**
+   * Send a message using the streaming endpoint, but collect all chunks
+   * and return a single ShrinkResponse. This keeps the HTTP connection alive
+   * with data flowing, preventing proxy timeouts on slow AI generation.
+   */
+  async sendMessageViaStream(
+    threadId: string,
+    prompt: string,
+    options?: {
+      userId?: string;
+      memoryContext?: string;
+      enhancedContext?: Record<string, unknown>;
+      history?: Array<{ role: string; content: string }>;
+      systemPrompt?: string;
+      conversationType?: string;
+      idempotencyKey?: string;
+    }
+  ): Promise<ShrinkResponse> {
+    const config = getConfig();
+    const isCrisis = this.detectCrisisContent(prompt);
+    const timeout = isCrisis ? config.timeout.crisis : config.timeout.stream;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+    try {
+      let lastChunk: ShrinkResponse | null = null;
+      let collectedContent = '';
+
+      for await (const chunk of this.streamMessage(prompt, threadId, {
+        memoryContext: options?.memoryContext,
+        enhancedContext: options?.enhancedContext,
+        history: options?.history,
+        systemPrompt: options?.systemPrompt,
+        conversationType: options?.conversationType,
+        signal: controller.signal,
+      })) {
+        lastChunk = chunk;
+        // Accumulate text content from streaming chunks
+        const text = chunk.content || chunk.reply || chunk.response_text || '';
+        if (text) {
+          collectedContent = text; // Each chunk typically has the full text so far
+        }
+      }
+
+      clearTimeout(timeoutId);
+
+      if (!lastChunk) {
+        throw new Error('Shrink-Chat stream returned no data');
+      }
+
+      // Use the last chunk (contains full metadata) with collected content
+      const result = { ...lastChunk };
+      if (collectedContent && !result.content) {
+        result.content = collectedContent;
+      }
+      if (!result.content && (result.reply || result.response_text)) {
+        result.content = result.reply || result.response_text;
+      }
+
+      return ShrinkResponseSchema.parse(result);
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error(`Shrink-Chat stream timeout after ${timeout}ms`);
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Stream a message response (SSE)
    */
   async* streamMessage(
