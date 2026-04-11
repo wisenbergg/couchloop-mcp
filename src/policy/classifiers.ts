@@ -98,6 +98,9 @@ export function detectTechnicalClaimsInResponse(result: unknown): boolean {
  * 7. Otherwise → null (skip verify)
  */
 export function deriveVerifyMode(toolName: PublicToolName, result: unknown): VerifyMode {
+  // Conversation, status, and memory tools never produce code — skip verify entirely
+  if (toolName === 'conversation' || toolName === 'status' || toolName === 'memory') return null;
+
   if (toolName === 'code_review') return 'code';
   if (toolName === 'package_audit') return 'packages';
 
