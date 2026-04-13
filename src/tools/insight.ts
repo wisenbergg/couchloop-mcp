@@ -118,7 +118,7 @@ export async function getInsights(args: { session_id?: string; limit?: number; a
 
     let query = supabase
       .from('insights')
-      .select('content, tags, category, created_at, session_id')
+      .select('content, tags, created_at, session_id')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(limit);
