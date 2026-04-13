@@ -94,11 +94,11 @@ export async function handleComprehensiveCodeReview(args: unknown) {
       const security = checks[0].value as unknown as Record<string, unknown>;
       results.security = security;
       if (Array.isArray(security.vulnerabilities)) {
-        security.vulnerabilities.forEach((v: { type: string; severity: string; description: string; line?: number }) => {
+        security.vulnerabilities.forEach((v: { type: string; severity: string; issue?: string; description?: string; line?: number }) => {
           allIssues.push({
             category: 'security',
-            severity: v.severity || 'high',
-            message: `${v.type}: ${v.description}`,
+            severity: (v.severity || 'high').toLowerCase(),
+            message: `${v.type}: ${v.issue || v.description || 'Security issue detected'}`,
             location: v.line ? `Line ${v.line}` : undefined,
           });
         });

@@ -1,20 +1,20 @@
 import { Journey } from '../../types/journey.js';
 
 export const gratitudePractice: Journey = {
-  slug: 'gratitude-practice',
-  name: 'Gratitude Practice',
-  description: 'Notice and name three things you appreciate right now.',
-  estimatedMinutes: 3,
-  tags: ['gratitude', 'daily', 'short'],
+  slug: 'debug-postmortem',
+  name: 'Debug Postmortem',
+  description: 'Just fixed a tricky bug? Capture what happened and what you learned so you never hit it again.',
+  estimatedMinutes: 5,
+  tags: ['developer', 'debugging', 'short'],
   steps: [
     {
       id: 'step_1',
       order: 1,
       type: 'prompt',
       content: {
-        prompt: 'What\'s something small that made today a little better?',
-        checkpoint_key: 'gratitude_1',
-        instructions: 'Start with something easy and concrete. A cup of coffee, a text from a friend, a moment of quiet. Small is good.'
+        prompt: 'What was the bug or issue? Describe the symptoms you saw.',
+        checkpoint_key: 'bug_symptoms',
+        instructions: 'Error messages, wrong behavior, failing test. Get the observable facts first.'
       },
       optional: false
     },
@@ -23,9 +23,9 @@ export const gratitudePractice: Journey = {
       order: 2,
       type: 'prompt',
       content: {
-        prompt: 'What\'s something about yourself you\'re grateful for today?',
-        checkpoint_key: 'gratitude_2',
-        instructions: 'This can be harder. A quality, a decision they made, something they didn\'t do. Self-directed gratitude.'
+        prompt: 'What was the root cause?',
+        checkpoint_key: 'root_cause',
+        instructions: 'The actual underlying problem. Could be a logic error, wrong assumption, stale cache, race condition, misconfiguration. Dig past the symptom.'
       },
       optional: false
     },
@@ -34,9 +34,9 @@ export const gratitudePractice: Journey = {
       order: 3,
       type: 'prompt',
       content: {
-        prompt: 'Who is someone you appreciate, even if you haven\'t told them?',
-        checkpoint_key: 'gratitude_3',
-        instructions: 'A person - named or described. Can be someone present in their life or from their past.'
+        prompt: 'How did you find it? What debugging steps led you to the fix?',
+        checkpoint_key: 'debug_path',
+        instructions: 'The process matters as much as the fix. Logging, bisect, reading source, rubber ducking, checking Stack Overflow. Capture the technique.'
       },
       optional: false
     },
@@ -45,7 +45,7 @@ export const gratitudePractice: Journey = {
       order: 4,
       type: 'summary',
       content: {
-        instructions: 'Reflect back the three gratitudes simply. Note any patterns if obvious. Don\'t over-praise or make it performative.'
+        instructions: 'Write a compact postmortem: symptom, root cause, fix, and lesson learned. Offer to save the root cause and lesson as a decision or constraint in memory so the AI (and the user) does not repeat this mistake.'
       },
       optional: false
     }

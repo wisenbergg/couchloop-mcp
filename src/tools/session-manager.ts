@@ -112,17 +112,33 @@ export async function getOrCreateSession(
     ) as Session | null;
 
     if (existingSession) {
-      // Fire-and-forget timestamp update
-      supabase
-        .from('sessions')
-        .update({ last_active_at: now })
-        .eq('id', existingSession.id)
-        .then(({ error }) => {
-          if (error) logger.warn('Failed to update last_active_at:', error);
-        });
+      // Auto-close if stale (inactive for 30+ minutes)
+      const lastActive = new Date(existingSession.last_active_at || existingSession.started_at);
+      const staleMs = 30 * 60 * 1000;
+      if (Date.now() - lastActive.getTime() > staleMs) {
+        logger.info(`[session-manager] Auto-closing stale session ${existingSession.id} (inactive since ${lastActive.toISOString()})`);
+        supabase
+          .from('sessions')
+          .update({ status: 'completed', completed_at: now, metadata: { auto_closed: true, reason: 'inactivity_on_resume' } })
+          .eq('id', existingSession.id)
+          .then(({ error }) => {
+            if (error) logger.warn('Failed to auto-close stale session:', error);
+          });
+        activeSessionCache.delete(externalUserId);
+        // Fall through to create new session below
+      } else {
+        // Session is still fresh, reuse it
+        supabase
+          .from('sessions')
+          .update({ last_active_at: now })
+          .eq('id', existingSession.id)
+          .then(({ error }) => {
+            if (error) logger.warn('Failed to update last_active_at:', error);
+          });
 
-      activeSessionCache.set(externalUserId, existingSession.id);
-      return { sessionId: existingSession.id, session: existingSession, isNew: false };
+        activeSessionCache.set(externalUserId, existingSession.id);
+        return { sessionId: existingSession.id, session: existingSession, isNew: false };
+      }
     }
   }
 
@@ -258,4 +274,89 @@ export async function endSession(
  */
 export function clearSessionCache(): void {
   activeSessionCache.clear();
+}
+
+// ============================================================
+// AUTO-CLOSE STALE SESSIONS
+// ============================================================
+
+/** Stale threshold: close sessions inactive for 30+ minutes */
+const STALE_SESSION_MINUTES = 30;
+
+/** Interval between sweeps (5 minutes) */
+const SWEEP_INTERVAL_MS = 5 * 60 * 1000;
+
+let sweepTimer: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * Close sessions that have been inactive for over STALE_SESSION_MINUTES.
+ * Runs as a fire-and-forget background sweep.
+ * Returns the count of sessions closed.
+ */
+export async function closeStaleSessionsOnce(): Promise<number> {
+  try {
+    const supabase = getSupabaseClient();
+    const cutoff = new Date(Date.now() - STALE_SESSION_MINUTES * 60 * 1000).toISOString();
+    const now = new Date().toISOString();
+
+    const { data, error } = await supabase
+      .from('sessions')
+      .update({
+        status: 'completed',
+        completed_at: now,
+        metadata: { auto_closed: true, reason: 'inactivity' },
+      })
+      .eq('status', 'active')
+      .lt('last_active_at', cutoff)
+      .select('id');
+
+    if (error) {
+      logger.warn('[session-manager] Stale session sweep error:', error.message);
+      return 0;
+    }
+
+    const closed = data?.length ?? 0;
+    if (closed > 0) {
+      logger.info(`[session-manager] Auto-closed ${closed} stale session(s)`);
+      // Clear any cached references to closed sessions
+      const closedIds = new Set((data ?? []).map((s: { id: string }) => s.id));
+      for (const [userId, cachedId] of activeSessionCache.entries()) {
+        if (closedIds.has(cachedId)) {
+          activeSessionCache.delete(userId);
+        }
+      }
+    }
+
+    return closed;
+  } catch (err) {
+    logger.warn('[session-manager] Stale session sweep failed:', err);
+    return 0;
+  }
+}
+
+/**
+ * Start periodic stale session sweep. Safe to call multiple times (idempotent).
+ */
+export function startStaleSessionSweep(): void {
+  if (sweepTimer) return;
+  // Run once immediately, then on interval
+  closeStaleSessionsOnce().catch(() => {});
+  sweepTimer = setInterval(() => {
+    closeStaleSessionsOnce().catch(() => {});
+  }, SWEEP_INTERVAL_MS);
+  // Don't block process exit
+  if (sweepTimer && typeof sweepTimer === 'object' && 'unref' in sweepTimer) {
+    sweepTimer.unref();
+  }
+  logger.info(`[session-manager] Stale session sweep started (every ${SWEEP_INTERVAL_MS / 1000}s, threshold ${STALE_SESSION_MINUTES}min)`);
+}
+
+/**
+ * Stop the periodic sweep (for clean shutdown).
+ */
+export function stopStaleSessionSweep(): void {
+  if (sweepTimer) {
+    clearInterval(sweepTimer);
+    sweepTimer = null;
+  }
 }

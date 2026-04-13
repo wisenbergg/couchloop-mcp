@@ -25,7 +25,7 @@ import { ToolRegistry } from '../core/registry/registry.js';
 // Tool handler imports
 import { sendMessage } from './sendMessage.js';
 import { createSession, resumeSession } from './session.js';
-import { endSession } from './session-manager.js';
+import { endSession, getOrCreateSession } from './session-manager.js';
 import { handleComprehensiveCodeReview } from './comprehensive-code-review.js';
 import { handleComprehensivePackageAudit } from './comprehensive-package-audit.js';
 import { handleSmartContext } from './smart-context.js';
@@ -44,6 +44,38 @@ import {
 } from './correction-flow.js';
 import { runToolWithPolicy, type PolicyContext } from '../policy/index.js';
 import { logger } from '../utils/logger.js';
+import { getSupabaseClientAsync } from '../db/supabase-helpers.js';
+
+// ============================================================
+// RETRY HELPER — transparent retry for transient DB failures
+// ============================================================
+
+/**
+ * Retry a handler up to `maxRetries` times on transient errors.
+ * Waits `delayMs` between attempts with linear backoff.
+ * Only retries on Supabase connection / timeout errors.
+ */
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  { maxRetries = 1, delayMs = 300 }: { maxRetries?: number; delayMs?: number } = {}
+): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      // Ensure DB is connected before each attempt
+      if (attempt > 0) await getSupabaseClientAsync();
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      const msg = err instanceof Error ? err.message : String(err);
+      const isTransient = msg.includes('not initialized') || msg.includes('reconnect') || msg.includes('timeout') || msg.includes('ECONNREFUSED');
+      if (!isTransient || attempt >= maxRetries) throw err;
+      logger.warn(`[retry] Attempt ${attempt + 1} failed (${msg}), retrying in ${delayMs}ms...`);
+      await new Promise(r => setTimeout(r, delayMs * (attempt + 1)));
+    }
+  }
+  throw lastError;
+}
 
 // ============================================================
 // PRIMARY TOOL DEFINITIONS (4 public tools)
@@ -114,10 +146,49 @@ const memoryTool = {
     },
   },
   handler: async (args: Record<string, unknown>) => {
+    return withRetry(async () => {
     const parsed = MemoryInputSchema.parse(args);
     const action = parsed.action ?? 'save';
-    const sessionId = parsed.session_id;
     const auth = parsed.auth;
+
+    // Auto-recall on first call of a new session
+    const { sessionId: resolvedSessionId, isNew } = await getOrCreateSession(
+      parsed.session_id,
+      auth as { user_id?: string; client_id?: string; token?: string } | undefined,
+    );
+    const sessionId = parsed.session_id || resolvedSessionId;
+
+    // Build auto-recall context for new sessions (prepended to response)
+    let sessionContext: {
+      new_session: boolean;
+      previous_context?: Array<{ content: unknown; tags: unknown; saved: unknown }>;
+      onboarding_hint?: string;
+    } | undefined;
+
+    if (isNew && action !== 'recall') {
+      // Auto-recall previous insights for returning users
+      try {
+        const previousInsights = await recallInsights({ limit: 3, auth });
+        if (previousInsights.count > 0) {
+          sessionContext = {
+            new_session: true,
+            previous_context: previousInsights.insights.map(ins => ({
+              content: ins.content,
+              tags: ins.tags,
+              saved: ins.created_at,
+            })),
+          };
+        } else {
+          // Brand new user, no previous insights
+          sessionContext = {
+            new_session: true,
+            onboarding_hint: 'This user is new. Memory can save checkpoints ("save where I am"), decisions ("lock this in"), and constraints ("never do X again"). Suggest saving something after completing their first task.',
+          };
+        }
+      } catch {
+        // Non-critical; skip auto-recall on error
+      }
+    }
 
     switch (action) {
       case 'recall': {
@@ -179,20 +250,23 @@ const memoryTool = {
           summary.count.insights = summary.recent_insights.length;
         }
 
-        return summary;
+        return { ...summary, ...(sessionContext ? { session_context: sessionContext } : {}) };
       }
       case 'list':
-        return getInsights({ session_id: sessionId, limit: 20, auth });
+        return { ...(await getInsights({ session_id: sessionId, limit: 20, auth })), ...(sessionContext ? { session_context: sessionContext } : {}) };
       case 'save':
-      default:
-        return handleSmartContext({
+      default: {
+        const saveResult = await handleSmartContext({
           content: parsed.content,
           type: parsed.type || 'insight',
           tags: parsed.tags,
-          session_id: parsed.session_id,
+          session_id: sessionId,
           auth,
         });
+        return { ...saveResult as Record<string, unknown>, ...(sessionContext ? { session_context: sessionContext } : {}) };
+      }
     }
+    }); // withRetry
   },
 };
 
@@ -201,7 +275,7 @@ const memoryTool = {
 const conversationTool = {
   definition: {
     name: 'conversation',
-    description: 'Guided self-reflection, burnout check-ins, and wellness conversations with crisis detection. Routes to therapeutic AI backend. Triggers: "I\'m burned out", "need a break", "feeling stuck", "let\'s do a retro on my week", "check in with me", "I keep going in circles", "rubber duck my frustration", "decompress", "vent session", "daily standup with myself". Use when the user sounds frustrated, stuck, or wants a non-code conversation about how work is going. NOTE: if the user is angry at AI output specifically (cursing at the AI, "you broke it"), prefer the review tool with verify mode first to address the problem — only use conversation if frustration persists without a code context or the user explicitly wants to talk it out.',
+    description: 'Guided self-reflection, burnout check-ins, and developer wellness conversations with crisis detection. Routes to therapeutic AI backend. Includes developer journeys: "daily-standup" (3 min: shipped/blocked/next), "sprint-retro" (8 min: wins/pains/decisions/action items), "debug-postmortem" (5 min: symptom/cause/lesson). Triggers: "I\'m burned out", "need a break", "feeling stuck", "let\'s do a retro on my week", "check in with me", "I keep going in circles", "rubber duck my frustration", "decompress", "vent session", "standup with myself", "postmortem on that bug". Use when the user sounds frustrated, stuck, or wants a non-code conversation about how work is going. NOTE: if the user is angry at AI output specifically (cursing at the AI, "you broke it"), prefer the review tool with verify mode first to address the problem, only use conversation if frustration persists without a code context or the user explicitly wants to talk it out.',
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -233,12 +307,15 @@ const conversationTool = {
           description: 'Authentication context for user identification',
         },
       },
-      required: ['message'],
+      required: [],
     },
   },
   handler: async (args: Record<string, unknown>) => {
     const parsed = ConversationInputSchema.parse(args);
     const action = parsed.action ?? 'send';
+    if (action === 'send' && !parsed.message) {
+      return { success: false, error: 'message is required for send action' };
+    }
     const auth = parsed.auth;
 
     switch (action) {
@@ -333,15 +410,38 @@ const reviewTool = {
     const auth = args.auth as Record<string, unknown> | undefined;
 
     switch (mode) {
-      case 'code':
+      case 'code': {
         if (!args.content) {
           return { success: false, error: 'content is required for code review mode' };
         }
-        return handleComprehensiveCodeReview({
+        const codeResult = await handleComprehensiveCodeReview({
           code: args.content,
           language: args.language,
           auto_fix: args.auto_fix,
-        });
+        }) as Record<string, unknown>;
+
+        // Auto-save high/critical findings as insights for future recall
+        const summary = codeResult.summary as { critical?: number; high?: number; total_issues?: number } | undefined;
+        if (codeResult.success && summary && ((summary.critical ?? 0) > 0 || (summary.high ?? 0) > 0)) {
+          const issues = codeResult.issues as Array<{ category: string; severity: string; message: string }> | undefined;
+          const significant = (issues ?? [])
+            .filter(i => i.severity === 'critical' || i.severity === 'high')
+            .slice(0, 3)
+            .map(i => `[${i.severity}] ${i.message}`)
+            .join('; ');
+          if (significant) {
+            handleSmartContext({
+              content: `Code review found critical/high issues: ${significant}`,
+              type: 'insight',
+              tags: ['code-review', 'auto-saved'],
+              session_id: sessionId,
+              auth,
+            }).catch(err => logger.warn('[review] Failed to auto-save findings:', err));
+          }
+        }
+
+        return codeResult;
+      }
 
       case 'packages':
         if (!args.packages) {
@@ -466,24 +566,35 @@ const reviewTool = {
       }
 
       case 'full': {
-        const results: Record<string, unknown> = {};
-        if (args.content) {
-          results.code_review = await handleComprehensiveCodeReview({
-            code: args.content,
-            language: args.language,
-            auto_fix: args.auto_fix,
-          });
-          const fullVerifyResult = await handleVerify({
-            type: 'all',
-            content: args.content,
-            language: args.language,
-          }) as Record<string, unknown>;
-          results.verification = fullVerifyResult;
+        if (!args.content && !args.packages) {
+          return { success: false, error: 'content or packages required for full mode' };
+        }
 
-          const fullIssues = fullVerifyResult.issues as string[] | undefined;
-          const fullFixes = fullVerifyResult.fixes as string[] | undefined;
-          if (fullVerifyResult.success && !fullVerifyResult.verified && fullIssues && fullIssues.length > 0) {
-            const fixedCode = (fullVerifyResult.code_verification as Record<string, unknown> | undefined)?.fixed_code as string | undefined;
+        const results: Record<string, unknown> = {};
+
+        // Run all checks in parallel for lower latency
+        const [codeReviewResult, verifyResult, packageResult] = await Promise.all([
+          args.content
+            ? handleComprehensiveCodeReview({ code: args.content, language: args.language, auto_fix: args.auto_fix })
+            : Promise.resolve(null),
+          args.content
+            ? handleVerify({ type: 'all', content: args.content, language: args.language }).then(r => r as Record<string, unknown>)
+            : Promise.resolve(null),
+          args.packages
+            ? handleComprehensivePackageAudit({ packages: args.packages, registry: args.registry })
+            : Promise.resolve(null),
+        ]);
+
+        if (codeReviewResult) results.code_review = codeReviewResult;
+        if (packageResult) results.package_audit = packageResult;
+
+        if (verifyResult) {
+          results.verification = verifyResult;
+
+          const fullIssues = verifyResult.issues as string[] | undefined;
+          const fullFixes = verifyResult.fixes as string[] | undefined;
+          if (verifyResult.success && !verifyResult.verified && fullIssues && fullIssues.length > 0) {
+            const fixedCode = (verifyResult.code_verification as Record<string, unknown> | undefined)?.fixed_code as string | undefined;
             const correction = createCorrection(
               fullIssues,
               fullFixes && fullFixes.length > 0 ? fullFixes : ['No automatic fix available — manual correction needed.'],
@@ -500,15 +611,7 @@ const reviewTool = {
             };
           }
         }
-        if (args.packages) {
-          results.package_audit = await handleComprehensivePackageAudit({
-            packages: args.packages,
-            registry: args.registry,
-          });
-        }
-        if (!args.content && !args.packages) {
-          return { success: false, error: 'content or packages required for full mode' };
-        }
+
         return { success: true, mode: 'full', results };
       }
 

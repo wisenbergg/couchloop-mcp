@@ -30,6 +30,17 @@ export function getSupabaseClient(): SupabaseClient {
 }
 
 /**
+ * Async version: waits for reconnect instead of throwing immediately.
+ * Use this in tool handlers where you can await, so transient failures
+ * recover automatically instead of surfacing errors to users.
+ */
+export async function getSupabaseClientAsync(): Promise<SupabaseClient> {
+  const client = getSupabase();
+  if (client) return client;
+  return getSupabaseOrReconnect();
+}
+
+/**
  * Unwrap a Supabase response. Throws if error is present, otherwise returns data.
  *
  * Usage:

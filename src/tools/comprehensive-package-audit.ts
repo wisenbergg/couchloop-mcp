@@ -85,16 +85,15 @@ export async function handleComprehensivePackageAudit(args: unknown) {
       })),
     }) as Record<string, unknown>;
 
-    if (validationResult.results && typeof validationResult.results === 'object') {
-      const validationResults = validationResult.results as Record<string, { 
-        valid: boolean; 
-        suspicious?: boolean;
-        reason?: string;
-      }>;
-      
-      for (const [pkg, result] of Object.entries(validationResults)) {
-        if (!result.valid) {
-          results.suspicious.push(pkg);
+    if (Array.isArray(validationResult.packages)) {
+      for (const pkg of validationResult.packages as Array<{
+        name: string;
+        exists: boolean;
+        blocked: boolean;
+        warning?: string;
+      }>) {
+        if (!pkg.exists || pkg.blocked) {
+          results.suspicious.push(pkg.name);
         }
       }
     }

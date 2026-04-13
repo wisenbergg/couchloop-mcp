@@ -21,6 +21,7 @@ import { logger } from '../utils/logger.js';
 
 const StatusInputSchema = z.object({
   check: z.enum(['session', 'history', 'context', 'protection', 'preferences', 'all']).describe('What to check'),
+  verbose: z.boolean().optional().describe('If true, return full details. Default false returns compact summary only.'),
   session_id: z.string().optional().describe('Session ID for session-specific status'),
   auth: z.record(z.unknown()).optional().describe('Authentication context'),
 });
@@ -43,7 +44,11 @@ export const statusTool = {
         check: {
           type: 'string',
           enum: ['session', 'history', 'context', 'protection', 'preferences', 'all'],
-          description: "'session': current progress, time elapsed, checkpoints. 'history': recent sessions, insights, patterns. 'context': stored decisions, constraints, window usage. 'protection': backup status, freeze mode. 'preferences': timezone, journey length. 'all': full dashboard.",
+          description: "'session': current progress, time elapsed, checkpoints. 'history': recent sessions, insights, patterns. 'context': stored decisions, constraints, window usage. 'protection': backup status, freeze mode. 'preferences': timezone, journey length. 'all': quick summary (use verbose: true for full dashboard).",
+        },
+        verbose: {
+          type: 'boolean',
+          description: 'Return full detail sections (default: false, returns compact summary only)',
         },
         session_id: {
           type: 'string',
@@ -96,8 +101,8 @@ export async function handleStatus(args: unknown) {
         success: true,
         check: input.check,
         timestamp: new Date().toISOString(),
-        summary: 'No user data found. Start a session or save a memory to get started.',
-        next_steps: ['Start your first session with "start a reflection" or "let\'s begin"'],
+        summary: 'No user data found. Save a memory ("remember this") or run a code review to get started.',
+        next_steps: ['Save your first insight: use memory tool with action "save"', 'Review code: use review tool with mode "code"'],
       };
     }
 
@@ -105,6 +110,8 @@ export async function handleStatus(args: unknown) {
       check: input.check,
       timestamp: new Date().toISOString(),
     };
+
+    const isCompact = input.check === 'all' && !input.verbose;
 
     // Run appropriate checks based on type — all scoped to userId
     if (input.check === 'session' || input.check === 'all') {
@@ -115,21 +122,33 @@ export async function handleStatus(args: unknown) {
       result.history = await getHistoryStatus(userId);
     }
 
-    if (input.check === 'context' || input.check === 'all') {
+    if ((input.check === 'context' || input.check === 'all') && !isCompact) {
       result.context = await getContextStatus();
     }
 
-    if (input.check === 'protection' || input.check === 'all') {
+    if ((input.check === 'protection' || input.check === 'all') && !isCompact) {
       result.protection = await getProtectionStatusSummary();
     }
 
-    if (input.check === 'preferences' || input.check === 'all') {
+    if ((input.check === 'preferences' || input.check === 'all') && !isCompact) {
       result.preferences = await getPreferencesStatus(input.auth as AuthContext | undefined);
     }
 
     // Generate personalized summary and next steps
     result.summary = generateSummary(result);
     result.next_steps = generateNextSteps(result);
+
+    // Compact mode: return only summary + next steps (no detail sections)
+    if (isCompact) {
+      return {
+        success: true,
+        check: 'all',
+        timestamp: result.timestamp,
+        summary: result.summary,
+        next_steps: result.next_steps,
+        hint: 'Use status with verbose: true for full dashboard with all sections.',
+      };
+    }
 
     return {
       success: true,
@@ -537,9 +556,9 @@ function generateNextSteps(result: StatusResult): string[] {
   const steps: string[] = [];
 
   if (!result.session?.has_active_session && result.history?.total_sessions === 0) {
-    steps.push('Start your first session with "start a reflection" or "let\'s begin"');
+    steps.push('Save your first insight with "remember this decision" or start a daily standup journey');
   } else if (!result.session?.has_active_session && result.history) {
-    steps.push('Resume a session with "continue" or start fresh with "new session"');
+    steps.push('Continue where you left off with "recall" or start a sprint retro');
   }
 
   if (result.session?.has_active_session && result.session.percent_complete && result.session.percent_complete > 75) {

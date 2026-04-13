@@ -15,6 +15,7 @@ import { setupResources } from "./resources/index.js";
 import { setupTools } from "./tools/index.js";
 import { logger } from "./utils/logger.js";
 import { initializeV2Orchestration, shutdownV2Orchestration } from "./core/init.js";
+import { startStaleSessionSweep } from "./tools/session-manager.js";
 
 // Load environment variables
 dotenv.config({ path: ".env.local" });
@@ -31,6 +32,8 @@ async function main() {
     try {
       await initDatabase();
       logger.info("Database connection established");
+      // Start background sweep to auto-close stale sessions
+      startStaleSessionSweep();
     } catch (dbError) {
       logger.warn("Database unavailable — starting in degraded mode (tool discovery still works):", dbError);
     }
