@@ -241,7 +241,7 @@ export async function endSession(
   const now = new Date().toISOString();
 
   // End the session
-  throwOnError(
+  const updated = throwOnError(
     await supabase
       .from('sessions')
       .update({
@@ -252,6 +252,13 @@ export async function endSession(
       .eq('id', sessionToEnd)
       .select('*')
   );
+
+  if (!updated || (Array.isArray(updated) && updated.length === 0)) {
+    return {
+      success: false,
+      message: 'Session not found.',
+    };
+  }
 
   // Clear from cache
   for (const [userId, cachedId] of activeSessionCache.entries()) {

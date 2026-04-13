@@ -146,7 +146,7 @@ export async function handleSmartContext(args: unknown) {
         results.insight = await saveInsight({
           content,
           session_id: input.session_id,
-          tags: [input.type, ...(input.tags || [])],
+          tags: [...new Set([input.type, ...(input.tags || [])])],
           auth: input.auth,
         });
         break;

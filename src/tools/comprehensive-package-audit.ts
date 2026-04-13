@@ -87,13 +87,15 @@ export async function handleComprehensivePackageAudit(args: unknown) {
 
     if (Array.isArray(validationResult.packages)) {
       for (const pkg of validationResult.packages as Array<{
-        name: string;
+        package: string;
         exists: boolean;
         blocked: boolean;
         warning?: string;
       }>) {
+        const pkgName = pkg.package;
+        if (!pkgName) continue;
         if (!pkg.exists || pkg.blocked) {
-          results.suspicious.push(pkg.name);
+          results.suspicious.push(pkgName);
         }
       }
     }

@@ -217,13 +217,13 @@ async function verifyPackages(content: string, registry: string): Promise<Packag
   let packages = extractPackageNames(content);
 
   // If no packages found via code patterns, try direct package names
-  // but only if the content looks like a package list, not prose.
-  // Heuristic: prose has >5 words and most words contain only letters.
+  // but only if the content looks like a package list, not prose or code.
   if (packages.length === 0) {
     const words = content.split(/[,\s\n]+/).filter(Boolean);
     const looksLikeProse = words.length > 5 &&
       words.filter(w => /^[a-zA-Z]+$/.test(w)).length > words.length * 0.6;
-    if (!looksLikeProse) {
+    const looksLikeCode = /[{};=()=>]|\b(const|let|var|function|class|import|export|return|if|else|for|while)\b/.test(content);
+    if (!looksLikeProse && !looksLikeCode) {
       packages = parseDirectPackageNames(content);
     }
   }
