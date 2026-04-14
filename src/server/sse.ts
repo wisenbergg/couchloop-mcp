@@ -64,6 +64,10 @@ function enrichToolCallIdentity(req: Request): void {
     auth.client_id = 'chatgpt';
   }
 
+  if (!auth.client_id && (req.threadId || transportSessionId)) {
+    auth.client_id = 'mcp-http';
+  }
+
   if (!auth.conversation_id && typeof meta['openai/session'] === 'string') {
     auth.conversation_id = meta['openai/session'];
   }
