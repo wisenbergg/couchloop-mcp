@@ -12,8 +12,8 @@
 import { z } from 'zod';
 import { getSupabaseClient, throwOnError } from '../db/supabase-helpers.js';
 import { WorkflowEngine } from '../workflows/engine.js';
-import { getContextManager } from '../developer/managers/context-manager.js';
 import { ContextMetadata, ContextEntry } from '../types/context.js';
+import { checkContextStatus, retrieveContext } from './preserve-context.js';
 import { getProtectionStatus, listBackups } from './protect-files.js';
 import { getUserContext } from './insight.js';
 import { extractUserFromContext, type AuthContext } from '../types/auth.js';
@@ -123,7 +123,7 @@ export async function handleStatus(args: unknown) {
     }
 
     if ((input.check === 'context' || input.check === 'all') && !isCompact) {
-      result.context = await getContextStatus();
+      result.context = await getContextStatus(input.auth as AuthContext | undefined);
     }
 
     if ((input.check === 'protection' || input.check === 'all') && !isCompact) {
@@ -381,15 +381,14 @@ interface ContextStatus {
   warning?: string;
 }
 
-async function getContextStatus(): Promise<ContextStatus> {
+async function getContextStatus(authContext?: AuthContext): Promise<ContextStatus> {
   try {
-    const contextManager = await getContextManager();
-    const checkResult = await contextManager.check(true);
+    const checkResult = await checkContextStatus({ auth: authContext });
 
     const metadata = (checkResult.data || {}) as ContextMetadata;
-    const entries = await contextManager.retrieve();
+    const entries = await retrieveContext(undefined, undefined, { auth: authContext });
 
-    const allEntries = (Array.isArray(entries.data) ? entries.data : []) as ContextEntry[];
+    const allEntries = (Array.isArray(entries) ? entries : []) as ContextEntry[];
 
     // Categorize entries
     const entriesByCategory: Record<string, number> = {};

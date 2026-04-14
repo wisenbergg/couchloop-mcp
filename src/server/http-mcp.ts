@@ -230,7 +230,7 @@ export async function getServerCardMetadata(): Promise<{
     },
     authentication: {
       required: false,
-      schemes: [],
+      schemes: ['bearer', 'x-thread-id'],
     },
     tools: tools.map((tool) => tool.definition),
     resources: resources.map((resource) => resource.definition),

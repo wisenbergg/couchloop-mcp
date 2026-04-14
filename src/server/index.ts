@@ -17,7 +17,7 @@ import { sendMessage } from "../tools/sendMessage.js";
 import { createSession } from "../tools/session.js";
 import { logger } from "../utils/logger.js";
 import { getServerCardMetadata } from "./http-mcp.js";
-import { rateLimit, requireScope, validateToken } from "./middleware/auth.js";
+import { optionalAuth, rateLimit, requireScope, validateToken } from "./middleware/auth.js";
 import {
     enhancedCors,
     localNetworkAccessMiddleware,
@@ -322,7 +322,7 @@ app.options("/sse", (_req: Request, res: Response) => {
   res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.header(
     "Access-Control-Allow-Headers",
-    "Content-Type, Authorization, X-Session-Id",
+    "Content-Type, Authorization, X-Session-Id, X-Thread-Id",
   );
   res.sendStatus(200);
 });
@@ -348,7 +348,7 @@ app.options("/mcp", (_req: Request, res: Response) => {
   res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.header(
     "Access-Control-Allow-Headers",
-    "Content-Type, Authorization, X-Session-Id, Accept",
+    "Content-Type, Authorization, X-Session-Id, X-Thread-Id, Accept",
   );
   res.sendStatus(200);
 });
@@ -370,7 +370,7 @@ function showMCPInfo(req: Request, res: Response, next: NextFunction) {
           <h2>Configuration for ChatGPT:</h2>
           <ul>
             <li><strong>MCP Server URL:</strong> <code>${req.protocol}://${req.get("host")}/mcp</code></li>
-            <li><strong>Authentication:</strong> None required</li>
+            <li><strong>Identity:</strong> Bearer token or <code>X-Thread-Id</code> recommended for persistent isolated memory</li>
           </ul>
           <p style="color: #666; margin-top: 40px;">
             <small>Server Status: Active | Protocol: MCP 1.0 | Transport: Streamable HTTP</small>
@@ -389,8 +389,8 @@ function showMCPInfo(req: Request, res: Response, next: NextFunction) {
  * MCP endpoint for ChatGPT Developer Mode
  * Uses custom handler that directly implements MCP protocol
  */
-app.get("/mcp", showMCPInfo, rateLimit(100, 60000), handleSSE);
-app.post("/mcp", rateLimit(100, 60000), handleSSE);
+app.get("/mcp", showMCPInfo, optionalAuth, rateLimit(100, 60000), handleSSE);
+app.post("/mcp", optionalAuth, rateLimit(100, 60000), handleSSE);
 
 /**
  * GET /.well-known/mcp/server-card.json

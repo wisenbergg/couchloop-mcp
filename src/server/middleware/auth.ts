@@ -10,7 +10,19 @@ declare module 'express' {
       clientId: string;
       scope: string;
     };
+    threadId?: string;
   }
+}
+
+function getThreadIdHeader(req: Request): string | undefined {
+  const raw = req.headers['x-thread-id'];
+  if (typeof raw === 'string' && raw.trim().length > 0) {
+    return raw.trim();
+  }
+  if (Array.isArray(raw) && raw[0]?.trim()) {
+    return raw[0].trim();
+  }
+  return undefined;
 }
 
 /**
@@ -136,6 +148,25 @@ export async function optionalAuth(
 }
 
 /**
+ * MCP endpoints must carry either a validated bearer token or a thread ID.
+ * Thread IDs are the current tenant boundary for anonymous conversation traffic.
+ */
+export async function requireMcpIdentity(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  const threadId = getThreadIdHeader(req);
+  if (threadId) {
+    req.threadId = threadId;
+    next();
+    return;
+  }
+
+  await validateToken(req, res, next);
+}
+
+/**
  * Rate limiting per user/client
  */
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -196,7 +227,7 @@ export function oauthCors(
   }
 
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, X-Thread-Id');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
 
   if (req.method === 'OPTIONS') {

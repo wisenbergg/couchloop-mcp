@@ -139,7 +139,10 @@ export async function handleSmartContext(args: unknown) {
         };
         const category = categoryMap[input.type] || 'decisions';
         
-        await storeContext(category, `[${key}] ${content}`);
+        await storeContext(category, `[${key}] ${content}`, {
+          auth: input.auth,
+          sessionId: input.session_id,
+        });
         results.context = { category, stored: true };
         
         // Also save as insight for searchability
@@ -164,7 +167,10 @@ export async function handleSmartContext(args: unknown) {
         }
         
         // Also preserve as context
-        await storeContext('project-metadata', `[conversation] ${content}`);
+        await storeContext('project-metadata', `[conversation] ${content}`, {
+          auth: input.auth,
+          sessionId: input.session_id,
+        });
         results.context = { category: 'project-metadata', stored: true };
         break;
     }

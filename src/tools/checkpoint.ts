@@ -166,7 +166,10 @@ export async function saveCheckpoint(args: unknown): Promise<CheckpointResponse 
     if (input.preserve_context && input.context_category) {
       try {
         const contentStr = typeof input.value === 'string' ? input.value : JSON.stringify(input.value);
-        await storeContext(input.context_category, `[${input.key}] ${contentStr}`);
+        await storeContext(input.context_category, `[${input.key}] ${contentStr}`, {
+          auth: input.auth,
+          sessionId: sessionId,
+        });
         response.context_stored = true;
         logger.info(`Also stored as ${input.context_category} context`);
       } catch (contextError) {

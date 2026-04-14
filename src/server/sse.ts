@@ -22,6 +22,66 @@ import { setupResources } from "../resources/index.js";
 import { setupTools } from "../tools/index.js";
 import { logger } from "../utils/logger.js";
 
+function enrichToolCallIdentity(req: Request): void {
+  if (req.body?.method !== 'tools/call' || !req.body?.params) {
+    return;
+  }
+
+  const existingArgs = typeof req.body.params.arguments === 'object' && req.body.params.arguments !== null
+    ? req.body.params.arguments as Record<string, unknown>
+    : {};
+  const existingAuth = typeof existingArgs.auth === 'object' && existingArgs.auth !== null
+    ? existingArgs.auth as Record<string, unknown>
+    : {};
+  const meta = typeof req.body.params._meta === 'object' && req.body.params._meta !== null
+    ? req.body.params._meta as Record<string, unknown>
+    : {};
+  const transportSessionId = typeof req.headers['mcp-session-id'] === 'string'
+    ? req.headers['mcp-session-id']
+    : typeof req.headers['x-session-id'] === 'string'
+      ? req.headers['x-session-id']
+      : undefined;
+
+  const auth: Record<string, unknown> = { ...existingAuth };
+
+  if (!auth.thread_id && req.threadId) {
+    auth.thread_id = req.threadId;
+  }
+
+  if (!auth.user_id && req.user?.userId) {
+    auth.user_id = req.user.userId;
+  }
+
+  if (!auth.client_id && req.user?.clientId) {
+    auth.client_id = req.user.clientId;
+  }
+
+  if (!auth.user_id && typeof meta['openai/subject'] === 'string') {
+    auth.user_id = meta['openai/subject'];
+  }
+
+  if (!auth.client_id && typeof meta['openai/subject'] === 'string') {
+    auth.client_id = 'chatgpt';
+  }
+
+  if (!auth.conversation_id && typeof meta['openai/session'] === 'string') {
+    auth.conversation_id = meta['openai/session'];
+  }
+
+  if (!auth.conversation_id && transportSessionId) {
+    auth.conversation_id = transportSessionId;
+  }
+
+  if (!auth.thread_id && typeof existingArgs.thread_id === 'string') {
+    auth.thread_id = existingArgs.thread_id;
+  }
+
+  req.body.params.arguments = {
+    ...existingArgs,
+    auth,
+  };
+}
+
 // Store active transports and servers by session ID
 interface SessionEntry {
   transport: StreamableHTTPServerTransport;
@@ -420,6 +480,8 @@ const SESSION_INIT_TIMEOUT_MS = parseInt(process.env.SESSION_INIT_TIMEOUT_MS || 
  */
 export async function handleSSE(req: Request, res: Response) {
   try {
+    enrichToolCallIdentity(req);
+
     // Get session ID from MCP standard header or legacy header
     const sessionId = (req.headers["mcp-session-id"] || req.headers["x-session-id"]) as string | undefined;
 
@@ -483,12 +545,15 @@ export async function handleMCPLenient(req: Request, res: Response) {
   });
 
   try {
+    enrichToolCallIdentity(req);
+
     // Log incoming headers for debugging
     logger.info("MCP Request Headers:", {
       accept: req.headers.accept,
       "content-type": req.headers["content-type"],
       "user-agent": req.headers["user-agent"],
       "x-session-id": req.headers["x-session-id"],
+      "x-thread-id": req.headers["x-thread-id"],
     });
 
     // Normalize Accept header for compatibility

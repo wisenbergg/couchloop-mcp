@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { AuthContextSchema } from './auth.js';
 
 export const ContextCategory = z.enum([
   'architecture',
@@ -17,6 +18,8 @@ export const PreserveContextSchema = z.object({
   content: z.string().optional().describe('Content to store'),
   search_term: z.string().optional().describe('Search term for retrieving context'),
   include_metadata: z.boolean().default(false).describe('Include usage metadata in response'),
+  session_id: z.string().uuid().optional().describe('Optional session used to resolve the backing thread scope'),
+  auth: AuthContextSchema.optional().describe('Authentication or thread context used for scoping'),
 });
 
 export type PreserveContextInput = z.infer<typeof PreserveContextSchema>;

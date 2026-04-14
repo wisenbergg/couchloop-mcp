@@ -13,6 +13,7 @@ export const AuthContextSchema = z.object({
   token: z.string().optional().describe('OAuth access token or session identifier'),
   user_id: z.string().optional().describe('External user identifier from OAuth provider'),
   client_id: z.string().optional().describe('Client application identifier'),
+  thread_id: z.string().optional().describe('Stable thread identifier used to scope conversation memory'),
   conversation_id: z.string().optional().describe('Stable conversation identifier for user binding'),
 });
 
@@ -30,6 +31,14 @@ interface LocalIdentity {
 
 const IDENTITY_DIR = join(homedir(), '.couchloop-mcp');
 const IDENTITY_FILE = join(IDENTITY_DIR, 'identity.json');
+
+function isHostedRuntime(): boolean {
+  return Boolean(
+    process.env.NODE_ENV === 'production' ||
+    process.env.RAILWAY_ENVIRONMENT ||
+    process.env.RAILWAY_PROJECT_ID,
+  );
+}
 
 /**
  * Get or create local identity file for free tier users
@@ -99,11 +108,15 @@ export async function extractUserFromContext(authContext?: AuthContext): Promise
     return authContext.client_id + '_' + hash.substring(0, 24);
   }
 
-  // Priority 3: Local file-based identity (Free tier)
-  // Provides single-machine persistence for VS Code, Cursor, Claude Desktop, etc.
-  const localIdentity = getOrCreateLocalIdentity();
-  if (localIdentity) {
-    return localIdentity;
+  // Priority 3: Thread-based identity for hosted MCP deployments.
+  // This prevents multiple anonymous clients from collapsing into one shared
+  // server-local identity when auth headers are not present.
+  if (authContext?.thread_id) {
+    const scope = authContext.client_id
+      ? `${authContext.client_id}:thread:${authContext.thread_id}`
+      : `thread:${authContext.thread_id}`;
+    const hash = createHash('sha256').update(scope).digest('hex');
+    return 'thread_' + hash.substring(0, 24);
   }
 
   // Priority 4: Conversation-based ID (single chat window only)
@@ -114,9 +127,23 @@ export async function extractUserFromContext(authContext?: AuthContext): Promise
     return 'conv_' + hash.substring(0, 28);
   }
 
-  // Fallback: Create ephemeral user with warning
+  // Priority 5: Local file-based identity (Free tier)
+  // Disabled in hosted runtimes because the server filesystem identity is shared
+  // across all anonymous callers and breaks tenant isolation.
+  if (isHostedRuntime()) {
+    logger.warn('Hosted runtime without auth or thread_id, falling back to ephemeral identity');
+  } else {
+    const localIdentity = getOrCreateLocalIdentity();
+    if (localIdentity) {
+      return localIdentity;
+    }
+  }
+
+  // Priority 6: Ephemeral IDs (no persistence)
+  // Provides single-machine persistence for VS Code, Cursor, Claude Desktop, etc.
   logger.warn('Creating ephemeral user - no stable identity provided', {
     client_id: authContext?.client_id,
+    has_thread_id: !!authContext?.thread_id,
     has_conversation_id: !!authContext?.conversation_id,
     timestamp: new Date().toISOString()
   });

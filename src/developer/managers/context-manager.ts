@@ -12,6 +12,22 @@ const TABLE = 'context_entries';
 const MAX_CONTEXT_WINDOW_TOKENS = 200_000;
 const AVG_CHARS_PER_TOKEN = 4;
 
+interface ContextEntryRow {
+  id: string;
+  category: ContextCategoryType;
+  content: string;
+  tags: string[];
+  usage_count: number;
+  last_accessed: string | null;
+  created_at: string;
+  thread_id: string | null;
+}
+
+interface ContextSummaryRow {
+  category: ContextCategoryType;
+  content: string;
+}
+
 
 /**
  * ContextManager — Supabase-backed context storage.
@@ -34,6 +50,7 @@ export class ContextManager {
   async storeEntry(
     category: ContextCategoryType,
     content: string,
+    threadId: string,
   ): Promise<PreserveContextResponse> {
     const supabase = getSupabase();
     if (!supabase) {
@@ -43,7 +60,7 @@ export class ContextManager {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase as any)
       .from(TABLE)
-      .insert({ id: nanoid(), category, content, usage_count: 0, tags: [] })
+      .insert({ id: nanoid(), category, content, thread_id: threadId, usage_count: 0, tags: [] })
       .select()
       .single();
 
@@ -73,16 +90,22 @@ export class ContextManager {
   async retrieve(
     category?: ContextCategoryType,
     searchTerm?: string,
+    threadId?: string,
   ): Promise<PreserveContextResponse> {
     const supabase = getSupabase();
     if (!supabase) {
       return this.degraded('retrieve', 'Supabase client unavailable');
     }
 
+    if (!threadId) {
+      return this.degraded('retrieve', 'Context retrieval requires a thread scope');
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let query = (supabase as any)
       .from(TABLE)
       .select('*')
+      .eq('thread_id', threadId)
       .order('created_at', { ascending: false });
 
     if (category) {
@@ -117,7 +140,8 @@ export class ContextManager {
     }
 
     // Fire-and-forget: bump usage stats on retrieved rows
-    const ids = data.map((r: any) => r.id);
+    const rows = data as ContextEntryRow[];
+    const ids = rows.map((row) => row.id);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any)
       .rpc('increment_usage_count', { row_ids: ids })
@@ -140,23 +164,28 @@ export class ContextManager {
       success: true,
       action: 'retrieve',
       message: `Retrieved ${data.length} context entries`,
-      data: data.map((r: any) => this.toEntry(r)),
+      data: rows.map((row) => this.toEntry(row)),
     };
   }
 
   /**
    * Check context window usage and return store metadata.
    */
-  async check(includeMetadata = false): Promise<PreserveContextResponse> {
+  async check(includeMetadata = false, threadId?: string): Promise<PreserveContextResponse> {
     const supabase = getSupabase();
     if (!supabase) {
       return this.degraded('check', 'Supabase client unavailable');
     }
 
+    if (!threadId) {
+      return this.degraded('check', 'Context status requires a thread scope');
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase as any)
       .from(TABLE)
-      .select('category, content');
+      .select('category, content')
+      .eq('thread_id', threadId);
 
     if (error) {
       logger.error('[ContextManager] check error:', error.message);
@@ -167,8 +196,8 @@ export class ContextManager {
       };
     }
 
-    const rows = data ?? [];
-    const totalBytes = rows.reduce((sum: number, r: any) => sum + (r.content?.length ?? 0), 0);
+    const rows = (data ?? []) as ContextSummaryRow[];
+    const totalBytes = rows.reduce((sum: number, row) => sum + (row.content?.length ?? 0), 0);
     const estimatedTokens = totalBytes / AVG_CHARS_PER_TOKEN;
     const usagePct = Math.min((estimatedTokens / MAX_CONTEXT_WINDOW_TOKENS) * 100, 100);
 
@@ -180,9 +209,9 @@ export class ContextManager {
       'technical-patterns': 0,
       'project-metadata': 0,
     };
-    rows.forEach((r: any) => {
-      if (r.category in entriesByCategory) {
-        entriesByCategory[r.category as ContextCategoryType]++;
+    rows.forEach((row) => {
+      if (row.category in entriesByCategory) {
+        entriesByCategory[row.category]++;
       }
     });
 
@@ -249,7 +278,7 @@ export class ContextManager {
   // ── Helpers ────────────────────────────────────────────────────────────────
 
   /** Map a raw Supabase row to the ContextEntry shape used by the rest of the codebase. */
-  private toEntry(row: any): ContextEntry {
+  private toEntry(row: ContextEntryRow): ContextEntry {
     return {
       id: row.id,
       category: row.category as ContextCategoryType,
