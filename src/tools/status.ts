@@ -16,7 +16,7 @@ import { ContextMetadata, ContextEntry } from '../types/context.js';
 import { checkContextStatus, retrieveContext } from './preserve-context.js';
 import { getProtectionStatus, listBackups } from './protect-files.js';
 import { getUserContext } from './insight.js';
-import { extractUserFromContext, type AuthContext } from '../types/auth.js';
+import { extractUserFromContext, resolveAuthContextFromArgs, type AuthContext } from '../types/auth.js';
 import { logger } from '../utils/logger.js';
 
 const StatusInputSchema = z.object({
@@ -90,11 +90,12 @@ async function resolveUserId(authContext?: AuthContext): Promise<string | null> 
 export async function handleStatus(args: unknown) {
   try {
     const input = StatusInputSchema.parse(args);
+    const authContext = resolveAuthContextFromArgs(args, input.auth as AuthContext | undefined);
 
     logger.info('Running status check', { check: input.check });
 
     // Resolve the calling user ONCE — all queries scope to this userId
-    const userId = await resolveUserId(input.auth as AuthContext | undefined);
+    const userId = await resolveUserId(authContext);
 
     if (!userId) {
       return {
@@ -123,7 +124,7 @@ export async function handleStatus(args: unknown) {
     }
 
     if ((input.check === 'context' || input.check === 'all') && !isCompact) {
-      result.context = await getContextStatus(input.auth as AuthContext | undefined);
+      result.context = await getContextStatus(authContext);
     }
 
     if ((input.check === 'protection' || input.check === 'all') && !isCompact) {
@@ -131,7 +132,7 @@ export async function handleStatus(args: unknown) {
     }
 
     if ((input.check === 'preferences' || input.check === 'all') && !isCompact) {
-      result.preferences = await getPreferencesStatus(input.auth as AuthContext | undefined);
+      result.preferences = await getPreferencesStatus(authContext);
     }
 
     // Generate personalized summary and next steps

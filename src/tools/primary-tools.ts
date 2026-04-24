@@ -45,6 +45,7 @@ import {
 import { runToolWithPolicy, type PolicyContext } from '../policy/index.js';
 import { logger } from '../utils/logger.js';
 import { getSupabaseClientAsync } from '../db/supabase-helpers.js';
+import { resolveAuthContextFromArgs, type AuthContext } from '../types/auth.js';
 
 // ============================================================
 // RETRY HELPER — transparent retry for transient DB failures
@@ -149,7 +150,7 @@ const memoryTool = {
     return withRetry(async () => {
     const parsed = MemoryInputSchema.parse(args);
     const action = parsed.action ?? 'save';
-    const auth = parsed.auth;
+    const auth = resolveAuthContextFromArgs(args, parsed.auth as AuthContext | undefined);
 
     // Auto-recall on first call of a new session
     const { sessionId: resolvedSessionId, isNew } = await getOrCreateSession(
