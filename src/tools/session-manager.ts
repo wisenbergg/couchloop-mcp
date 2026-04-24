@@ -4,7 +4,7 @@
  * Sessions are created implicitly on first stateful tool use and remain
  * open until explicitly ended by the user.
  */
-import { getSupabaseClient, throwOnError } from '../db/supabase-helpers.js';
+import { getSupabaseClientAsync, throwOnError } from '../db/supabase-helpers.js';
 import type { Session, User } from '../db/schema.js';
 import { extractUserFromContext } from '../types/auth.js';
 import { logger } from '../utils/logger.js';
@@ -28,7 +28,7 @@ export async function getOrCreateSession(
   authContext?: { user_id?: string; client_id?: string; token?: string },
   context?: string
 ): Promise<{ sessionId: string; session: Session; isNew: boolean }> {
-  const supabase = getSupabaseClient();
+  const supabase = await getSupabaseClientAsync();
   const now = new Date().toISOString();
 
   // If explicit session ID provided, verify it exists and is active
@@ -195,7 +195,7 @@ export async function endSession(
   sessionId?: string,
   authContext?: { user_id?: string; client_id?: string; token?: string }
 ): Promise<{ success: boolean; message: string }> {
-  const supabase = getSupabaseClient();
+  const supabase = await getSupabaseClientAsync();
 
   let sessionToEnd: string | undefined = sessionId;
 
@@ -302,7 +302,7 @@ let sweepTimer: ReturnType<typeof setInterval> | null = null;
  */
 export async function closeStaleSessionsOnce(): Promise<number> {
   try {
-    const supabase = getSupabaseClient();
+    const supabase = await getSupabaseClientAsync();
     const cutoff = new Date(Date.now() - STALE_SESSION_MINUTES * 60 * 1000).toISOString();
     const now = new Date().toISOString();
 

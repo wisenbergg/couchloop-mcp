@@ -1,4 +1,4 @@
-import { getSupabaseClient, throwOnError } from '../db/supabase-helpers.js';
+import { getSupabaseClientAsync, throwOnError } from '../db/supabase-helpers.js';
 import type { Insight } from '../db/schema.js';
 import { SaveInsightSchema, GetUserContextSchema, type SaveInsightInput, type GetUserContextInput } from '../types/insight.js';
 import { extractUserFromContext } from '../types/auth.js';
@@ -17,7 +17,7 @@ export interface RecentSession {
 export async function saveInsight(args: SaveInsightInput) {
   try {
     const input = SaveInsightSchema.parse(args);
-    const supabase = getSupabaseClient();
+    const supabase = await getSupabaseClientAsync();
 
     // Extract user ID from auth context or generate anonymous user
     const externalUserId = await extractUserFromContext(input.auth);
@@ -82,7 +82,7 @@ export async function saveInsight(args: SaveInsightInput) {
 export async function getInsights(args: { session_id?: string; limit?: number; auth?: Record<string, unknown> }) {
   try {
     const { session_id, limit = 10, auth } = args;
-    const supabase = getSupabaseClient();
+    const supabase = await getSupabaseClientAsync();
 
     // Extract user ID from auth context or generate anonymous user
     const externalUserId = await extractUserFromContext(auth);
@@ -142,7 +142,7 @@ export async function getInsights(args: { session_id?: string; limit?: number; a
 export async function getUserContext(args: GetUserContextInput) {
   try {
     const input = GetUserContextSchema.parse(args);
-    const supabase = getSupabaseClient();
+    const supabase = await getSupabaseClientAsync();
 
     // Extract user ID from auth context or generate anonymous user
     const externalUserId = await extractUserFromContext(input.auth);
@@ -248,7 +248,7 @@ export async function recallInsights(args: {
   const { query, session_id, limit = 5, auth } = args;
 
   try {
-    const supabase = getSupabaseClient();
+    const supabase = await getSupabaseClientAsync();
     const externalUserId = await extractUserFromContext(auth);
     const user = throwOnError(
       await supabase

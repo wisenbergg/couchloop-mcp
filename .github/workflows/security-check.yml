@@ -93,6 +93,9 @@ jobs:
     - name: Install dependencies
       run: npm ci
 
+    - name: Scan Tracked Files for Secrets
+      run: npm run security:repo-secrets
+
     - name: Build project
       run: npm run build
 

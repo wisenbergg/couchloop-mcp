@@ -1,4 +1,4 @@
-import { getSupabaseClient, throwOnError } from '../db/supabase-helpers.js';
+import { getSupabaseClientAsync, throwOnError } from '../db/supabase-helpers.js';
 import { SaveCheckpointSchema, CheckpointResponse } from '../types/checkpoint.js';
 import { handleError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
@@ -9,7 +9,7 @@ import { governancePostCheck } from '../governance/middleware.js';
 export async function saveCheckpoint(args: unknown): Promise<CheckpointResponse | { error: string }> {
   try {
     const input = SaveCheckpointSchema.parse(args);
-    const supabase = getSupabaseClient();
+    const supabase = await getSupabaseClientAsync();
 
     // Get or create session implicitly if not provided
     // FIX 1: Session object returned directly — no redundant re-fetch
@@ -188,7 +188,7 @@ export async function saveCheckpoint(args: unknown): Promise<CheckpointResponse 
 export async function getCheckpoints(args: { session_id?: string; auth?: { user_id?: string; client_id?: string; token?: string } }) {
   try {
     const { session_id, auth } = args;
-    const supabase = getSupabaseClient();
+    const supabase = await getSupabaseClientAsync();
 
     // Get or create session implicitly if not provided
     // FIX 1: Session object returned directly — no redundant re-fetch
