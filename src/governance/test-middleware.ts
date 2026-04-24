@@ -16,7 +16,7 @@ async function runTests() {
   // Test 2: Security scan - dangerous patterns
   console.log('\n2. Security Scan (dangerous patterns):');
   const secResult = await governancePreCheck('create_file', { 
-    content: 'const apiKey = "sk-1234567890"; eval(userInput);' 
+    content: 'const apiKey = "YOUR_API_KEY_PLACEHOLDER"; eval(userInput);' 
   });
   console.log('   Content: eval() + hardcoded secret');
   console.log('   Issues:', JSON.stringify(secResult.issues));

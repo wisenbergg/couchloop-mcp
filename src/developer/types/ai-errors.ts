@@ -94,9 +94,9 @@ export const AI_ERROR_CATALOG: AIErrorPattern[] = [
     frequency: 'common',
     impact: 'critical',
     examples: [
-      'const API_KEY = "sk-1234567890abcdef"',
-      'password: "admin123"',
-      'mongodb://user:pass@localhost/db'
+      'const API_KEY = "YOUR_API_KEY_PLACEHOLDER"',
+      'password: "YOUR_PASSWORD_PLACEHOLDER"',
+      'mongodb://user:YOUR_DB_PASSWORD@localhost/db'
     ],
     detection: 'Regex patterns for common secret formats',
     prevention: 'Replace with environment variables automatically',
