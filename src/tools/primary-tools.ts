@@ -102,7 +102,9 @@ const ConversationInputSchema = z.object({
   auth: z.record(z.unknown()).optional(),
 });
 
-const memoryTool = {
+// Exported for unit testing only — not part of the public tool surface
+// (the public surface is `setupTools()`).
+export const memoryTool = {
   definition: {
     name: 'memory',
     description: 'Save and retrieve context, insights, checkpoints, and decisions across conversations. Prevents AI amnesia. Use action "save" to store, "recall" to retrieve, "list" to browse. Use type "checkpoint" for sprint progress ("save where I am", "bookmark this"), type "decision" for architectural choices and milestones ("lock this in", "we decided on X"), type "constraint" for rules the AI must follow ("never do X again", "always ask before Y"). Constraints tagged "ai-mistake" are auto-saved by the review tool when it catches errors — recall these at the start of new conversations to avoid repeating past mistakes. Triggers: "remember this", "stash this context", "where did we leave off", "what did we decide", "what was the approach we picked", "load my previous context", "don\'t lose this", "never do that again". With no arguments, returns a summary of everything saved.',
@@ -159,6 +161,17 @@ const memoryTool = {
     );
     const sessionId = parsed.session_id || resolvedSessionId;
 
+    // Identity visibility: a recurring source of "where did my memory go?" bugs is
+    // unstable identity across calls. Log the resolved external user id so we can
+    // verify cross-call stability when debugging.
+    try {
+      const { extractUserFromContext } = await import('../types/auth.js');
+      const externalUserId = await extractUserFromContext(auth);
+      logger.info(`[memory] action=${action} user=${externalUserId} session=${sessionId} isNew=${isNew} explicitSession=${!!parsed.session_id}`);
+    } catch {
+      // Non-critical — logging only.
+    }
+
     // Build auto-recall context for new sessions (prepended to response)
     let sessionContext: {
       new_session: boolean;
@@ -193,17 +206,19 @@ const memoryTool = {
 
     switch (action) {
       case 'recall': {
-        // Only fetch session checkpoints when a session_id is explicitly provided.
-        // Without one, getCheckpoints would create a new empty session — unnecessary overhead.
-        const checkpointPromise = sessionId
-          ? getCheckpoints({ session_id: sessionId, auth })
+        // Checkpoints are session-scoped (sprint progress markers) — only
+        // fetch when a session_id was explicitly provided. Insights are
+        // cross-session by default; only narrow when caller passes one.
+        const explicitSessionId = parsed.session_id;
+        const checkpointPromise = explicitSessionId
+          ? getCheckpoints({ session_id: explicitSessionId, auth })
           : Promise.resolve(null);
 
         const [checkpointData, insightData] = await Promise.all([
           checkpointPromise,
           recallInsights({
             query: typeof parsed.content === 'string' ? parsed.content : undefined,
-            session_id: sessionId,
+            session_id: explicitSessionId,
             limit: 5,
             auth,
           }),
@@ -253,8 +268,19 @@ const memoryTool = {
 
         return { ...summary, ...(sessionContext ? { session_context: sessionContext } : {}) };
       }
-      case 'list':
-        return { ...(await getInsights({ session_id: sessionId, limit: 20, auth })), ...(sessionContext ? { session_context: sessionContext } : {}) };
+      case 'list': {
+        // List is a browse-all operation across the user's full history,
+        // NOT scoped to the current session. Filtering by sessionId here
+        // returned 0 every time on cold sessions (the session is brand-new
+        // and contains nothing). Only honor session_id if the caller
+        // explicitly passed one.
+        const explicitSessionId = parsed.session_id;
+        return await getInsights({
+          session_id: explicitSessionId,
+          limit: 20,
+          auth,
+        });
+      }
       case 'save':
       default: {
         const saveResult = await handleSmartContext({

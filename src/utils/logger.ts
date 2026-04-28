@@ -42,33 +42,42 @@ function sanitize(value: unknown): unknown {
 
 class Logger {
   private level: number;
-  private isMCP: boolean;
 
   constructor() {
     const envLevel = (process.env.LOG_LEVEL?.toUpperCase() || 'INFO') as LogLevel;
     this.level = LOG_LEVELS[envLevel] ?? LOG_LEVELS.INFO;
-    // Disable console logging when running as MCP server
-    this.isMCP = process.env.MCP_MODE === 'true' || process.argv.includes('--mcp');
   }
 
   private log(level: LogLevel, ...args: unknown[]) {
-    // Skip all console output when running as MCP server
-    if (this.isMCP) {
-      return;
-    }
-
     if (LOG_LEVELS[level] <= this.level) {
       const timestamp = new Date().toISOString();
       const prefix = `[${timestamp}] [${level}]`;
       const sanitizedArgs = args.map(sanitize);
 
-      if (level === 'ERROR') {
-        console.error(prefix, ...sanitizedArgs);
-      } else if (level === 'WARN') {
-        console.warn(prefix, ...sanitizedArgs);
-      } else {
-        console.log(prefix, ...sanitizedArgs);
-      }
+      // ALL log output goes to stderr. Two reasons this is the correct default
+      // for both transports:
+      //   1. MCP stdio transport: only stdout is reserved for JSON-RPC frames.
+      //      stderr is explicitly free for logging per the MCP spec, so writing
+      //      here cannot corrupt the protocol channel.
+      //   2. HTTP transport on Railway / Docker / k8s: Node block-buffers stdout
+      //      (16KB) when piped to a non-TTY, so a long-running server's logs
+      //      never flushed. stderr is line-buffered and flushes immediately,
+      //      and Railway captures both streams into deploy logs.
+      // This replaces an earlier `MCP_MODE=true` silencer that was a partial
+      // workaround for #1 but accidentally killed all observability in #2.
+      const formatted = sanitizedArgs
+        .map((a) => {
+          if (a instanceof Error) return a.stack || a.message;
+          if (typeof a === 'string') return a;
+          try {
+            return JSON.stringify(a);
+          } catch {
+            return String(a);
+          }
+        })
+        .join(' ');
+
+      process.stderr.write(`${prefix} ${formatted}\n`);
     }
   }
 
