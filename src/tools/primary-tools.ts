@@ -1,18 +1,18 @@
 /**
  * MCP Tools - Public API
- * 
+ *
  * This module exports only the PRIMARY tools that users should see.
  * Consolidated from 10 → 4 tools for clarity and reduced LLM misrouting.
- * 
+ *
  * PUBLIC TOOLS (4):
  * 1. memory           - HERO: save & recall insights, checkpoints, decisions (Supabase-backed)
  * 2. conversation     - Emotional support, guided journeys, crisis detection (shrink-chat backend)
  * 3. review           - Unified: code review + package audit + pre-delivery verification
  * 4. status           - Dashboard (session progress, history, context, preferences)
- * 
+ *
  * INTERNAL (auto-triggered, not user-facing):
  * - guard             - Per-response governance (runs in withPolicy wrapper)
- * 
+ *
  * REMOVED:
  * - couchloop         - Router added latency; LLMs route directly with good descriptions
  * - brainstorm        - Returned static system prompt; LLMs brainstorm natively
@@ -150,149 +150,149 @@ export const memoryTool = {
   },
   handler: async (args: Record<string, unknown>) => {
     return withRetry(async () => {
-    const parsed = MemoryInputSchema.parse(args);
-    const action = parsed.action ?? 'save';
-    const auth = resolveAuthContextFromArgs(args, parsed.auth as AuthContext | undefined);
+      const parsed = MemoryInputSchema.parse(args);
+      const action = parsed.action ?? 'save';
+      const auth = resolveAuthContextFromArgs(args, parsed.auth as AuthContext | undefined);
 
-    // Auto-recall on first call of a new session
-    const { sessionId: resolvedSessionId, isNew } = await getOrCreateSession(
-      parsed.session_id,
-      auth as { user_id?: string; client_id?: string; token?: string } | undefined,
-    );
-    const sessionId = parsed.session_id || resolvedSessionId;
+      // Auto-recall on first call of a new session
+      const { sessionId: resolvedSessionId, isNew } = await getOrCreateSession(
+        parsed.session_id,
+        auth as { user_id?: string; client_id?: string; token?: string } | undefined,
+      );
+      const sessionId = parsed.session_id || resolvedSessionId;
 
-    // Identity visibility: a recurring source of "where did my memory go?" bugs is
-    // unstable identity across calls. Log the resolved external user id so we can
-    // verify cross-call stability when debugging.
-    try {
-      const { extractUserFromContext } = await import('../types/auth.js');
-      const externalUserId = await extractUserFromContext(auth);
-      logger.info(`[memory] action=${action} user=${externalUserId} session=${sessionId} isNew=${isNew} explicitSession=${!!parsed.session_id}`);
-    } catch {
-      // Non-critical — logging only.
-    }
-
-    // Build auto-recall context for new sessions (prepended to response)
-    let sessionContext: {
-      new_session: boolean;
-      previous_context?: Array<{ content: unknown; tags: unknown; saved: unknown }>;
-      onboarding_hint?: string;
-    } | undefined;
-
-    if (isNew && action !== 'recall') {
-      // Auto-recall previous insights for returning users
+      // Identity visibility: a recurring source of "where did my memory go?" bugs is
+      // unstable identity across calls. Log the resolved external user id so we can
+      // verify cross-call stability when debugging.
       try {
-        const previousInsights = await recallInsights({ limit: 3, auth });
-        if (previousInsights.count > 0) {
-          sessionContext = {
-            new_session: true,
-            previous_context: previousInsights.insights.map(ins => ({
-              content: ins.content,
-              tags: ins.tags,
-              saved: ins.created_at,
-            })),
-          };
-        } else {
-          // Brand new user, no previous insights
-          sessionContext = {
-            new_session: true,
-            onboarding_hint: 'This user is new. Memory can save checkpoints ("save where I am"), decisions ("lock this in"), and constraints ("never do X again"). Suggest saving something after completing their first task.',
-          };
-        }
+        const { extractUserFromContext } = await import('../types/auth.js');
+        const externalUserId = await extractUserFromContext(auth);
+        logger.info(`[memory] action=${action} user=${externalUserId} session=${sessionId} isNew=${isNew} explicitSession=${!!parsed.session_id}`);
       } catch {
-        // Non-critical; skip auto-recall on error
+        // Non-critical — logging only.
       }
-    }
 
-    switch (action) {
-      case 'recall': {
-        // Checkpoints are session-scoped (sprint progress markers) — only
-        // fetch when a session_id was explicitly provided. Insights are
-        // cross-session by default; only narrow when caller passes one.
-        const explicitSessionId = parsed.session_id;
-        const checkpointPromise = explicitSessionId
-          ? getCheckpoints({ session_id: explicitSessionId, auth })
-          : Promise.resolve(null);
+      // Build auto-recall context for new sessions (prepended to response)
+      let sessionContext: {
+        new_session: boolean;
+        previous_context?: Array<{ content: unknown; tags: unknown; saved: unknown }>;
+        onboarding_hint?: string;
+      } | undefined;
 
-        const [checkpointData, insightData] = await Promise.all([
-          checkpointPromise,
-          recallInsights({
-            query: typeof parsed.content === 'string' ? parsed.content : undefined,
-            session_id: explicitSessionId,
-            limit: 5,
-            auth,
-          }),
-        ]);
-
-        // Strip to compact essential fields only — prevents 19KB+ dumps
-        const rawCheckpoints = (checkpointData && 'checkpoints' in checkpointData
-          ? (checkpointData.checkpoints as Array<Record<string, unknown>>)
-          : []);
-        const rawInsights = ('insights' in insightData ? (insightData.insights as Array<Record<string, unknown>>) : []);
-
-        // Checkpoints come back oldest-first; reverse for recency, cap at 5
-        const recentCheckpoints = rawCheckpoints.slice(-5).reverse().map(cp => ({
-          key: cp['key'],
-          value: cp['value'],
-          saved: cp['created_at'],
-        }));
-
-        const recentInsights = rawInsights.map(ins => ({
-          content: ins['content'],
-          tags: ins['tags'],
-          saved: ins['created_at'],
-        }));
-
-        const summary: {
-          last_checkpoint: { key: unknown; value: unknown; saved: unknown } | null;
-          checkpoints: Array<{ key: unknown; value: unknown; saved: unknown }>;
-          recent_insights: Array<{ content: unknown; tags: unknown; saved: unknown }>;
-          count: { checkpoints: number; insights: number };
-        } = {
-          last_checkpoint: recentCheckpoints[0] ?? null,
-          checkpoints: recentCheckpoints,
-          recent_insights: recentInsights,
-          count: {
-            checkpoints: recentCheckpoints.length,
-            insights: recentInsights.length,
-          },
-        };
-
-        // Hard cap: if serialized result exceeds 8KB, trim arrays further
-        if (JSON.stringify(summary).length > 8192) {
-          summary.checkpoints = summary.checkpoints.slice(0, 3);
-          summary.recent_insights = summary.recent_insights.slice(0, 3);
-          summary.count.checkpoints = summary.checkpoints.length;
-          summary.count.insights = summary.recent_insights.length;
+      if (isNew && action !== 'recall') {
+        // Auto-recall previous insights for returning users
+        try {
+          const previousInsights = await recallInsights({ limit: 3, auth });
+          if (previousInsights.count > 0) {
+            sessionContext = {
+              new_session: true,
+              previous_context: previousInsights.insights.map(ins => ({
+                content: ins.content,
+                tags: ins.tags,
+                saved: ins.created_at,
+              })),
+            };
+          } else {
+            // Brand new user, no previous insights
+            sessionContext = {
+              new_session: true,
+              onboarding_hint: 'This user is new. Memory can save checkpoints ("save where I am"), decisions ("lock this in"), and constraints ("never do X again"). Suggest saving something after completing their first task.',
+            };
+          }
+        } catch {
+          // Non-critical; skip auto-recall on error
         }
+      }
 
-        return { ...summary, ...(sessionContext ? { session_context: sessionContext } : {}) };
+      switch (action) {
+        case 'recall': {
+          // Checkpoints are session-scoped (sprint progress markers) — only
+          // fetch when a session_id was explicitly provided. Insights are
+          // cross-session by default; only narrow when caller passes one.
+          const explicitSessionId = parsed.session_id;
+          const checkpointPromise = explicitSessionId
+            ? getCheckpoints({ session_id: explicitSessionId, auth })
+            : Promise.resolve(null);
+
+          const [checkpointData, insightData] = await Promise.all([
+            checkpointPromise,
+            recallInsights({
+              query: typeof parsed.content === 'string' ? parsed.content : undefined,
+              session_id: explicitSessionId,
+              limit: 5,
+              auth,
+            }),
+          ]);
+
+          // Strip to compact essential fields only — prevents 19KB+ dumps
+          const rawCheckpoints = (checkpointData && 'checkpoints' in checkpointData
+            ? (checkpointData.checkpoints as Array<Record<string, unknown>>)
+            : []);
+          const rawInsights = ('insights' in insightData ? (insightData.insights as Array<Record<string, unknown>>) : []);
+
+          // Checkpoints come back oldest-first; reverse for recency, cap at 5
+          const recentCheckpoints = rawCheckpoints.slice(-5).reverse().map(cp => ({
+            key: cp['key'],
+            value: cp['value'],
+            saved: cp['created_at'],
+          }));
+
+          const recentInsights = rawInsights.map(ins => ({
+            content: ins['content'],
+            tags: ins['tags'],
+            saved: ins['created_at'],
+          }));
+
+          const summary: {
+            last_checkpoint: { key: unknown; value: unknown; saved: unknown } | null;
+            checkpoints: Array<{ key: unknown; value: unknown; saved: unknown }>;
+            recent_insights: Array<{ content: unknown; tags: unknown; saved: unknown }>;
+            count: { checkpoints: number; insights: number };
+          } = {
+            last_checkpoint: recentCheckpoints[0] ?? null,
+            checkpoints: recentCheckpoints,
+            recent_insights: recentInsights,
+            count: {
+              checkpoints: recentCheckpoints.length,
+              insights: recentInsights.length,
+            },
+          };
+
+          // Hard cap: if serialized result exceeds 8KB, trim arrays further
+          if (JSON.stringify(summary).length > 8192) {
+            summary.checkpoints = summary.checkpoints.slice(0, 3);
+            summary.recent_insights = summary.recent_insights.slice(0, 3);
+            summary.count.checkpoints = summary.checkpoints.length;
+            summary.count.insights = summary.recent_insights.length;
+          }
+
+          return { ...summary, ...(sessionContext ? { session_context: sessionContext } : {}) };
+        }
+        case 'list': {
+          // List is a browse-all operation across the user's full history,
+          // NOT scoped to the current session. Filtering by sessionId here
+          // returned 0 every time on cold sessions (the session is brand-new
+          // and contains nothing). Only honor session_id if the caller
+          // explicitly passed one.
+          const explicitSessionId = parsed.session_id;
+          return await getInsights({
+            session_id: explicitSessionId,
+            limit: 20,
+            auth,
+          });
+        }
+        case 'save':
+        default: {
+          const saveResult = await handleSmartContext({
+            content: parsed.content,
+            type: parsed.type || 'insight',
+            tags: parsed.tags,
+            session_id: sessionId,
+            auth,
+          });
+          return { ...saveResult as Record<string, unknown>, ...(sessionContext ? { session_context: sessionContext } : {}) };
+        }
       }
-      case 'list': {
-        // List is a browse-all operation across the user's full history,
-        // NOT scoped to the current session. Filtering by sessionId here
-        // returned 0 every time on cold sessions (the session is brand-new
-        // and contains nothing). Only honor session_id if the caller
-        // explicitly passed one.
-        const explicitSessionId = parsed.session_id;
-        return await getInsights({
-          session_id: explicitSessionId,
-          limit: 20,
-          auth,
-        });
-      }
-      case 'save':
-      default: {
-        const saveResult = await handleSmartContext({
-          content: parsed.content,
-          type: parsed.type || 'insight',
-          tags: parsed.tags,
-          session_id: sessionId,
-          auth,
-        });
-        return { ...saveResult as Record<string, unknown>, ...(sessionContext ? { session_context: sessionContext } : {}) };
-      }
-    }
     }); // withRetry
   },
 };
@@ -526,10 +526,10 @@ const reviewTool = {
         const correction = correctionId
           ? await confirmIssue(correctionId, sessionId)
           : await (async () => {
-              const pending = getMostRecentPendingCorrection(sessionId, CorrectionState.PENDING_ACKNOWLEDGMENT);
-              if (!pending) throw new Error('No pending correction to confirm. Run verify first.');
-              return confirmIssue(pending.id, sessionId);
-            })();
+            const pending = getMostRecentPendingCorrection(sessionId, CorrectionState.PENDING_ACKNOWLEDGMENT);
+            if (!pending) throw new Error('No pending correction to confirm. Run verify first.');
+            return confirmIssue(pending.id, sessionId);
+          })();
 
         return {
           success: true,
@@ -551,10 +551,10 @@ const reviewTool = {
         const applied = applyId
           ? approveFix(applyId, sessionId)
           : (() => {
-              const pending = getMostRecentPendingCorrection(sessionId, CorrectionState.PENDING_FIX_APPROVAL);
-              if (!pending) throw new Error('No pending correction to apply. Run verify and confirm first.');
-              return approveFix(pending.id, sessionId);
-            })();
+            const pending = getMostRecentPendingCorrection(sessionId, CorrectionState.PENDING_FIX_APPROVAL);
+            if (!pending) throw new Error('No pending correction to apply. Run verify and confirm first.');
+            return approveFix(pending.id, sessionId);
+          })();
 
         return {
           success: true,
@@ -577,10 +577,10 @@ const reviewTool = {
         const dismissed = dismissId
           ? dismissCorrection(dismissId, sessionId)
           : (() => {
-              const pending = getMostRecentPendingCorrection(sessionId);
-              if (!pending) throw new Error('No pending correction to dismiss.');
-              return dismissCorrection(pending.id, sessionId);
-            })();
+            const pending = getMostRecentPendingCorrection(sessionId);
+            if (!pending) throw new Error('No pending correction to dismiss.');
+            return dismissCorrection(pending.id, sessionId);
+          })();
 
         return {
           success: true,
@@ -721,7 +721,7 @@ export async function setupTools() {
 }
 
 // Also export for internal use
-export { 
+export {
   handleComprehensiveCodeReview,
   handleComprehensivePackageAudit,
   handleSmartContext,

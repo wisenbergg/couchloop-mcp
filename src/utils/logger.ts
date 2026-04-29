@@ -42,10 +42,30 @@ function sanitize(value: unknown): unknown {
 
 class Logger {
   private level: number;
+  private dualStream: boolean;
 
   constructor() {
     const envLevel = (process.env.LOG_LEVEL?.toUpperCase() || 'INFO') as LogLevel;
     this.level = LOG_LEVELS[envLevel] ?? LOG_LEVELS.INFO;
+
+    // Dual-stream mode routes INFO/DEBUG to stdout and WARN/ERROR to stderr,
+    // matching standard log-aggregator conventions (Railway, Cloud Run, k8s)
+    // where stderr = error severity. Off by default because the MCP stdio
+    // transport reserves stdout for JSON-RPC frames; enabling it there would
+    // corrupt the protocol. Server entry points (HTTP/SSE) opt in by setting
+    // LOG_DUAL_STREAM=1 before the first import of this module.
+    this.dualStream = process.env.LOG_DUAL_STREAM === '1';
+
+    // When piped to a non-TTY (any container runtime), Node block-buffers
+    // stdout in 16KB chunks. Force synchronous writes so each log line
+    // flushes immediately. This is the same approach used by pino's
+    // `sync: true` mode and is safe for low-to-moderate log volume.
+    if (this.dualStream) {
+      const stdoutHandle = (process.stdout as unknown as { _handle?: { setBlocking?: (b: boolean) => void } })._handle;
+      const stderrHandle = (process.stderr as unknown as { _handle?: { setBlocking?: (b: boolean) => void } })._handle;
+      stdoutHandle?.setBlocking?.(true);
+      stderrHandle?.setBlocking?.(true);
+    }
   }
 
   private log(level: LogLevel, ...args: unknown[]) {
@@ -54,17 +74,6 @@ class Logger {
       const prefix = `[${timestamp}] [${level}]`;
       const sanitizedArgs = args.map(sanitize);
 
-      // ALL log output goes to stderr. Two reasons this is the correct default
-      // for both transports:
-      //   1. MCP stdio transport: only stdout is reserved for JSON-RPC frames.
-      //      stderr is explicitly free for logging per the MCP spec, so writing
-      //      here cannot corrupt the protocol channel.
-      //   2. HTTP transport on Railway / Docker / k8s: Node block-buffers stdout
-      //      (16KB) when piped to a non-TTY, so a long-running server's logs
-      //      never flushed. stderr is line-buffered and flushes immediately,
-      //      and Railway captures both streams into deploy logs.
-      // This replaces an earlier `MCP_MODE=true` silencer that was a partial
-      // workaround for #1 but accidentally killed all observability in #2.
       const formatted = sanitizedArgs
         .map((a) => {
           if (a instanceof Error) return a.stack || a.message;
@@ -77,7 +86,21 @@ class Logger {
         })
         .join(' ');
 
-      process.stderr.write(`${prefix} ${formatted}\n`);
+      // Default: everything to stderr. stderr is line-buffered (flushes on
+      // newline) and is the only safe channel for the MCP stdio transport,
+      // where stdout carries JSON-RPC frames.
+      //
+      // Dual-stream (server processes): INFO/DEBUG go to stdout so log
+      // aggregators don't classify normal operation lines as "error" severity.
+      // WARN/ERROR stay on stderr to preserve correct severity tagging.
+      const line = `${prefix} ${formatted}\n`;
+      const useStdout =
+        this.dualStream && (level === 'INFO' || level === 'DEBUG');
+      if (useStdout) {
+        process.stdout.write(line);
+      } else {
+        process.stderr.write(line);
+      }
     }
   }
 
