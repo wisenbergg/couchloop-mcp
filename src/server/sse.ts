@@ -43,47 +43,80 @@ function enrichToolCallIdentity(req: Request): void {
       : undefined;
 
   const auth: Record<string, unknown> = { ...existingAuth };
+  // Per-field source tracking for production diagnostics. We log which input
+  // path produced each identity field so we can see why oauth_/user_/thread_
+  // tiers fail in extractUserFromContext (src/types/auth.ts).
+  const sources: Record<string, string> = {};
 
   if (!auth.thread_id && req.threadId) {
     auth.thread_id = req.threadId;
+    sources.thread_id = 'req.threadId';
   }
 
   if (!auth.user_id && req.user?.userId) {
     auth.user_id = req.user.userId;
+    sources.user_id = 'req.user(jwt)';
   }
 
   if (!auth.client_id && req.user?.clientId) {
     auth.client_id = req.user.clientId;
+    sources.client_id = 'req.user(jwt)';
   }
 
   if (!auth.user_id && typeof meta['openai/subject'] === 'string') {
     auth.user_id = meta['openai/subject'];
+    sources.user_id = 'meta.openai/subject';
   }
 
   if (!auth.client_id && typeof meta['openai/subject'] === 'string') {
     auth.client_id = 'chatgpt';
+    sources.client_id = 'meta.openai/subject';
   }
 
   if (!auth.client_id && (req.threadId || transportSessionId)) {
     auth.client_id = 'mcp-http';
+    sources.client_id = 'fallback:mcp-http';
   }
 
   if (!auth.conversation_id && typeof meta['openai/session'] === 'string') {
     auth.conversation_id = meta['openai/session'];
+    sources.conversation_id = 'meta.openai/session';
   }
 
   if (!auth.conversation_id && transportSessionId) {
     auth.conversation_id = transportSessionId;
+    sources.conversation_id = 'transport.session_id';
   }
 
   if (!auth.thread_id && typeof existingArgs.thread_id === 'string') {
     auth.thread_id = existingArgs.thread_id;
+    sources.thread_id = 'args.thread_id';
   }
 
   req.body.params.arguments = {
     ...existingArgs,
     auth,
   };
+
+  // Diagnostic line. Boolean flags only (no token/id content) to avoid
+  // leaking PII to deploy logs. Tells us per-call which identity tiers had
+  // signal and which fell back. Look for `conv_id_src=transport.session_id`
+  // — that means client-stable identity is missing and every reconnect mints
+  // a fresh user.
+  const toolName = typeof req.body.params.name === 'string'
+    ? req.body.params.name
+    : 'unknown';
+  logger.info(
+    `[identity] tool=${toolName} ` +
+    `route=${req.path} ` +
+    `has_auth_header=${!!req.headers.authorization} ` +
+    `has_req_user=${!!req.user} ` +
+    `meta_keys=[${Object.keys(meta).join(',')}] ` +
+    `user_id_src=${sources.user_id ?? 'none'} ` +
+    `client_id_src=${sources.client_id ?? 'none'} ` +
+    `conv_id_src=${sources.conversation_id ?? 'none'} ` +
+    `thread_id_src=${sources.thread_id ?? 'none'}`,
+  );
 }
 
 // Store active transports and servers by session ID
