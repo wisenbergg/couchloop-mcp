@@ -6,6 +6,11 @@
  *     a fresh implicit session always returned 0 insights even when the user
  *     had insights saved on prior sessions.
  *   - Fixed: only narrow by session_id when the caller explicitly provides one.
+ *   - `list` and `recall` previously could not reach checkpoints at all
+ *     unless the caller passed an explicit session_id, leaving every
+ *     `memory.save({type: "checkpoint"})` effectively unrecoverable.
+ *     Fixed: when no session_id is supplied, fall back to user-scoped
+ *     checkpoint recall via getCheckpointsForUser.
  */
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 
@@ -17,6 +22,7 @@ vi.mock('../../src/tools/insight.js', () => ({
 
 vi.mock('../../src/tools/checkpoint.js', () => ({
   getCheckpoints: vi.fn(),
+  getCheckpointsForUser: vi.fn(),
 }));
 
 vi.mock('../../src/tools/session-manager.js', () => ({
@@ -39,7 +45,7 @@ vi.mock('../../src/db/supabase-helpers.js', () => ({
 
 import { memoryTool } from '../../src/tools/primary-tools.js';
 import { recallInsights, getInsights } from '../../src/tools/insight.js';
-import { getCheckpoints } from '../../src/tools/checkpoint.js';
+import { getCheckpoints, getCheckpointsForUser } from '../../src/tools/checkpoint.js';
 import { getOrCreateSession } from '../../src/tools/session-manager.js';
 import { handleSmartContext } from '../../src/tools/smart-context.js';
 
@@ -58,6 +64,7 @@ beforeEach(() => {
   (recallInsights as Mock).mockResolvedValue({ insights: [], count: 0 });
   (getInsights as Mock).mockResolvedValue({ insights: [], count: 0 });
   (getCheckpoints as Mock).mockResolvedValue({ checkpoints: [] });
+  (getCheckpointsForUser as Mock).mockResolvedValue({ checkpoints: [], count: 0 });
   (handleSmartContext as Mock).mockResolvedValue({ success: true });
 });
 
@@ -87,7 +94,26 @@ describe('memoryTool — list', () => {
 
     const result = await memoryTool.handler({ action: 'list' }) as Record<string, unknown>;
     expect(result.session_context).toBeUndefined();
-    expect(result.count).toBe(1);
+    const count = result.count as { insights: number; checkpoints: number };
+    expect(count.insights).toBe(1);
+  });
+
+  it('also returns user-scoped checkpoints alongside insights', async () => {
+    (getInsights as Mock).mockResolvedValue({
+      insights: [{ content: 'note', tags: [], created_at: '2025-01-01' }],
+      count: 1,
+    });
+    (getCheckpointsForUser as Mock).mockResolvedValue({
+      checkpoints: [{ id: 'cp-1', key: 'progress', value: { content: 'shipped' }, created_at: '2025-01-02', session_id: 's-1' }],
+      count: 1,
+    });
+
+    const result = await memoryTool.handler({ action: 'list' }) as Record<string, unknown>;
+    expect(getCheckpointsForUser).toHaveBeenCalledTimes(1);
+    const checkpoints = result.checkpoints as Array<unknown>;
+    expect(checkpoints).toHaveLength(1);
+    const count = result.count as { insights: number; checkpoints: number };
+    expect(count.checkpoints).toBe(1);
   });
 });
 
@@ -100,9 +126,22 @@ describe('memoryTool — recall', () => {
     expect(callArgs.session_id).toBeUndefined();
   });
 
-  it('does NOT fetch checkpoints when no session_id is supplied', async () => {
+  it('fetches user-scoped checkpoints when no session_id is supplied', async () => {
     await memoryTool.handler({ action: 'recall' });
     expect(getCheckpoints).not.toHaveBeenCalled();
+    expect(getCheckpointsForUser).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns user-scoped checkpoints in the recall response', async () => {
+    (getCheckpointsForUser as Mock).mockResolvedValue({
+      checkpoints: [{ id: 'cp-1', key: 'progress', value: { content: 'shipped' }, created_at: '2025-01-02', session_id: 's-1' }],
+      count: 1,
+    });
+    const result = await memoryTool.handler({ action: 'recall' }) as Record<string, unknown>;
+    const cps = result.checkpoints as Array<Record<string, unknown>>;
+    expect(cps).toHaveLength(1);
+    expect(cps[0].id).toBe('cp-1');
+    expect((result.last_checkpoint as Record<string, unknown>).id).toBe('cp-1');
   });
 
   it('scopes both insights and checkpoints to an explicit session_id', async () => {
@@ -113,6 +152,7 @@ describe('memoryTool — recall', () => {
     expect(getCheckpoints).toHaveBeenCalledTimes(1);
     const cpArgs = (getCheckpoints as Mock).mock.calls[0][0];
     expect(cpArgs.session_id).toBe(EXPLICIT_SESSION);
+    expect(getCheckpointsForUser).not.toHaveBeenCalled();
   });
 
   it('forwards a content query string for ilike matching', async () => {

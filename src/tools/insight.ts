@@ -275,20 +275,33 @@ export async function recallInsights(args: {
     }
     const priorityItems = (throwOnError(await priorityQuery) ?? []) as Pick<Insight, 'content' | 'tags' | 'created_at'>[];
 
-    // Tier 2: query match (ilike on content) when a search term is provided
+    // Tier 2: query match — tokenized keyword search across content. Splits
+    // the query on whitespace and matches any token via OR'd ilike, so a
+    // single missing word doesn't suppress an otherwise-matching entry.
     let queryItems: Pick<Insight, 'content' | 'tags' | 'created_at'>[] = [];
     if (query) {
-      let contentQuery = supabase
-        .from('insights')
-        .select('content, tags, created_at')
-        .eq('user_id', user.id)
-        .ilike('content', `%${query}%`)
-        .order('created_at', { ascending: false })
-        .limit(limit);
-      if (session_id) {
-        contentQuery = contentQuery.eq('session_id', session_id);
+      const tokens = query
+        .split(/\s+/)
+        .map(t => t.trim())
+        .filter(t => t.length >= 2)
+        .slice(0, 8);
+
+      if (tokens.length > 0) {
+        const orExpr = tokens
+          .map(t => `content.ilike.%${t.replace(/[,%]/g, '')}%`)
+          .join(',');
+        let contentQuery = supabase
+          .from('insights')
+          .select('content, tags, created_at')
+          .eq('user_id', user.id)
+          .or(orExpr)
+          .order('created_at', { ascending: false })
+          .limit(limit);
+        if (session_id) {
+          contentQuery = contentQuery.eq('session_id', session_id);
+        }
+        queryItems = (throwOnError(await contentQuery) ?? []) as Pick<Insight, 'content' | 'tags' | 'created_at'>[];
       }
-      queryItems = (throwOnError(await contentQuery) ?? []) as Pick<Insight, 'content' | 'tags' | 'created_at'>[];
     }
 
     // Tier 3: recent items

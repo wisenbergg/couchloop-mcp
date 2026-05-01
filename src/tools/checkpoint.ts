@@ -5,6 +5,10 @@ import { logger } from '../utils/logger.js';
 import { getOrCreateSession } from './session-manager.js';
 import { storeContext } from './preserve-context.js';
 import { governancePostCheck } from '../governance/middleware.js';
+import { extractUserFromContext } from '../types/auth.js';
+
+// Loose UUID v4-ish recognizer (good enough for routing recall by id)
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function saveCheckpoint(args: unknown): Promise<CheckpointResponse | { error: string }> {
   try {
@@ -212,5 +216,99 @@ export async function getCheckpoints(args: { session_id?: string; auth?: { user_
   } catch (error) {
     logger.error('Error getting checkpoints:', error);
     return handleError(error);
+  }
+}
+
+/**
+ * getCheckpointsForUser — user-scoped checkpoint recall.
+ *
+ * Joins through `sessions.user_id` so checkpoints saved on any of the user's
+ * sessions are reachable from `memory.list()` / `memory.recall()` without
+ * forcing the caller to remember a session id.
+ *
+ * If `query` is provided:
+ *   - When it looks like a UUID, lookup by checkpoint id.
+ *   - Otherwise, tokenize on whitespace and match any token against `key`
+ *     (and stringified `value`) using `or(ilike.*)` — keyword search, not
+ *     semantic.
+ */
+export async function getCheckpointsForUser(args: {
+  auth?: { user_id?: string; client_id?: string; token?: string };
+  query?: string;
+  limit?: number;
+}): Promise<{
+  checkpoints: Array<{ id: string; key: string; value: unknown; created_at: string; session_id: string }>;
+  count: number;
+}> {
+  const { auth, query, limit = 5 } = args;
+  try {
+    const supabase = await getSupabaseClientAsync();
+    const externalUserId = await extractUserFromContext(auth);
+    const user = throwOnError(
+      await supabase
+        .from('users')
+        .select('id')
+        .eq('external_id', externalUserId)
+        .maybeSingle()
+    );
+
+    if (!user) {
+      return { checkpoints: [], count: 0 };
+    }
+
+    // ID lookup short-circuit
+    if (query && UUID_REGEX.test(query.trim())) {
+      const byId = throwOnError(
+        await supabase
+          .from('checkpoints')
+          .select('id, key, value, created_at, session_id, sessions!inner(user_id)')
+          .eq('id', query.trim())
+          .eq('sessions.user_id', user.id)
+          .maybeSingle()
+      );
+      if (byId) {
+        const { sessions: _omit, ...rest } = byId as Record<string, unknown>;
+        void _omit;
+        return { checkpoints: [rest as { id: string; key: string; value: unknown; created_at: string; session_id: string }], count: 1 };
+      }
+      return { checkpoints: [], count: 0 };
+    }
+
+    let q = supabase
+      .from('checkpoints')
+      .select('id, key, value, created_at, session_id, sessions!inner(user_id)')
+      .eq('sessions.user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    // Tokenized keyword match: any token matching `key` is a hit.
+    // (PostgREST cannot ilike against jsonb directly without a cast, so
+    // value-content search is best-effort via `value::text` cast not exposed
+    // via the JS client — keep search on `key` for now and rely on insights
+    // for content-level recall.)
+    if (query) {
+      const tokens = query
+        .split(/\s+/)
+        .map(t => t.trim())
+        .filter(t => t.length >= 2)
+        .slice(0, 6);
+      if (tokens.length > 0) {
+        const orExpr = tokens.map(t => `key.ilike.%${t.replace(/[,%]/g, '')}%`).join(',');
+        q = q.or(orExpr);
+      }
+    }
+
+    const rows = throwOnError(await q) as Array<Record<string, unknown>> | null;
+
+    const checkpoints = (rows ?? []).map(row => {
+      const { sessions: _omit, ...rest } = row;
+      void _omit;
+      return rest as { id: string; key: string; value: unknown; created_at: string; session_id: string };
+    });
+
+    return { checkpoints, count: checkpoints.length };
+  } catch (error) {
+    logger.error('Error getting checkpoints for user:', error);
+    return { checkpoints: [], count: 0 };
   }
 }

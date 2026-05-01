@@ -30,7 +30,7 @@ import { handleComprehensiveCodeReview } from './comprehensive-code-review.js';
 import { handleComprehensivePackageAudit } from './comprehensive-package-audit.js';
 import { handleSmartContext } from './smart-context.js';
 import { listJourneys, getJourneyStatus } from './journey.js';
-import { getCheckpoints } from './checkpoint.js';
+import { getCheckpoints, getCheckpointsForUser } from './checkpoint.js';
 import { getInsights, recallInsights } from './insight.js';
 import { handleVerify } from './verify.js';
 import { statusTool } from './status.js';
@@ -107,7 +107,7 @@ const ConversationInputSchema = z.object({
 export const memoryTool = {
   definition: {
     name: 'memory',
-    description: 'Save and retrieve context, insights, checkpoints, and decisions across conversations. Prevents AI amnesia. Use action "save" to store, "recall" to retrieve, "list" to browse. Use type "checkpoint" for sprint progress ("save where I am", "bookmark this"), type "decision" for architectural choices and milestones ("lock this in", "we decided on X"), type "constraint" for rules the AI must follow ("never do X again", "always ask before Y"). Constraints tagged "ai-mistake" are auto-saved by the review tool when it catches errors — recall these at the start of new conversations to avoid repeating past mistakes. Triggers: "remember this", "stash this context", "where did we leave off", "what did we decide", "what was the approach we picked", "load my previous context", "don\'t lose this", "never do that again". With no arguments, returns a summary of everything saved.',
+    description: 'Save and retrieve context, insights, checkpoints, and decisions across conversations. Prevents AI amnesia. Use action "save" to store, "recall" to retrieve, "list" to browse. Recall does keyword search (tokenized substring match across saved content and checkpoint keys), not semantic vector search; pass a UUID in `content` to look up a specific checkpoint by id. Use type "checkpoint" for sprint progress ("save where I am", "bookmark this"), type "decision" for architectural choices and milestones ("lock this in", "we decided on X"), type "constraint" for rules the AI must follow ("never do X again", "always ask before Y"). Constraints tagged "ai-mistake" are auto-saved by the review tool when it catches errors — recall these at the start of new conversations to avoid repeating past mistakes. Triggers: "remember this", "stash this context", "where did we leave off", "what did we decide", "what was the approach we picked", "load my previous context", "don\'t lose this", "never do that again". With no arguments, returns a summary of everything saved.',
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -119,7 +119,7 @@ export const memoryTool = {
       properties: {
         content: {
           type: 'string',
-          description: 'What to save or search for when recalling',
+          description: 'For save: text to store. For recall: keyword query (tokenized substring match) — or a checkpoint UUID for direct id lookup.',
         },
         action: {
           type: 'string',
@@ -206,18 +206,22 @@ export const memoryTool = {
 
       switch (action) {
         case 'recall': {
-          // Checkpoints are session-scoped (sprint progress markers) — only
-          // fetch when a session_id was explicitly provided. Insights are
-          // cross-session by default; only narrow when caller passes one.
+          // Checkpoints are stored per-session, but `recall` should reach
+          // every checkpoint the user has ever saved — not just the current
+          // session — otherwise saves are silently unrecoverable.
+          // When an explicit session_id is supplied we narrow to that
+          // session; otherwise we query across all of the user's sessions.
           const explicitSessionId = parsed.session_id;
+          const queryString = typeof parsed.content === 'string' ? parsed.content : undefined;
+
           const checkpointPromise = explicitSessionId
             ? getCheckpoints({ session_id: explicitSessionId, auth })
-            : Promise.resolve(null);
+            : getCheckpointsForUser({ auth, query: queryString, limit: 5 });
 
           const [checkpointData, insightData] = await Promise.all([
             checkpointPromise,
             recallInsights({
-              query: typeof parsed.content === 'string' ? parsed.content : undefined,
+              query: queryString,
               session_id: explicitSessionId,
               limit: 5,
               auth,
@@ -230,8 +234,14 @@ export const memoryTool = {
             : []);
           const rawInsights = ('insights' in insightData ? (insightData.insights as Array<Record<string, unknown>>) : []);
 
-          // Checkpoints come back oldest-first; reverse for recency, cap at 5
-          const recentCheckpoints = rawCheckpoints.slice(-5).reverse().map(cp => ({
+          // Per-session fetch returns oldest-first; user-scoped fetch returns
+          // newest-first. Normalize to newest-first, cap at 5.
+          const orderedCheckpoints = explicitSessionId
+            ? rawCheckpoints.slice(-5).reverse()
+            : rawCheckpoints.slice(0, 5);
+
+          const recentCheckpoints = orderedCheckpoints.map(cp => ({
+            id: cp['id'],
             key: cp['key'],
             value: cp['value'],
             saved: cp['created_at'],
@@ -244,8 +254,8 @@ export const memoryTool = {
           }));
 
           const summary: {
-            last_checkpoint: { key: unknown; value: unknown; saved: unknown } | null;
-            checkpoints: Array<{ key: unknown; value: unknown; saved: unknown }>;
+            last_checkpoint: { id: unknown; key: unknown; value: unknown; saved: unknown } | null;
+            checkpoints: Array<{ id: unknown; key: unknown; value: unknown; saved: unknown }>;
             recent_insights: Array<{ content: unknown; tags: unknown; saved: unknown }>;
             count: { checkpoints: number; insights: number };
           } = {
@@ -275,11 +285,38 @@ export const memoryTool = {
           // and contains nothing). Only honor session_id if the caller
           // explicitly passed one.
           const explicitSessionId = parsed.session_id;
-          return await getInsights({
-            session_id: explicitSessionId,
-            limit: 20,
-            auth,
-          });
+          const [insightResult, checkpointResult] = await Promise.all([
+            getInsights({
+              session_id: explicitSessionId,
+              limit: 20,
+              auth,
+            }),
+            explicitSessionId
+              ? getCheckpoints({ session_id: explicitSessionId, auth })
+              : getCheckpointsForUser({ auth, limit: 20 }),
+          ]);
+
+          const insights = ('insights' in insightResult ? (insightResult.insights as unknown[]) : []) ?? [];
+          const rawCps = (checkpointResult && 'checkpoints' in checkpointResult
+            ? (checkpointResult.checkpoints as Array<Record<string, unknown>>)
+            : []);
+          // Per-session fetch is oldest-first; user-scoped is newest-first.
+          const ordered = explicitSessionId ? [...rawCps].reverse() : rawCps;
+          const checkpoints = ordered.map(cp => ({
+            id: cp['id'],
+            key: cp['key'],
+            value: cp['value'],
+            saved: cp['created_at'],
+          }));
+
+          return {
+            insights,
+            checkpoints,
+            count: {
+              insights: insights.length,
+              checkpoints: checkpoints.length,
+            },
+          };
         }
         case 'save':
         default: {
