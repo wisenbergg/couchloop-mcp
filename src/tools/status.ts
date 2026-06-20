@@ -74,7 +74,8 @@ function parseSupabaseTimestamp(value: unknown): Date | null {
   // Supabase often returns "timestamp without time zone" as an ISO-like string
   // with no timezone suffix. Treat it as UTC to avoid local-time skew.
   const hasTimezone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(value);
-  const normalized = hasTimezone ? value : `${value}Z`;
+  const isoLike = value.includes(' ') ? value.replace(' ', 'T') : value;
+  const normalized = hasTimezone ? isoLike : `${isoLike}Z`;
   const parsed = new Date(normalized);
 
   return Number.isNaN(parsed.getTime()) ? null : parsed;
