@@ -16,6 +16,7 @@ RUN npm ci && \
 
 # Copy source code
 COPY src/ ./src/
+COPY scripts/ ./scripts/
 
 # Build TypeScript
 RUN npm run build
