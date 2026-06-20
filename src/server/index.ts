@@ -1014,6 +1014,8 @@ function startupOAuthGate(req: Request, res: Response, next: NextFunction): void
     "Link",
     `<${baseUrl}/.well-known/oauth-authorization-server>; rel=\"oauth-authorization-server\"`,
   );
+  res.setHeader("Location", oauthConnectUrl);
+  res.setHeader("MCP-OAuth-Authorization-URL", oauthConnectUrl);
 
   const acceptHeader = String(req.headers.accept || "");
   if (req.method === "GET" && acceptHeader.includes("text/html")) {
@@ -1021,32 +1023,13 @@ function startupOAuthGate(req: Request, res: Response, next: NextFunction): void
     return;
   }
 
-  const payload = {
-    jsonrpc: "2.0",
-    id: req.body?.id || null,
-    error: {
-      code: -32001,
-      message: "oauth_required",
-      data: {
-        message:
-          "OAuth consent is required at MCP startup before requests can proceed.",
-        oauth_connect_url: oauthConnectUrl,
-        oauth_open_in_new_tab: true,
-      },
-    },
-  };
-
-  if (acceptHeader.includes("text/event-stream")) {
-    res.status(200);
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
-    res.write(`event: message\ndata: ${JSON.stringify(payload)}\n\n`);
-    res.end();
-    return;
-  }
-
-  res.status(401).json(payload);
+  res.status(401).json({
+    error: "oauth_required",
+    message:
+      "OAuth consent is required at MCP startup before requests can proceed.",
+    oauth_connect_url: oauthConnectUrl,
+    oauth_open_in_new_tab: true,
+  });
 }
 
 /**
