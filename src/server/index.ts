@@ -168,6 +168,7 @@ function getExternalBaseUrl(req: Request): string {
       : undefined;
 
   const protocol =
+
     forwardedProto === "https" || forwardedProto === "http"
       ? forwardedProto
       : req.protocol;
@@ -900,8 +901,15 @@ app.options("/sse", (_req: Request, res: Response) => {
  * Streamable HTTP endpoint for ChatGPT MCP connection
  * Handles both SSE (GET) and HTTP messages (POST)
  */
-app.get("/sse", optionalAuth, rateLimit(100, 60000), handleSSE);
-app.post("/sse", optionalAuth, rateLimit(100, 60000), express.json(), handleSSE);
+app.get("/sse", optionalAuth, startupOAuthGate, rateLimit(100, 60000), handleSSE);
+app.post(
+  "/sse",
+  optionalAuth,
+  startupOAuthGate,
+  rateLimit(100, 60000),
+  express.json(),
+  handleSSE,
+);
 
 /**
  * OPTIONS /mcp
@@ -952,13 +960,109 @@ function showMCPInfo(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
+function buildRuntimeOAuthConnectUrl(req: Request): string | null {
+  const baseUrl = getExternalBaseUrl(req);
+  const clientId =
+    process.env.OAUTH_CONNECT_CLIENT_ID || process.env.OAUTH_CLIENT_ID || null;
+  const redirectUri =
+    process.env.OAUTH_CONNECT_REDIRECT_URI ||
+    process.env.OAUTH_HOSTED_CALLBACK_URI ||
+    `${baseUrl}/oauth/callback`;
+
+  if (!clientId) {
+    return null;
+  }
+
+  const url = new URL(`${baseUrl}/oauth/authorize`);
+  url.searchParams.set("client_id", clientId);
+  url.searchParams.set("redirect_uri", redirectUri);
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("scope", "read write");
+  url.searchParams.set("state", `mcp-startup-${Date.now()}`);
+  return url.toString();
+}
+
+function startupOAuthGate(req: Request, res: Response, next: NextFunction): void {
+  if (req.user) {
+    next();
+    return;
+  }
+
+  const hasSession =
+    typeof req.headers["mcp-session-id"] === "string" ||
+    typeof req.headers["x-session-id"] === "string";
+  const isInitialize = req.body?.method === "initialize";
+
+  // Challenge before first MCP request in a session.
+  if (!isInitialize && hasSession) {
+    next();
+    return;
+  }
+
+  const oauthConnectUrl = buildRuntimeOAuthConnectUrl(req);
+  if (!oauthConnectUrl) {
+    next();
+    return;
+  }
+
+  const baseUrl = getExternalBaseUrl(req);
+  res.setHeader(
+    "WWW-Authenticate",
+    `Bearer realm=\"couchloop\", authorization_uri=\"${oauthConnectUrl}\", scope=\"read write\"`,
+  );
+  res.setHeader(
+    "Link",
+    `<${baseUrl}/.well-known/oauth-authorization-server>; rel=\"oauth-authorization-server\"`,
+  );
+
+  const acceptHeader = String(req.headers.accept || "");
+  if (req.method === "GET" && acceptHeader.includes("text/html")) {
+    res.redirect(302, oauthConnectUrl);
+    return;
+  }
+
+  const payload = {
+    jsonrpc: "2.0",
+    id: req.body?.id || null,
+    error: {
+      code: -32001,
+      message: "oauth_required",
+      data: {
+        message:
+          "OAuth consent is required at MCP startup before requests can proceed.",
+        oauth_connect_url: oauthConnectUrl,
+        oauth_open_in_new_tab: true,
+      },
+    },
+  };
+
+  if (acceptHeader.includes("text/event-stream")) {
+    res.status(200);
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.write(`event: message\ndata: ${JSON.stringify(payload)}\n\n`);
+    res.end();
+    return;
+  }
+
+  res.status(401).json(payload);
+}
+
 /**
  * GET/POST /mcp
  * MCP endpoint for ChatGPT Developer Mode
  * Uses custom handler that directly implements MCP protocol
  */
-app.get("/mcp", showMCPInfo, optionalAuth, rateLimit(100, 60000), handleSSE);
-app.post("/mcp", optionalAuth, rateLimit(100, 60000), handleSSE);
+app.get(
+  "/mcp",
+  showMCPInfo,
+  optionalAuth,
+  startupOAuthGate,
+  rateLimit(100, 60000),
+  handleSSE,
+);
+app.post("/mcp", optionalAuth, startupOAuthGate, rateLimit(100, 60000), handleSSE);
 
 /**
  * GET /.well-known/mcp/server-card.json
