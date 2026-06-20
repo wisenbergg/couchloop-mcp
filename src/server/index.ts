@@ -1,6 +1,7 @@
 // Load environment variables FIRST before any other imports
 import crypto from "crypto";
 import { config } from "dotenv";
+import fs from "fs";
 
 // Only load .env.local for local development — production & staging use platform env vars
 if (!process.env.NODE_ENV || process.env.NODE_ENV === "development") {
@@ -70,6 +71,72 @@ function getAllowedOrigins(): string[] {
     'http://localhost:3001',
     'http://localhost:5173',
   ];
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function renderConsentFallback(params: {
+  clientId: string;
+  redirectUri: string;
+  state: string;
+  scope: string;
+}): string {
+  const clientId = escapeHtml(params.clientId);
+  const redirectUri = encodeURIComponent(params.redirectUri);
+  const state = encodeURIComponent(params.state);
+  const scope = encodeURIComponent(params.scope);
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CouchLoop Authorization</title>
+    <style>
+      body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; margin: 0; background: #f6f8fb; color: #0f172a; }
+      .wrap { max-width: 640px; margin: 48px auto; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; }
+      h1 { margin: 0 0 8px; font-size: 22px; }
+      p { margin: 0 0 12px; line-height: 1.5; }
+      code { background: #f1f5f9; padding: 2px 6px; border-radius: 6px; }
+      .actions { margin-top: 20px; display: flex; gap: 12px; }
+      .btn { appearance: none; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px 14px; font-size: 14px; cursor: pointer; text-decoration: none; }
+      .btn-primary { background: #0f172a; color: #fff; border-color: #0f172a; }
+      .btn-secondary { background: #fff; color: #0f172a; }
+      .muted { color: #64748b; font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <h1>Authorize CouchLoop Access</h1>
+      <p>The client <code>${clientId}</code> is requesting access with scope <code>${escapeHtml(params.scope)}</code>.</p>
+      <p class="muted">This fallback consent page is shown because the template asset was unavailable at runtime.</p>
+      <div class="actions">
+        <a class="btn btn-primary" href="/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&state=${state}&scope=${scope}&consent=approved">Authorize</a>
+        <a class="btn btn-secondary" href="${escapeHtml(params.redirectUri)}?error=access_denied&state=${state}">Cancel</a>
+      </div>
+    </main>
+  </body>
+</html>`;
+}
+
+function buildOAuthMetadata(baseUrl: string) {
+  return {
+    issuer: baseUrl,
+    authorization_endpoint: `${baseUrl}/oauth/authorize`,
+    token_endpoint: `${baseUrl}/oauth/token`,
+    revocation_endpoint: `${baseUrl}/oauth/revoke`,
+    response_types_supported: ["code"],
+    grant_types_supported: ["authorization_code", "refresh_token"],
+    scopes_supported: ["read", "write", "crisis", "memory"],
+    token_endpoint_auth_methods_supported: ["client_secret_post"],
+  };
 }
 
 // Serve static files from public directory
@@ -155,9 +222,30 @@ app.get(
 
       // If consent is not approved, show consent screen
       if (consent !== "approved") {
-        // Serve the consent page
+        // Serve the consent page, fall back to an inline template if the built asset is missing.
         const consentPath = path.join(__dirname, "views", "consent.html");
-        res.sendFile(consentPath);
+        res.sendFile(consentPath, (err) => {
+          if (!err || res.headersSent) {
+            return;
+          }
+
+          logger.error("Failed to serve consent template, using fallback HTML", {
+            consentPath,
+            error: err.message,
+          });
+
+          res
+            .status(200)
+            .type("html")
+            .send(
+              renderConsentFallback({
+                clientId: String(client_id),
+                redirectUri: String(redirect_uri),
+                state: String(state || ""),
+                scope: String(scope || "read write"),
+              }),
+            );
+        });
         return;
       }
 
@@ -495,19 +583,18 @@ app.get(
   "/.well-known/oauth-authorization-server",
   (req: Request, res: Response) => {
     const baseUrl = `${req.protocol}://${req.get("host")}`;
-
-    res.json({
-      issuer: baseUrl,
-      authorization_endpoint: `${baseUrl}/oauth/authorize`,
-      token_endpoint: `${baseUrl}/oauth/token`,
-      revocation_endpoint: `${baseUrl}/oauth/revoke`,
-      response_types_supported: ["code"],
-      grant_types_supported: ["authorization_code", "refresh_token"],
-      scopes_supported: ["read", "write", "crisis", "memory"],
-      token_endpoint_auth_methods_supported: ["client_secret_post"],
-    });
+    res.json(buildOAuthMetadata(baseUrl));
   },
 );
+
+/**
+ * GET /.well-known/openid-configuration
+ * Compatibility alias for clients expecting OIDC discovery path.
+ */
+app.get("/.well-known/openid-configuration", (req: Request, res: Response) => {
+  const baseUrl = `${req.protocol}://${req.get("host")}`;
+  res.json(buildOAuthMetadata(baseUrl));
+});
 
 /**
  * GET /.well-known/ai-plugin.json
@@ -705,12 +792,27 @@ async function startServer() {
     logger.info("V2 orchestration initialized");
 
     app.listen(PORT, () => {
+      const consentPath = path.join(__dirname, "views", "consent.html");
+      const hasConsentTemplate = fs.existsSync(consentPath);
+
       logger.info(`OAuth server running on port ${PORT}`);
       logger.info(
         `Authorization endpoint: http://localhost:${PORT}/oauth/authorize`,
       );
       logger.info(`Token endpoint: http://localhost:${PORT}/oauth/token`);
+      logger.info(
+        `OAuth metadata endpoint: http://localhost:${PORT}/.well-known/oauth-authorization-server`,
+      );
+      logger.info(
+        `OIDC metadata alias: http://localhost:${PORT}/.well-known/openid-configuration`,
+      );
       logger.info(`API endpoints: http://localhost:${PORT}/api/mcp/*`);
+
+      if (!hasConsentTemplate) {
+        logger.warn(
+          `Consent template missing at ${consentPath}; inline fallback renderer is active.`,
+        );
+      }
     });
   } catch (error) {
     logger.error("Failed to start server:", error);

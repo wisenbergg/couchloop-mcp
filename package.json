@@ -20,6 +20,7 @@
     "dist/server/*.js",
     "dist/server/*.d.ts",
     "dist/server/*.map",
+    "dist/server/views/**",
     "dist/server/middleware/",
     "dist/tools/*.js",
     "dist/tools/*.d.ts",
@@ -39,8 +40,8 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "build": "tsc",
-    "build:v2": "tsc && echo 'V2 optimizations applied'",
+    "build": "tsc && node scripts/copy-server-assets.mjs",
+    "build:v2": "tsc && node scripts/copy-server-assets.mjs && echo 'V2 optimizations applied'",
     "start": "node dist/server/index.js",
     "start:mcp": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
