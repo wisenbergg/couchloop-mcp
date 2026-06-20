@@ -1,8 +1,8 @@
 // Load environment variables FIRST before any other imports
-import crypto from "crypto";
 import { config } from "dotenv";
 import fs from "fs";
 
+import crypto from "crypto";
 // Only load .env.local for local development — production & staging use platform env vars
 if (!process.env.NODE_ENV || process.env.NODE_ENV === "development") {
   config({ path: ".env.local" });
@@ -139,6 +139,47 @@ function buildOAuthMetadata(baseUrl: string) {
   };
 }
 
+const OAUTH_IDENTITY_COOKIE = "couchloop_eq_identity";
+
+function getOrCreateBrowserSubject(req: Request, res: Response): string {
+  const existing = req.cookies?.[OAUTH_IDENTITY_COOKIE];
+  if (typeof existing === "string" && existing.length >= 24) {
+    return existing;
+  }
+
+  const created = crypto.randomBytes(24).toString("hex");
+  res.cookie(OAUTH_IDENTITY_COOKIE, created, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 1000 * 60 * 60 * 24 * 365,
+  });
+  return created;
+}
+
+function buildStableExternalId(clientId: string, subject: string): string {
+  const hash = crypto
+    .createHash("sha256")
+    .update(`${clientId}:${subject}`)
+    .digest("hex");
+  return `anon_${hash.substring(0, 24)}`;
+}
+
+function buildRedirectErrorUrl(params: {
+  redirectUri: string;
+  state?: string;
+  error: string;
+  errorDescription: string;
+}): string {
+  const deniedUrl = new URL(params.redirectUri);
+  deniedUrl.searchParams.set("error", params.error);
+  deniedUrl.searchParams.set("error_description", params.errorDescription);
+  if (params.state) {
+    deniedUrl.searchParams.set("state", params.state);
+  }
+  return deniedUrl.toString();
+}
+
 function getAllowedCallbackReturnOrigins(baseUrl: string): string[] {
   const configured = process.env.OAUTH_CALLBACK_ALLOWED_ORIGINS?.split(",")
     .map((item) => item.trim())
@@ -220,22 +261,106 @@ function renderHostedCallbackPage(params: {
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${title} | CouchLoop OAuth</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <style>
-      body { margin: 0; background: #f8fafc; color: #0f172a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-      main { max-width: 700px; margin: 40px auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; }
-      h1 { margin: 0 0 10px; font-size: 24px; }
+      :root {
+        --primary: #6366f1;
+        --primary-dark: #4f46e5;
+        --secondary: #10b981;
+        --background: #0f172a;
+        --surface: #1e293b;
+        --surface-light: #334155;
+        --text: #f8fafc;
+        --text-muted: #94a3b8;
+        --border: #475569;
+        --gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--background);
+        color: var(--text);
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        min-height: 100vh;
+      }
+      main {
+        max-width: 760px;
+        margin: 48px auto;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 28px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 18px;
+      }
+      .brand-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      .brand-icon img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+      }
+      .brand-text {
+        font-size: 22px;
+        font-weight: 700;
+      }
+      .brand-text span {
+        color: var(--primary);
+      }
+      h1 {
+        margin: 0 0 10px;
+        font-size: 28px;
+        line-height: 1.2;
+      }
       p { margin: 0 0 12px; line-height: 1.5; }
-      .muted { color: #475569; }
-      .meta { margin-top: 16px; padding: 12px; background: #f1f5f9; border-radius: 8px; border: 1px solid #cbd5e1; }
+      .muted { color: var(--text-muted); }
+      .meta {
+        margin-top: 16px;
+        padding: 14px;
+        background: var(--surface-light);
+        border-radius: 10px;
+        border: 1px solid var(--border);
+      }
       .meta dt { font-weight: 600; }
-      .meta dd { margin: 0 0 8px; word-break: break-all; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size: 13px; }
+      .meta dd {
+        margin: 0 0 8px;
+        word-break: break-all;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+        font-size: 13px;
+      }
       .actions { display: flex; gap: 10px; margin-top: 16px; }
-      .btn { border: 1px solid #0f172a; border-radius: 8px; padding: 10px 14px; cursor: pointer; background: #0f172a; color: #ffffff; text-decoration: none; font-size: 14px; }
-      .btn-secondary { background: #ffffff; color: #0f172a; border-color: #cbd5e1; }
+      .btn {
+        border: 1px solid var(--primary);
+        border-radius: 8px;
+        padding: 10px 14px;
+        cursor: pointer;
+        background: var(--gradient);
+        color: #ffffff;
+        text-decoration: none;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .btn-secondary {
+        background: var(--surface-light);
+        color: var(--text);
+        border-color: var(--border);
+      }
     </style>
   </head>
   <body>
     <main>
+      <div class="brand">
+        <div class="brand-icon"><img src="/logo.png" alt="CouchLoop EQ" /></div>
+        <div class="brand-text">CouchLoop <span>EQ</span></div>
+      </div>
       <h1>${title}</h1>
       <p>${summary}</p>
       <p class="muted" id="redirect-note"></p>
@@ -389,15 +514,9 @@ app.get(
         return;
       }
 
-      // Generate anonymous but persistent user ID based on client and state
-      // Uses SHA-256 hash for cryptographic security (not reversible like base64)
-      const anonymousId = `${client_id}_${state || "default"}_${Date.now()}`;
-      const hash = crypto
-        .createHash("sha256")
-        .update(anonymousId)
-        .digest("hex");
-      const hashedId = hash.substring(0, 16);
-      const externalId = `anon_${hashedId}`;
+      // Resolve a stable pseudonymous subject per browser to preserve continuity.
+      const subject = getOrCreateBrowserSubject(req, res);
+      const externalId = buildStableExternalId(String(client_id), subject);
 
       const userId = await oauthServer.getOrCreateUser(externalId);
       const code = await oauthServer.generateAuthCode(
@@ -417,6 +536,97 @@ app.get(
       res.redirect(redirectUrl.toString());
     } catch (error) {
       logger.error("Authorization error:", error);
+      res.status(500).json({
+        error: "server_error",
+        error_description: "Internal server error",
+      });
+    }
+  },
+);
+
+/**
+ * POST /oauth/authorize/consent
+ * Handles approve/deny decisions from consent page with server-side validation.
+ */
+app.post(
+  "/oauth/authorize/consent",
+  rateLimit(20, 60000),
+  async (req: Request, res: Response) => {
+    try {
+      const { client_id, redirect_uri, response_type, scope, state, decision } =
+        req.body as Record<string, string | undefined>;
+
+      if (!client_id || !redirect_uri) {
+        res.status(400).json({
+          error: "invalid_request",
+          error_description: "Missing required parameters",
+        });
+        return;
+      }
+
+      if (response_type && response_type !== "code") {
+        res.status(400).json({
+          error: "unsupported_response_type",
+          error_description: "Only authorization code flow is supported",
+        });
+        return;
+      }
+
+      const client = await oauthServer.validateClient(client_id);
+      if (!client) {
+        res.status(400).json({
+          error: "invalid_client",
+          error_description: "Unknown client",
+        });
+        return;
+      }
+
+      if (!client.redirectUris.includes(redirect_uri)) {
+        logger.warn(
+          `Invalid redirect_uri attempted in consent POST: ${redirect_uri} for client: ${client_id}`,
+        );
+        res.status(400).json({
+          error: "invalid_request",
+          error_description: "Invalid redirect_uri",
+        });
+        return;
+      }
+
+      if (decision !== "approve" && decision !== "deny") {
+        res.status(400).json({
+          error: "invalid_request",
+          error_description: "Invalid consent decision",
+        });
+        return;
+      }
+
+      if (decision === "deny") {
+        res.redirect(
+          buildRedirectErrorUrl({
+            redirectUri: redirect_uri,
+            state,
+            error: "access_denied",
+            errorDescription: "User denied access",
+          }),
+        );
+        return;
+      }
+
+      const authorizeUrl = new URL(
+        `${req.protocol}://${req.get("host")}/oauth/authorize`,
+      );
+      authorizeUrl.searchParams.set("client_id", client_id);
+      authorizeUrl.searchParams.set("redirect_uri", redirect_uri);
+      authorizeUrl.searchParams.set("response_type", "code");
+      authorizeUrl.searchParams.set("scope", scope || "read write");
+      authorizeUrl.searchParams.set("consent", "approved");
+      if (state) {
+        authorizeUrl.searchParams.set("state", state);
+      }
+
+      res.redirect(authorizeUrl.toString());
+    } catch (error) {
+      logger.error("Consent submission error:", error);
       res.status(500).json({
         error: "server_error",
         error_description: "Internal server error",
