@@ -91,11 +91,21 @@ function renderConsentFallback(params: {
   redirectUri: string;
   state: string;
   scope: string;
+  codeChallenge?: string;
+  codeChallengeMethod?: string;
 }): string {
   const clientId = escapeHtml(params.clientId);
   const redirectUri = encodeURIComponent(params.redirectUri);
   const state = encodeURIComponent(params.state);
   const scope = encodeURIComponent(params.scope);
+  const pkceParams = [
+    params.codeChallenge
+      ? `&code_challenge=${encodeURIComponent(params.codeChallenge)}`
+      : "",
+    params.codeChallengeMethod
+      ? `&code_challenge_method=${encodeURIComponent(params.codeChallengeMethod)}`
+      : "",
+  ].join("");
 
   return `<!doctype html>
 <html lang="en">
@@ -122,7 +132,7 @@ function renderConsentFallback(params: {
       <p>The client <code>${clientId}</code> is requesting access with scope <code>${escapeHtml(params.scope)}</code>.</p>
       <p class="muted">This fallback consent page is shown because the template asset was unavailable at runtime.</p>
       <div class="actions">
-        <a class="btn btn-primary" href="/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&state=${state}&scope=${scope}&consent=approved">Authorize</a>
+        <a class="btn btn-primary" href="/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&state=${state}&scope=${scope}&consent=approved${pkceParams}">Authorize</a>
         <a class="btn btn-secondary" href="${escapeHtml(params.redirectUri)}?error=access_denied&state=${state}">Cancel</a>
       </div>
     </main>
@@ -139,7 +149,8 @@ function buildOAuthMetadata(baseUrl: string) {
     response_types_supported: ["code"],
     grant_types_supported: ["authorization_code", "refresh_token"],
     scopes_supported: ["read", "write", "crisis", "memory"],
-    token_endpoint_auth_methods_supported: ["client_secret_post"],
+    token_endpoint_auth_methods_supported: ["client_secret_post", "none"],
+    code_challenge_methods_supported: ["S256", "plain"],
   };
 }
 
@@ -461,7 +472,16 @@ app.get(
   rateLimit(10, 60000),
   async (req: Request, res: Response) => {
     try {
-      const { client_id, redirect_uri, response_type, scope, state, consent } =
+      const {
+        client_id,
+        redirect_uri,
+        response_type,
+        scope,
+        state,
+        consent,
+        code_challenge,
+        code_challenge_method,
+      } =
         req.query;
 
       // Validate required parameters
@@ -477,6 +497,27 @@ app.get(
         res.status(400).json({
           error: "unsupported_response_type",
           error_description: "Only authorization code flow is supported",
+        });
+        return;
+      }
+
+      const normalizedChallengeMethod =
+        code_challenge_method === "S256" || code_challenge_method === "plain"
+          ? code_challenge_method
+          : undefined;
+
+      if (code_challenge && !normalizedChallengeMethod) {
+        res.status(400).json({
+          error: "invalid_request",
+          error_description: "code_challenge_method must be S256 or plain when code_challenge is provided",
+        });
+        return;
+      }
+
+      if (normalizedChallengeMethod && !code_challenge) {
+        res.status(400).json({
+          error: "invalid_request",
+          error_description: "code_challenge is required when code_challenge_method is provided",
         });
         return;
       }
@@ -526,6 +567,8 @@ app.get(
                 redirectUri: String(redirect_uri),
                 state: String(state || ""),
                 scope: String(scope || "read write"),
+                codeChallenge: typeof code_challenge === "string" ? code_challenge : undefined,
+                codeChallengeMethod: normalizedChallengeMethod,
               }),
             );
         });
@@ -544,6 +587,8 @@ app.get(
         userId,
         redirect_uri as string,
         (scope as string) || "read write",
+        typeof code_challenge === "string" ? code_challenge : undefined,
+        normalizedChallengeMethod,
       );
 
       // Redirect back to client with authorization code
@@ -573,7 +618,16 @@ app.post(
   rateLimit(20, 60000),
   async (req: Request, res: Response) => {
     try {
-      const { client_id, redirect_uri, response_type, scope, state, decision } =
+      const {
+        client_id,
+        redirect_uri,
+        response_type,
+        scope,
+        state,
+        decision,
+        code_challenge,
+        code_challenge_method,
+      } =
         req.body as Record<string, string | undefined>;
 
       if (!client_id || !redirect_uri) {
@@ -638,6 +692,12 @@ app.post(
       authorizeUrl.searchParams.set("response_type", "code");
       authorizeUrl.searchParams.set("scope", scope || "read write");
       authorizeUrl.searchParams.set("consent", "approved");
+      if (code_challenge) {
+        authorizeUrl.searchParams.set("code_challenge", code_challenge);
+      }
+      if (code_challenge_method) {
+        authorizeUrl.searchParams.set("code_challenge_method", code_challenge_method);
+      }
       if (state) {
         authorizeUrl.searchParams.set("state", state);
       }
@@ -708,15 +768,25 @@ app.post(
         code,
         client_id,
         client_secret,
+        code_verifier,
         redirect_uri,
         refresh_token,
       } = req.body;
 
       if (grant_type === "authorization_code") {
-        if (!code || !client_id || !client_secret || !redirect_uri) {
+        if (!code || !client_id || !redirect_uri) {
           res.status(400).json({
             error: "invalid_request",
-            error_description: "Missing required parameters",
+            error_description:
+              "Missing required parameters. Provide code, client_id, redirect_uri, and either client_secret or code_verifier.",
+          });
+          return;
+        }
+
+        if (!client_secret && !code_verifier) {
+          res.status(400).json({
+            error: "invalid_request",
+            error_description: "Either client_secret or code_verifier is required",
           });
           return;
         }
@@ -724,8 +794,9 @@ app.post(
         const tokens = await oauthServer.exchangeCodeForToken(
           code,
           client_id,
-          client_secret,
+          typeof client_secret === "string" ? client_secret : undefined,
           redirect_uri,
+          typeof code_verifier === "string" ? code_verifier : undefined,
         );
 
         res.json(tokens);

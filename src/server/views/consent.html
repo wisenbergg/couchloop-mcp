@@ -459,6 +459,8 @@
             <input type="hidden" name="response_type" id="responseType" value="code">
             <input type="hidden" name="scope" id="scope" value="">
             <input type="hidden" name="state" id="state" value="">
+            <input type="hidden" name="code_challenge" id="codeChallenge" value="">
+            <input type="hidden" name="code_challenge_method" id="codeChallengeMethod" value="">
 
             <div class="action-buttons">
                 <button type="submit" class="btn btn-deny" id="denyBtn" name="decision" value="deny">
@@ -490,6 +492,8 @@
         document.getElementById('responseType').value = urlParams.get('response_type') || 'code';
         document.getElementById('scope').value = urlParams.get('scope') || '';
         document.getElementById('state').value = urlParams.get('state') || '';
+        document.getElementById('codeChallenge').value = urlParams.get('code_challenge') || '';
+        document.getElementById('codeChallengeMethod').value = urlParams.get('code_challenge_method') || '';
 
         // Customize based on client
         const clientConfigs = {

@@ -22,6 +22,33 @@ import { setupResources } from "../resources/index.js";
 import { setupTools } from "../tools/index.js";
 import { logger } from "../utils/logger.js";
 
+function resolveOAuthConnectConfig(req: Request): {
+  clientId: string | null;
+  redirectUri: string | null;
+} {
+  const baseUrl = getExternalBaseUrl(req);
+  const clientId =
+    process.env.OAUTH_CONNECT_CLIENT_ID ||
+    process.env.OAUTH_CLIENT_ID ||
+    null;
+  const redirectUri =
+    process.env.OAUTH_CONNECT_REDIRECT_URI ||
+    process.env.OAUTH_HOSTED_CALLBACK_URI ||
+    `${baseUrl}/oauth/callback`;
+
+  if (!clientId) {
+    return {
+      clientId: null,
+      redirectUri: null,
+    };
+  }
+
+  return {
+    clientId,
+    redirectUri,
+  };
+}
+
 function getExternalBaseUrl(req: Request): string {
   const forwardedProtoRaw = req.headers["x-forwarded-proto"];
   const forwardedHostRaw = req.headers["x-forwarded-host"];
@@ -44,8 +71,6 @@ function getExternalBaseUrl(req: Request): string {
 }
 
 function buildInitializeInstructions(req: Request): string {
-  const baseUrl = getExternalBaseUrl(req);
-
   if (req.user) {
     return [
       "Authentication status: authenticated.",
@@ -53,28 +78,37 @@ function buildInitializeInstructions(req: Request): string {
     ].join("\n");
   }
 
-  const oauthState = `mcp-init-${Date.now()}`;
-  const connectUrl = new URL(`${baseUrl}/oauth/authorize`);
-  connectUrl.searchParams.set("client_id", "couchloop_chatgpt");
-  connectUrl.searchParams.set("redirect_uri", `${baseUrl}/oauth/callback`);
-  connectUrl.searchParams.set("response_type", "code");
-  connectUrl.searchParams.set("scope", "read write");
-  connectUrl.searchParams.set("state", oauthState);
+  const oauthConnectUrl = buildOAuthConnectUrl(req);
+
+  if (!oauthConnectUrl) {
+    return [
+      "Authentication status: unauthenticated.",
+      "Identity continuity: workspace-scoped-only until OAuth is connected.",
+      "OAuth connect link is not configured for this deployment.",
+      "Set OAUTH_CONNECT_CLIENT_ID (or OAUTH_CLIENT_ID) to enable one-click OAuth connect prompts.",
+    ].join("\n");
+  }
 
   return [
     "Authentication status: unauthenticated.",
     "Identity continuity: workspace-scoped-only until OAuth is connected.",
     "Trigger OAuth sign-in on initialize by redirecting the user to:",
-    `oauth_connect_url=${connectUrl.toString()}`,
+    `oauth_connect_url=${oauthConnectUrl}`,
   ].join("\n");
 }
 
-function buildOAuthConnectUrl(req: Request): string {
+function buildOAuthConnectUrl(req: Request): string | null {
   const baseUrl = getExternalBaseUrl(req);
+  const oauthConfig = resolveOAuthConnectConfig(req);
+
+  if (!oauthConfig.clientId || !oauthConfig.redirectUri) {
+    return null;
+  }
+
   const oauthState = `mcp-connect-${Date.now()}`;
   const connectUrl = new URL(`${baseUrl}/oauth/authorize`);
-  connectUrl.searchParams.set("client_id", "couchloop_chatgpt");
-  connectUrl.searchParams.set("redirect_uri", `${baseUrl}/oauth/callback`);
+  connectUrl.searchParams.set("client_id", oauthConfig.clientId);
+  connectUrl.searchParams.set("redirect_uri", oauthConfig.redirectUri);
   connectUrl.searchParams.set("response_type", "code");
   connectUrl.searchParams.set("scope", "read write");
   connectUrl.searchParams.set("state", oauthState);
@@ -260,7 +294,7 @@ async function createMCPServer(req: Request): Promise<Server> {
   server.setRequestHandler(
     CallToolRequestSchema,
     async (request: CallToolRequest) => {
-      if (!req.user && !oauthPromptShown) {
+      if (!req.user && !oauthPromptShown && oauthConnectUrl) {
         oauthPromptShown = true;
         return {
           isError: true,

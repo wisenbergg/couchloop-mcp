@@ -23,6 +23,8 @@ interface SubjectLink {
   user_id: string;
 }
 
+type CodeChallengeMethod = "plain" | "S256";
+
 export class OAuthServer {
   private readonly jwtSecret: string;
   private readonly jwtExpiresIn: string;
@@ -97,6 +99,8 @@ export class OAuthServer {
     userId: string,
     redirectUri: string,
     scope: string = "read write",
+    codeChallenge?: string,
+    codeChallengeMethod?: CodeChallengeMethod,
   ): Promise<string> {
     const supabase = getSupabaseClient();
     const code = uuidv4();
@@ -110,6 +114,8 @@ export class OAuthServer {
           client_id: clientId,
           redirect_uri: redirectUri,
           scope,
+          code_challenge: codeChallenge || null,
+          code_challenge_method: codeChallengeMethod || null,
           expires_at: expiresAt,
           used: false,
         }).select(),
@@ -118,6 +124,27 @@ export class OAuthServer {
       logger.info(`Generated auth code for user ${userId}, client ${clientId}`);
       return code;
     } catch (error) {
+      // Backward compatibility for databases that do not yet have PKCE columns.
+      const message = error instanceof Error ? error.message : "";
+      if (message.includes("code_challenge") || message.includes("code_challenge_method")) {
+        throwOnError(
+          await supabase.from("authorization_codes").insert({
+            code,
+            user_id: userId,
+            client_id: clientId,
+            redirect_uri: redirectUri,
+            scope,
+            expires_at: expiresAt,
+            used: false,
+          }).select(),
+        );
+
+        logger.warn(
+          "Generated auth code without PKCE columns; apply migration 0006_add_pkce_to_authorization_codes.sql",
+        );
+        return code;
+      }
+
       logger.error("Error generating auth code:", error);
       throw new Error("Failed to generate authorization code");
     }
@@ -129,8 +156,9 @@ export class OAuthServer {
   async exchangeCodeForToken(
     code: string,
     clientId: string,
-    clientSecret: string,
+    clientSecret: string | undefined,
     redirectUri: string,
+    codeVerifier?: string,
   ): Promise<{
     access_token: string;
     refresh_token?: string;
@@ -141,8 +169,12 @@ export class OAuthServer {
     const supabase = getSupabaseClient();
 
     try {
+      const usingClientSecret = typeof clientSecret === "string" && clientSecret.length > 0;
+
       // Validate client
-      const validClient = await this.validateClient(clientId, clientSecret);
+      const validClient = usingClientSecret
+        ? await this.validateClient(clientId, clientSecret)
+        : await this.validateClient(clientId);
       if (!validClient) {
         throw new Error("Invalid client credentials");
       }
@@ -159,6 +191,34 @@ export class OAuthServer {
 
       if (!authCode) {
         throw new Error("Invalid authorization code");
+      }
+
+      const storedCodeChallenge =
+        typeof authCode.code_challenge === "string" && authCode.code_challenge.length > 0
+          ? authCode.code_challenge
+          : null;
+      const storedChallengeMethod =
+        authCode.code_challenge_method === "S256" || authCode.code_challenge_method === "plain"
+          ? authCode.code_challenge_method
+          : "plain";
+
+      // Public-client path, require PKCE when no client secret is supplied.
+      if (!usingClientSecret) {
+        if (!storedCodeChallenge) {
+          throw new Error("PKCE is required when client_secret is not provided");
+        }
+        if (!codeVerifier || codeVerifier.length < 43 || codeVerifier.length > 128) {
+          throw new Error("Invalid or missing code_verifier");
+        }
+
+        const expectedChallenge =
+          storedChallengeMethod === "S256"
+            ? nodeCrypto.createHash("sha256").update(codeVerifier).digest("base64url")
+            : codeVerifier;
+
+        if (expectedChallenge !== storedCodeChallenge) {
+          throw new Error("Invalid code_verifier");
+        }
       }
 
       // Check if code is expired (Supabase returns ISO strings)
