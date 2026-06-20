@@ -47,6 +47,17 @@ app.use(
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
         imgSrc: ["'self'", "data:"],
         connectSrc: ["'self'"],
+        // OAuth consent form must redirect to client redirect URIs:
+        // loopback (VS Code, Cursor, Claude Desktop) and any HTTPS host (ChatGPT, Claude.ai, vscode.dev).
+        formAction: [
+          "'self'",
+          "http://127.0.0.1:*",
+          "http://localhost:*",
+          "https:",
+        ],
+        // Disabled because upgrade-insecure-requests would rewrite the
+        // http://127.0.0.1 OAuth callback to https and break loopback delivery.
+        upgradeInsecureRequests: null,
       },
     },
     crossOriginEmbedderPolicy: false, // Allow embedding for MCP clients
