@@ -1005,11 +1005,11 @@ function startupOAuthGate(req: Request, res: Response, next: NextFunction): void
   const baseUrl = getExternalBaseUrl(req);
   res.setHeader(
     "WWW-Authenticate",
-    `Bearer realm=\"couchloop\", authorization_uri=\"${oauthConnectUrl}\", scope=\"read write\"`,
+    `Bearer realm="couchloop", authorization_uri="${oauthConnectUrl}", scope="read write"`,
   );
   res.setHeader(
     "Link",
-    `<${baseUrl}/.well-known/oauth-authorization-server>; rel=\"oauth-authorization-server\"`,
+    `<${baseUrl}/.well-known/oauth-authorization-server>; rel="oauth-authorization-server"`,
   );
   res.setHeader("Location", oauthConnectUrl);
   res.setHeader("MCP-OAuth-Authorization-URL", oauthConnectUrl);
