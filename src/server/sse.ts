@@ -22,6 +22,53 @@ import { setupResources } from "../resources/index.js";
 import { setupTools } from "../tools/index.js";
 import { logger } from "../utils/logger.js";
 
+function getExternalBaseUrl(req: Request): string {
+  const forwardedProtoRaw = req.headers["x-forwarded-proto"];
+  const forwardedHostRaw = req.headers["x-forwarded-host"];
+
+  const forwardedProto =
+    typeof forwardedProtoRaw === "string"
+      ? forwardedProtoRaw.split(",")[0]?.trim().toLowerCase()
+      : undefined;
+  const forwardedHost =
+    typeof forwardedHostRaw === "string"
+      ? forwardedHostRaw.split(",")[0]?.trim()
+      : undefined;
+
+  const protocol =
+    forwardedProto === "https" || forwardedProto === "http"
+      ? forwardedProto
+      : req.protocol;
+  const host = forwardedHost || req.get("host");
+  return `${protocol}://${host}`;
+}
+
+function buildInitializeInstructions(req: Request): string {
+  const baseUrl = getExternalBaseUrl(req);
+
+  if (req.user) {
+    return [
+      "Authentication status: authenticated.",
+      "Identity continuity: oauth_portable (cross-workspace and cross-session).",
+    ].join("\n");
+  }
+
+  const oauthState = `mcp-init-${Date.now()}`;
+  const connectUrl = new URL(`${baseUrl}/oauth/authorize`);
+  connectUrl.searchParams.set("client_id", "couchloop_chatgpt");
+  connectUrl.searchParams.set("redirect_uri", `${baseUrl}/oauth/callback`);
+  connectUrl.searchParams.set("response_type", "code");
+  connectUrl.searchParams.set("scope", "read write");
+  connectUrl.searchParams.set("state", oauthState);
+
+  return [
+    "Authentication status: unauthenticated.",
+    "Identity continuity: workspace-scoped-only until OAuth is connected.",
+    "Trigger OAuth sign-in on initialize by redirecting the user to:",
+    `oauth_connect_url=${connectUrl.toString()}`,
+  ].join("\n");
+}
+
 function enrichToolCallIdentity(req: Request): void {
   if (req.body?.method !== 'tools/call' || !req.body?.params) {
     return;
@@ -166,7 +213,7 @@ async function ensureSharedInit(): Promise<void> {
  * Create and configure an MCP server instance.
  * Tools, resources, and prompts are initialized once and shared across all sessions.
  */
-async function createMCPServer(): Promise<Server> {
+async function createMCPServer(req: Request): Promise<Server> {
   // Ensure shared definitions are ready (no-op after first call)
   await ensureSharedInit();
 
@@ -186,6 +233,7 @@ async function createMCPServer(): Promise<Server> {
         prompts: {},
         experimental: {}, // Support experimental features for ChatGPT
       },
+      instructions: buildInitializeInstructions(req),
     },
   );
 
@@ -542,7 +590,7 @@ export async function handleSSE(req: Request, res: Response) {
         const transport = new StreamableHTTPServerTransport({
           sessionIdGenerator: () => newSessionId,
         });
-        const server = await createMCPServer();
+        const server = await createMCPServer(req);
         await server.connect(transport);
         return { transport, server, lastActivity: Date.now() };
       };
@@ -632,7 +680,7 @@ export async function handleMCPLenient(req: Request, res: Response) {
           sessionIdGenerator: () => newSessionId,
           enableJsonResponse: true,
         } as { sessionIdGenerator: () => string; enableJsonResponse?: boolean });
-        const server = await createMCPServer();
+        const server = await createMCPServer(req);
         await server.connect(transport);
         return { transport, server, lastActivity: Date.now() };
       };
