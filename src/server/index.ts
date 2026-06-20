@@ -139,6 +139,146 @@ function buildOAuthMetadata(baseUrl: string) {
   };
 }
 
+function getAllowedCallbackReturnOrigins(baseUrl: string): string[] {
+  const configured = process.env.OAUTH_CALLBACK_ALLOWED_ORIGINS?.split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  return configured && configured.length > 0
+    ? configured
+    : [
+        baseUrl,
+        "https://chat.openai.com",
+        "https://chatgpt.com",
+        "https://copilot.microsoft.com",
+        "https://claude.ai",
+        "http://localhost:3000",
+      ];
+}
+
+function buildCallbackReturnUrl(params: {
+  returnTo: string;
+  baseUrl: string;
+  code?: string;
+  state?: string;
+  error?: string;
+  errorDescription?: string;
+}): string | null {
+  try {
+    const returnUrl = new URL(params.returnTo);
+    const allowedOrigins = getAllowedCallbackReturnOrigins(params.baseUrl);
+
+    if (!allowedOrigins.includes(returnUrl.origin)) {
+      logger.warn(`Blocked callback return redirect to origin: ${returnUrl.origin}`);
+      return null;
+    }
+
+    if (params.code) {
+      returnUrl.searchParams.set("code", params.code);
+    }
+    if (params.state) {
+      returnUrl.searchParams.set("state", params.state);
+    }
+    if (params.error) {
+      returnUrl.searchParams.set("error", params.error);
+    }
+    if (params.errorDescription) {
+      returnUrl.searchParams.set("error_description", params.errorDescription);
+    }
+
+    return returnUrl.toString();
+  } catch {
+    logger.warn(`Invalid callback return redirect URL: ${params.returnTo}`);
+    return null;
+  }
+}
+
+function renderHostedCallbackPage(params: {
+  code?: string;
+  state?: string;
+  error?: string;
+  errorDescription?: string;
+  returnUrl?: string | null;
+}): string {
+  const hasError = Boolean(params.error);
+  const title = hasError ? "Authorization Failed" : "Authorization Complete";
+  const summary = hasError
+    ? "The authorization request returned an error."
+    : "Authorization succeeded. You can return to your app.";
+
+  const codeValue = params.code ? escapeHtml(params.code) : "";
+  const stateValue = params.state ? escapeHtml(params.state) : "";
+  const errorValue = params.error ? escapeHtml(params.error) : "";
+  const errorDescriptionValue = params.errorDescription
+    ? escapeHtml(params.errorDescription)
+    : "";
+  const returnUrl = params.returnUrl ? escapeHtml(params.returnUrl) : "";
+
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${title} | CouchLoop OAuth</title>
+    <style>
+      body { margin: 0; background: #f8fafc; color: #0f172a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+      main { max-width: 700px; margin: 40px auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; }
+      h1 { margin: 0 0 10px; font-size: 24px; }
+      p { margin: 0 0 12px; line-height: 1.5; }
+      .muted { color: #475569; }
+      .meta { margin-top: 16px; padding: 12px; background: #f1f5f9; border-radius: 8px; border: 1px solid #cbd5e1; }
+      .meta dt { font-weight: 600; }
+      .meta dd { margin: 0 0 8px; word-break: break-all; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace; font-size: 13px; }
+      .actions { display: flex; gap: 10px; margin-top: 16px; }
+      .btn { border: 1px solid #0f172a; border-radius: 8px; padding: 10px 14px; cursor: pointer; background: #0f172a; color: #ffffff; text-decoration: none; font-size: 14px; }
+      .btn-secondary { background: #ffffff; color: #0f172a; border-color: #cbd5e1; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>${title}</h1>
+      <p>${summary}</p>
+      <p class="muted" id="redirect-note"></p>
+      <dl class="meta">
+        ${codeValue ? `<dt>Code</dt><dd id="code-value">${codeValue}</dd>` : ""}
+        ${stateValue ? `<dt>State</dt><dd>${stateValue}</dd>` : ""}
+        ${errorValue ? `<dt>Error</dt><dd>${errorValue}</dd>` : ""}
+        ${errorDescriptionValue ? `<dt>Error Description</dt><dd>${errorDescriptionValue}</dd>` : ""}
+      </dl>
+      <div class="actions">
+        ${codeValue ? '<button class="btn" id="copy-code" type="button">Copy Code</button>' : ""}
+        ${returnUrl ? `<a class="btn btn-secondary" href="${returnUrl}">Continue</a>` : ""}
+      </div>
+    </main>
+    <script>
+      (function () {
+        var copyButton = document.getElementById("copy-code");
+        var codeEl = document.getElementById("code-value");
+        if (copyButton && codeEl) {
+          copyButton.addEventListener("click", async function () {
+            try {
+              await navigator.clipboard.writeText(codeEl.textContent || "");
+              copyButton.textContent = "Copied";
+            } catch {
+              copyButton.textContent = "Copy failed";
+            }
+          });
+        }
+
+        var returnUrl = ${JSON.stringify(params.returnUrl || "")};
+        var note = document.getElementById("redirect-note");
+        if (returnUrl && note) {
+          note.textContent = "Redirecting back in 3 seconds...";
+          window.setTimeout(function () {
+            window.location.href = returnUrl;
+          }, 3000);
+        }
+      })();
+    </script>
+  </body>
+</html>`;
+}
+
 // Serve static files from public directory
 app.use(express.static(path.join(__dirname, "../../public")));
 
@@ -284,6 +424,47 @@ app.get(
     }
   },
 );
+
+/**
+ * GET /oauth/callback
+ * Hosted callback endpoint for manual OAuth testing and user-friendly completion UI.
+ */
+app.get("/oauth/callback", (req: Request, res: Response) => {
+  const code = typeof req.query.code === "string" ? req.query.code : undefined;
+  const state = typeof req.query.state === "string" ? req.query.state : undefined;
+  const error = typeof req.query.error === "string" ? req.query.error : undefined;
+  const errorDescription =
+    typeof req.query.error_description === "string"
+      ? req.query.error_description
+      : undefined;
+  const returnTo =
+    typeof req.query.return_to === "string" ? req.query.return_to : undefined;
+
+  const baseUrl = `${req.protocol}://${req.get("host")}`;
+  const returnUrl = returnTo
+    ? buildCallbackReturnUrl({
+        returnTo,
+        baseUrl,
+        code,
+        state,
+        error,
+        errorDescription,
+      })
+    : null;
+
+  res
+    .status(200)
+    .type("html")
+    .send(
+      renderHostedCallbackPage({
+        code,
+        state,
+        error,
+        errorDescription,
+        returnUrl,
+      }),
+    );
+});
 
 /**
  * POST /oauth/token

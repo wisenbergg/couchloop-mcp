@@ -24,16 +24,24 @@ async function seedOAuthClient() {
 
     // Hash the client secret
     const hashedSecret = await bcrypt.hash(clientSecret, 10);
+    const hostedCallbackUri =
+      process.env.OAUTH_HOSTED_CALLBACK_URI ||
+      'https://mcp.couchloop.com/oauth/callback';
+    const redirectUris = Array.from(
+      new Set([
+        process.env.OAUTH_REDIRECT_URI ||
+          'https://chat.openai.com/aip/plugin/oauth/callback',
+        'http://localhost:3000/callback',
+        hostedCallbackUri,
+      ]),
+    );
 
     // Insert ChatGPT OAuth client
     const clientData = {
       client_id: process.env.OAUTH_CLIENT_ID || 'couchloop_chatgpt',
       client_secret: hashedSecret,
       name: 'CouchLoop ChatGPT Plugin',
-      redirect_uris: [
-        process.env.OAUTH_REDIRECT_URI || 'https://chat.openai.com/aip/plugin/oauth/callback',
-        'http://localhost:3000/callback', // For local testing
-      ],
+      redirect_uris: redirectUris,
       grant_types: ['authorization_code', 'refresh_token'],
       scopes: ['read', 'write', 'crisis', 'memory'],
     };
