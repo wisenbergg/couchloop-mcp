@@ -83,6 +83,15 @@ src/
 - Start command: `node dist/index.js`
 - Build failures show in Railway dashboard → Deployments
 
+### Railway host and TLS safety
+- Use documented Railway endpoints for sensitive flows:
+  - `https://railway.com` for account and dashboard flows
+  - `https://docs.railway.com` for documentation
+  - `https://mcp.railway.com` for Railway remote MCP
+- If a Railway related hostname has a TLS certificate hostname mismatch, treat it as untrusted for auth or credentials.
+- Do not bypass TLS checks for real operations.
+- Concrete case: `https://blackboard.railway.com` returned a cert for `railway.app` / `*.railway.app`, so do not use it for credentialed actions unless Railway confirms and fixes certificate coverage.
+
 ## Environment variables
 
 Set in Railway dashboard. Local `.env.local` has placeholders for Supabase keys — real keys are Railway-only.

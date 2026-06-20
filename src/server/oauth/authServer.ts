@@ -380,36 +380,26 @@ export class OAuthServer {
     const supabase = getSupabaseClient();
 
     try {
-      // Check if user exists
-      const existingUser = throwOnError(
+      const user = throwOnError(
         await supabase
           .from("users")
-          .select("*")
-          .eq("external_id", externalId)
-          .maybeSingle(),
-      );
+          .upsert(
+            {
+              external_id: externalId,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "external_id" },
+          )
+          .select("id")
+          .single(),
+      ) as { id: string } | null;
 
-      if (existingUser) {
-        return existingUser.id;
+      if (!user) {
+        throw new Error("Failed to resolve user");
       }
 
-      // Create new user
-      const rows = throwOnError(
-        await supabase
-          .from("users")
-          .insert({
-            external_id: externalId,
-          })
-          .select(),
-      );
-
-      const newUser = rows?.[0];
-      if (!newUser) {
-        throw new Error("Failed to create user");
-      }
-
-      logger.info(`Created new user with external ID: ${externalId}`);
-      return newUser.id;
+      logger.info(`Resolved user for external ID: ${externalId}`);
+      return user.id;
     } catch (error) {
       logger.error("Error getting/creating user:", error);
       throw new Error("Failed to get or create user");

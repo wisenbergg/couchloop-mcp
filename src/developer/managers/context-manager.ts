@@ -1,4 +1,3 @@
-import { nanoid } from 'nanoid';
 import { getSupabase } from '../../db/client.js';
 import { logger } from '../../utils/logger.js';
 import {
@@ -60,7 +59,7 @@ export class ContextManager {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase as any)
       .from(TABLE)
-      .insert({ id: nanoid(), category, content, thread_id: threadId, usage_count: 0, tags: [] })
+      .insert({ category, content, thread_id: threadId, usage_count: 0, tags: [] })
       .select()
       .single();
 

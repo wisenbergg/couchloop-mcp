@@ -27,7 +27,6 @@ export async function saveInsight(args: SaveInsightInput) {
         .upsert(
           {
             external_id: externalUserId,
-            preferences: {},
             updated_at: new Date().toISOString(),
           },
           { onConflict: 'external_id' }
@@ -99,10 +98,13 @@ export async function getInsights(args: { session_id?: string; limit?: number; a
       const newUser = throwOnError(
         await supabase
           .from('users')
-          .insert({
-            external_id: externalUserId,
-            preferences: {},
-          })
+          .upsert(
+            {
+              external_id: externalUserId,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'external_id' }
+          )
           .select()
           .single()
       );
@@ -159,10 +161,13 @@ export async function getUserContext(args: GetUserContextInput) {
       const newUser = throwOnError(
         await supabase
           .from('users')
-          .insert({
-            external_id: externalUserId,
-            preferences: {},
-          })
+          .upsert(
+            {
+              external_id: externalUserId,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'external_id' }
+          )
           .select()
           .single()
       );

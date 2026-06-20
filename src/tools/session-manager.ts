@@ -145,17 +145,19 @@ export async function getOrCreateSession(
   // No active session found - create new one implicitly
   let resolvedUser = user;
   if (!resolvedUser) {
-    const newUser = throwOnError(
+    resolvedUser = throwOnError(
       await supabase
         .from('users')
-        .insert({
-          external_id: externalUserId,
-          preferences: {},
-        })
+        .upsert(
+          {
+            external_id: externalUserId,
+            updated_at: now,
+          },
+          { onConflict: 'external_id' }
+        )
         .select('*')
         .single()
     ) as User;
-    resolvedUser = newUser;
   }
 
   // Create new session

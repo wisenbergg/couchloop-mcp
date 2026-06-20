@@ -19,7 +19,6 @@ export async function createSession(args: unknown) {
         .upsert(
           {
             external_id: externalUserId,
-            preferences: {},
             updated_at: new Date().toISOString(),
           },
           { onConflict: 'external_id' },
@@ -121,10 +120,13 @@ export async function resumeSession(args: unknown) {
         throwOnError(
           await supabase
             .from('users')
-            .insert({
-              external_id: externalUserId,
-              preferences: {},
-            })
+            .upsert(
+              {
+                external_id: externalUserId,
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: 'external_id' },
+            )
             .select()
             .single(),
         );

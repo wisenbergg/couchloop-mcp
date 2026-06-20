@@ -3,6 +3,12 @@
     "couchloop-eq": {
       "type": "url",
       "url": "https://mcp.couchloop.com/mcp"
+    },
+    "railway": {
+      "command": "railway",
+      "args": [
+        "mcp"
+      ]
     }
   }
 }
