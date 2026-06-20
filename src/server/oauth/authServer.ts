@@ -19,6 +19,10 @@ interface TokenPayload {
   exp?: number;
 }
 
+interface SubjectLink {
+  user_id: string;
+}
+
 export class OAuthServer {
   private readonly jwtSecret: string;
   private readonly jwtExpiresIn: string;
@@ -403,6 +407,81 @@ export class OAuthServer {
     } catch (error) {
       logger.error("Error getting/creating user:", error);
       throw new Error("Failed to get or create user");
+    }
+  }
+
+  /**
+   * Resolve stable internal user UUID for a client+issuer+subject tuple.
+   * Falls back to external_id strategy if mapping table is not yet available.
+   */
+  async resolveOrCreateUserForSubject(
+    clientId: string,
+    issuer: string,
+    subject: string,
+  ): Promise<string> {
+    const supabase = getSupabaseClient();
+    const subjectHash = nodeCrypto
+      .createHash("sha256")
+      .update(`${issuer}:${clientId}:${subject}`)
+      .digest("hex");
+
+    try {
+      const existingLink = throwOnError(
+        await supabase
+          .from("oauth_subject_links")
+          .select("user_id")
+          .eq("client_id", clientId)
+          .eq("issuer", issuer)
+          .eq("subject_hash", subjectHash)
+          .maybeSingle(),
+      ) as SubjectLink | null;
+
+      if (existingLink?.user_id) {
+        return existingLink.user_id;
+      }
+
+      const externalId = `stable_${clientId}_${subjectHash.substring(0, 24)}`;
+      const userId = await this.getOrCreateUser(externalId);
+
+      throwOnError(
+        await supabase
+          .from("oauth_subject_links")
+          .upsert(
+            {
+              client_id: clientId,
+              issuer,
+              subject_hash: subjectHash,
+              user_id: userId,
+              updated_at: new Date().toISOString(),
+            },
+            {
+              onConflict: "client_id,issuer,subject_hash",
+              ignoreDuplicates: true,
+            },
+          )
+          .select("user_id"),
+      );
+
+      const resolvedLink = throwOnError(
+        await supabase
+          .from("oauth_subject_links")
+          .select("user_id")
+          .eq("client_id", clientId)
+          .eq("issuer", issuer)
+          .eq("subject_hash", subjectHash)
+          .single(),
+      ) as SubjectLink;
+
+      return resolvedLink.user_id;
+    } catch (error) {
+      logger.warn(
+        "Stable subject mapping unavailable, falling back to external_id path",
+        error,
+      );
+
+      // Graceful fallback during phased rollout if table is not yet applied.
+      const externalId = `stable_${clientId}_${subjectHash.substring(0, 24)}`;
+      return this.getOrCreateUser(externalId);
     }
   }
 }

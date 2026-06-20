@@ -157,14 +157,6 @@ function getOrCreateBrowserSubject(req: Request, res: Response): string {
   return created;
 }
 
-function buildStableExternalId(clientId: string, subject: string): string {
-  const hash = crypto
-    .createHash("sha256")
-    .update(`${clientId}:${subject}`)
-    .digest("hex");
-  return `anon_${hash.substring(0, 24)}`;
-}
-
 function buildRedirectErrorUrl(params: {
   redirectUri: string;
   state?: string;
@@ -516,9 +508,11 @@ app.get(
 
       // Resolve a stable pseudonymous subject per browser to preserve continuity.
       const subject = getOrCreateBrowserSubject(req, res);
-      const externalId = buildStableExternalId(String(client_id), subject);
-
-      const userId = await oauthServer.getOrCreateUser(externalId);
+      const userId = await oauthServer.resolveOrCreateUserForSubject(
+        String(client_id),
+        "browser-local",
+        subject,
+      );
       const code = await oauthServer.generateAuthCode(
         client_id as string,
         userId,
