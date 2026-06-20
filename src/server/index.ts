@@ -146,6 +146,7 @@ function buildOAuthMetadata(baseUrl: string) {
     authorization_endpoint: `${baseUrl}/oauth/authorize`,
     token_endpoint: `${baseUrl}/oauth/token`,
     revocation_endpoint: `${baseUrl}/oauth/revoke`,
+    registration_endpoint: `${baseUrl}/oauth/register`,
     response_types_supported: ["code"],
     grant_types_supported: ["authorization_code", "refresh_token"],
     scopes_supported: ["read", "write", "crisis", "memory"],
@@ -208,6 +209,24 @@ function buildRedirectErrorUrl(params: {
     deniedUrl.searchParams.set("state", params.state);
   }
   return deniedUrl.toString();
+}
+
+function isAllowedDynamicRedirectUri(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+
+    if (parsed.protocol === "https:") {
+      return true;
+    }
+
+    if (parsed.protocol === "http:") {
+      return parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost";
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
 }
 
 function getAllowedCallbackReturnOrigins(baseUrl: string): string[] {
@@ -709,6 +728,86 @@ app.post(
       res.status(500).json({
         error: "server_error",
         error_description: "Internal server error",
+      });
+    }
+  },
+);
+
+/**
+ * POST /oauth/register
+ * RFC 7591 Dynamic Client Registration.
+ * MCP hosts (e.g. VS Code) call this automatically when the server
+ * advertises registration_endpoint in OAuth server metadata.
+ */
+app.post(
+  "/oauth/register",
+  rateLimit(20, 60000),
+  async (req: Request, res: Response) => {
+    try {
+      const body = req.body as {
+        redirect_uris?: unknown;
+        client_name?: unknown;
+        grant_types?: unknown;
+        scope?: unknown;
+        token_endpoint_auth_method?: unknown;
+      };
+
+      // redirect_uris is required per RFC 7591
+      if (!Array.isArray(body.redirect_uris) || body.redirect_uris.length === 0) {
+        res.status(400).json({
+          error: "invalid_redirect_uri",
+          error_description: "redirect_uris is required and must be a non-empty array",
+        });
+        return;
+      }
+
+      const redirectUris = body.redirect_uris.filter(
+        (u): u is string => typeof u === "string",
+      );
+
+      if (redirectUris.length === 0) {
+        res.status(400).json({
+          error: "invalid_redirect_uri",
+          error_description: "All provided redirect_uris must be strings",
+        });
+        return;
+      }
+
+      // Validate each URI
+      for (const uri of redirectUris) {
+        if (!isAllowedDynamicRedirectUri(uri)) {
+          res.status(400).json({
+            error: "invalid_redirect_uri",
+            error_description: `Redirect URI not permitted: ${uri}. Only HTTPS URIs and localhost HTTP are allowed.`,
+          });
+          return;
+        }
+      }
+
+      const grantTypes = Array.isArray(body.grant_types)
+        ? body.grant_types.filter((g): g is string => typeof g === "string")
+        : undefined;
+
+      const rawScope = typeof body.scope === "string" ? body.scope : undefined;
+      const scopes = rawScope ? rawScope.split(" ").filter(Boolean) : undefined;
+
+      const result = await oauthServer.registerDynamicClient({
+        clientName: typeof body.client_name === "string" ? body.client_name : undefined,
+        redirectUris,
+        grantTypes,
+        scopes,
+        tokenEndpointAuthMethod:
+          body.token_endpoint_auth_method === "client_secret_post"
+            ? "client_secret_post"
+            : "none",
+      });
+
+      res.status(201).json(result);
+    } catch (error) {
+      logger.error("Dynamic client registration error:", error);
+      res.status(500).json({
+        error: "server_error",
+        error_description: "Failed to register client",
       });
     }
   },

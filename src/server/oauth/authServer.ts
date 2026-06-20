@@ -24,6 +24,27 @@ interface SubjectLink {
 }
 
 type CodeChallengeMethod = "plain" | "S256";
+type TokenEndpointAuthMethod = "none" | "client_secret_post";
+
+interface DynamicClientRegistrationInput {
+  clientName?: string;
+  redirectUris: string[];
+  grantTypes?: string[];
+  scopes?: string[];
+  tokenEndpointAuthMethod?: TokenEndpointAuthMethod;
+}
+
+interface DynamicClientRegistrationResult {
+  client_id: string;
+  client_id_issued_at: number;
+  client_secret?: string;
+  client_secret_expires_at?: number;
+  client_name: string;
+  redirect_uris: string[];
+  grant_types: string[];
+  token_endpoint_auth_method: TokenEndpointAuthMethod;
+  scope: string;
+}
 
 export class OAuthServer {
   private readonly jwtSecret: string;
@@ -89,6 +110,69 @@ export class OAuthServer {
       logger.error("Error validating client:", error);
       return null;
     }
+  }
+
+  /**
+   * Registers a dynamic OAuth client for MCP hosts that do not support
+   * pre-provisioned client IDs.
+   */
+  async registerDynamicClient(
+    input: DynamicClientRegistrationInput,
+  ): Promise<DynamicClientRegistrationResult> {
+    const supabase = getSupabaseClient();
+
+    const tokenEndpointAuthMethod: TokenEndpointAuthMethod =
+      input.tokenEndpointAuthMethod === "client_secret_post"
+        ? "client_secret_post"
+        : "none";
+
+    const grantTypes =
+      input.grantTypes && input.grantTypes.length > 0
+        ? Array.from(new Set(input.grantTypes))
+        : ["authorization_code", "refresh_token"];
+
+    const scopes =
+      input.scopes && input.scopes.length > 0
+        ? Array.from(new Set(input.scopes))
+        : ["read", "write"];
+
+    const clientName =
+      input.clientName && input.clientName.trim().length > 0
+        ? input.clientName.trim()
+        : "Dynamic MCP Client";
+
+    const clientId = `mcp_${nodeCrypto.randomUUID()}`;
+    const rawClientSecret = nodeCrypto.randomBytes(32).toString("base64url");
+    const hashedClientSecret = await bcrypt.hash(rawClientSecret, 12);
+
+    throwOnError(
+      await supabase.from("oauth_clients").insert({
+        client_id: clientId,
+        client_secret: hashedClientSecret,
+        name: clientName,
+        redirect_uris: input.redirectUris,
+        grant_types: grantTypes,
+        scopes,
+      }).select(),
+    );
+
+    const clientIdIssuedAt = Math.floor(Date.now() / 1000);
+
+    return {
+      client_id: clientId,
+      client_id_issued_at: clientIdIssuedAt,
+      client_secret:
+        tokenEndpointAuthMethod === "client_secret_post"
+          ? rawClientSecret
+          : undefined,
+      client_secret_expires_at:
+        tokenEndpointAuthMethod === "client_secret_post" ? 0 : undefined,
+      client_name: clientName,
+      redirect_uris: input.redirectUris,
+      grant_types: grantTypes,
+      token_endpoint_auth_method: tokenEndpointAuthMethod,
+      scope: scopes.join(" "),
+    };
   }
 
   /**
