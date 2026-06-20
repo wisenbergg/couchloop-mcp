@@ -988,13 +988,10 @@ function startupOAuthGate(req: Request, res: Response, next: NextFunction): void
     return;
   }
 
-  const hasSession =
-    typeof req.headers["mcp-session-id"] === "string" ||
-    typeof req.headers["x-session-id"] === "string";
   const isInitialize = req.body?.method === "initialize";
 
-  // Challenge before first MCP request in a session.
-  if (!isInitialize && hasSession) {
+  // Only challenge initialize. Allow transport bootstrap requests through.
+  if (!isInitialize) {
     next();
     return;
   }
