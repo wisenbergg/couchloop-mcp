@@ -62,6 +62,24 @@ export const statusTool = {
   handler: handleStatus,
 };
 
+function parseSupabaseTimestamp(value: unknown): Date | null {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    return null;
+  }
+
+  // Supabase often returns "timestamp without time zone" as an ISO-like string
+  // with no timezone suffix. Treat it as UTC to avoid local-time skew.
+  const hasTimezone = /[zZ]|[+-]\d{2}:?\d{2}$/.test(value);
+  const normalized = hasTimezone ? value : `${value}Z`;
+  const parsed = new Date(normalized);
+
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 // ============================================================
 // USER RESOLUTION (single point of entry for all status queries)
 // ============================================================
@@ -233,10 +251,10 @@ async function getSessionStatus(userId: string, sessionId?: string): Promise<Ses
     );
 
     // Calculate time elapsed
-    // Supabase returns ISO strings, not Date objects
-    const startTime = new Date(session.started_at);
+    const startTime = parseSupabaseTimestamp(session.started_at);
     const now = new Date();
-    const timeElapsedMinutes = Math.round((now.getTime() - startTime.getTime()) / 60000);
+    const elapsedMs = startTime ? now.getTime() - startTime.getTime() : 0;
+    const timeElapsedMinutes = Math.max(0, Math.round(elapsedMs / 60000));
 
     return {
       has_active_session: true,
