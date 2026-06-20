@@ -647,6 +647,40 @@ export async function handleSSE(req: Request, res: Response) {
   try {
     enrichToolCallIdentity(req);
 
+    const isInitializeRequest = req.body?.method === "initialize";
+    if (isInitializeRequest && !req.user) {
+      const oauthConnectUrl = buildOAuthConnectUrl(req);
+      if (oauthConnectUrl) {
+        const payload = {
+          jsonrpc: "2.0",
+          id: req.body?.id || null,
+          error: {
+            code: -32001,
+            message: "oauth_required",
+            data: {
+              message:
+                "Connect OAuth to enable cross-workspace identity continuity.",
+              oauth_connect_url: oauthConnectUrl,
+            },
+          },
+        };
+
+        const acceptHeader = String(req.headers.accept || "");
+        if (acceptHeader.includes("text/event-stream")) {
+          res.status(200);
+          res.setHeader("Content-Type", "text/event-stream");
+          res.setHeader("Cache-Control", "no-cache");
+          res.setHeader("Connection", "keep-alive");
+          res.write(`event: message\ndata: ${JSON.stringify(payload)}\n\n`);
+          res.end();
+          return;
+        }
+
+        res.status(401).json(payload);
+        return;
+      }
+    }
+
     // Get session ID from MCP standard header or legacy header
     const sessionId = (req.headers["mcp-session-id"] || req.headers["x-session-id"]) as string | undefined;
 

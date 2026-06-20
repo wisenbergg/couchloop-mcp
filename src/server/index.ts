@@ -900,8 +900,8 @@ app.options("/sse", (_req: Request, res: Response) => {
  * Streamable HTTP endpoint for ChatGPT MCP connection
  * Handles both SSE (GET) and HTTP messages (POST)
  */
-app.get("/sse", rateLimit(100, 60000), handleSSE);
-app.post("/sse", rateLimit(100, 60000), express.json(), handleSSE);
+app.get("/sse", optionalAuth, rateLimit(100, 60000), handleSSE);
+app.post("/sse", optionalAuth, rateLimit(100, 60000), express.json(), handleSSE);
 
 /**
  * OPTIONS /mcp
