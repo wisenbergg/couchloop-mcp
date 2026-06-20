@@ -69,6 +69,18 @@ function buildInitializeInstructions(req: Request): string {
   ].join("\n");
 }
 
+function buildOAuthConnectUrl(req: Request): string {
+  const baseUrl = getExternalBaseUrl(req);
+  const oauthState = `mcp-connect-${Date.now()}`;
+  const connectUrl = new URL(`${baseUrl}/oauth/authorize`);
+  connectUrl.searchParams.set("client_id", "couchloop_chatgpt");
+  connectUrl.searchParams.set("redirect_uri", `${baseUrl}/oauth/callback`);
+  connectUrl.searchParams.set("response_type", "code");
+  connectUrl.searchParams.set("scope", "read write");
+  connectUrl.searchParams.set("state", oauthState);
+  return connectUrl.toString();
+}
+
 function enrichToolCallIdentity(req: Request): void {
   if (req.body?.method !== 'tools/call' || !req.body?.params) {
     return;
@@ -180,6 +192,7 @@ interface SessionEntry {
   transport: StreamableHTTPServerTransport;
   server: Server;
   lastActivity: number;
+  oauthPromptShown: boolean;
 }
 
 const activeSessions = new Map<string, SessionEntry>();
@@ -219,6 +232,8 @@ async function createMCPServer(req: Request): Promise<Server> {
 
   const tools = sharedTools!;
   const resources = sharedResources!;
+  const oauthConnectUrl = buildOAuthConnectUrl(req);
+  let oauthPromptShown = false;
 
   // Create MCP server instance (lightweight — just wires handlers to shared data)
   const server = new Server(
@@ -245,6 +260,28 @@ async function createMCPServer(req: Request): Promise<Server> {
   server.setRequestHandler(
     CallToolRequestSchema,
     async (request: CallToolRequest) => {
+      if (!req.user && !oauthPromptShown) {
+        oauthPromptShown = true;
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  error: "oauth_required",
+                  message:
+                    "Connect OAuth to enable cross-workspace identity continuity. You can continue unauthenticated after this prompt.",
+                  oauth_connect_url: oauthConnectUrl,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      }
+
       const tool = tools.find((t) => t.definition.name === request.params.name);
       if (!tool) {
         throw new Error(`Tool not found: ${request.params.name}`);
@@ -592,7 +629,12 @@ export async function handleSSE(req: Request, res: Response) {
         });
         const server = await createMCPServer(req);
         await server.connect(transport);
-        return { transport, server, lastActivity: Date.now() };
+        return {
+          transport,
+          server,
+          lastActivity: Date.now(),
+          oauthPromptShown: false,
+        };
       };
 
       // Race session creation against a timeout to prevent indefinite hangs
@@ -682,7 +724,12 @@ export async function handleMCPLenient(req: Request, res: Response) {
         } as { sessionIdGenerator: () => string; enableJsonResponse?: boolean });
         const server = await createMCPServer(req);
         await server.connect(transport);
-        return { transport, server, lastActivity: Date.now() };
+        return {
+          transport,
+          server,
+          lastActivity: Date.now(),
+          oauthPromptShown: false,
+        };
       };
 
       const timeoutPromise = new Promise<never>((_, reject) => {
