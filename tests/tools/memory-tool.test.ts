@@ -115,6 +115,34 @@ describe('memoryTool — list', () => {
     const count = result.count as { insights: number; checkpoints: number };
     expect(count.checkpoints).toBe(1);
   });
+
+  it('includes workspace-scoped identity hint for unauthenticated users', async () => {
+    const result = await memoryTool.handler({
+      action: 'list',
+      auth: { client_id: 'chatgpt', thread_id: 'thread-1' },
+    }) as Record<string, unknown>;
+
+    const identity = result.identity as Record<string, unknown>;
+    expect(identity.identity_scope).toBe('workspace_scoped');
+    expect(identity.continuity).toBe('workspace-scoped-only');
+    expect(identity.upgrade_prompt).toBeTypeOf('string');
+  });
+
+  it('includes oauth-portable identity hint for authenticated users', async () => {
+    const result = await memoryTool.handler({
+      action: 'list',
+      auth: {
+        oauth_authenticated: true,
+        oauth_client_id: 'chatgpt',
+        oauth_user_id: 'internal-user-1',
+      },
+    }) as Record<string, unknown>;
+
+    const identity = result.identity as Record<string, unknown>;
+    expect(identity.identity_scope).toBe('oauth_portable');
+    expect(identity.continuity).toBe('cross-workspace-and-session');
+    expect(identity.upgrade_prompt).toBeUndefined();
+  });
 });
 
 describe('memoryTool — recall', () => {
@@ -208,6 +236,18 @@ describe('memoryTool — save', () => {
     expect(result.session_context).toBeUndefined();
     // Auto-recall block should not have run
     expect(recallInsights).not.toHaveBeenCalled();
+  });
+
+  it('includes growth upgrade hint on save for workspace-scoped identity', async () => {
+    const result = await memoryTool.handler({
+      action: 'save',
+      content: 'save scoped memory',
+      auth: { client_id: 'chatgpt', thread_id: 'thread-upgrade' },
+    }) as Record<string, unknown>;
+
+    const identity = result.identity as Record<string, unknown>;
+    expect(identity.identity_scope).toBe('workspace_scoped');
+    expect(identity.upgrade_prompt).toBeTypeOf('string');
   });
 });
 

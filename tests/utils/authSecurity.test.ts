@@ -30,37 +30,55 @@ describe('extractUserFromContext — SHA-256 anonymization', () => {
     });
   }
 
-  it('hashes OAuth tokens with SHA-256 (Priority 1)', async () => {
+  it('uses server-verified OAuth identity only for portable IDs (Priority 1)', async () => {
     const extractUser = await getExtractUser();
-    const token = 'my-secret-oauth-token';
-    const result = await extractUser({ token });
+    const result = await extractUser({
+      oauth_authenticated: true,
+      oauth_client_id: 'chatgpt',
+      oauth_user_id: 'internal-user-123',
+      token: 'ignored-by-hash',
+    });
 
-    // Should produce a deterministic SHA-256 prefix
-    const expectedHash = createHash('sha256').update(token).digest('hex').substring(0, 24);
+    const expectedHash = createHash('sha256')
+      .update('chatgpt:internal-user-123')
+      .digest('hex')
+      .substring(0, 24);
     expect(result).toBe('oauth_' + expectedHash);
-    // Must NOT contain the raw token
-    expect(result).not.toContain(token);
+    expect(result).not.toContain('internal-user-123');
   });
 
-  it('hashes client_id + user_id with SHA-256 (Priority 2)', async () => {
+  it('does not treat unverified user_id/client_id as portable identity', async () => {
     const extractUser = await getExtractUser();
     const result = await extractUser({
       client_id: 'chatgpt',
       user_id: 'user-abc-123',
+      conversation_id: 'conv-123',
     });
 
     const expectedHash = createHash('sha256')
-      .update('chatgpt:user-abc-123')
+      .update('chatgpt:conv:conv-123')
+      .digest('hex')
+      .substring(0, 28);
+    expect(result).toBe('conv_' + expectedHash);
+  });
+
+  it('hashes thread identity for workspace-scoped continuity (Priority 2)', async () => {
+    const extractUser = await getExtractUser();
+    const result = await extractUser({
+      client_id: 'chatgpt',
+      thread_id: 'thread-abc',
+    });
+
+    const expectedHash = createHash('sha256')
+      .update('chatgpt:thread:thread-abc')
       .digest('hex')
       .substring(0, 24);
-    expect(result).toBe('chatgpt_' + expectedHash);
-    // Must NOT contain the raw user_id
-    expect(result).not.toContain('user-abc-123');
+    expect(result).toBe('thread_' + expectedHash);
   });
 
   it('produces deterministic IDs for the same input', async () => {
     const extractUser = await getExtractUser();
-    const ctx = { client_id: 'claude', user_id: 'user-xyz' };
+    const ctx = { client_id: 'chatgpt', thread_id: 'thread-x' };
 
     const result1 = await extractUser(ctx);
     const result2 = await extractUser(ctx);
@@ -70,12 +88,12 @@ describe('extractUserFromContext — SHA-256 anonymization', () => {
   it('produces different IDs for different inputs', async () => {
     const extractUser = await getExtractUser();
 
-    const result1 = await extractUser({ client_id: 'a', user_id: 'user1' });
-    const result2 = await extractUser({ client_id: 'a', user_id: 'user2' });
+    const result1 = await extractUser({ client_id: 'a', thread_id: 'thread-1' });
+    const result2 = await extractUser({ client_id: 'a', thread_id: 'thread-2' });
     expect(result1).not.toBe(result2);
   });
 
-  it('creates a local identity when no auth context and fs works (Priority 3)', async () => {
+  it('creates a local identity when no auth context and fs works (Priority 4)', async () => {
     // mkdirSync is a no-op (default mock), writeFileSync is a no-op
     // existsSync returns false → creates new local identity
     const extractUser = await getExtractUser();
@@ -83,7 +101,7 @@ describe('extractUserFromContext — SHA-256 anonymization', () => {
     expect(result).toMatch(/^local_[0-9a-f]{24}$/);
   });
 
-  it('hashes conversation IDs with SHA-256 (Priority 4)', async () => {
+  it('hashes conversation IDs with SHA-256 (Priority 3)', async () => {
     disableLocalIdentity();
     const extractUser = await getExtractUser();
     const result = await extractUser({
@@ -98,11 +116,66 @@ describe('extractUserFromContext — SHA-256 anonymization', () => {
     expect(result).toBe('conv_' + expectedHash);
   });
 
+  it('does not elevate token-only context to oauth_* identity', async () => {
+    disableLocalIdentity();
+    const extractUser = await getExtractUser();
+    const result = await extractUser({ token: 'raw-token-only' });
+    expect(result.startsWith('oauth_')).toBe(false);
+  });
+
   it('falls back to ephemeral ID when no context and fs fails', async () => {
     disableLocalIdentity();
     const extractUser = await getExtractUser();
     const result = await extractUser();
     expect(result).toMatch(/^ephemeral_/);
+  });
+});
+
+describe('resolveAuthContextFromArgs', () => {
+  async function getResolve() {
+    const mod = await import('../../src/types/auth.js');
+    return mod.resolveAuthContextFromArgs;
+  }
+
+  it('does not ingest meta.sub as user_id', async () => {
+    const resolve = await getResolve();
+    const result = resolve({ _meta: { sub: 'portable-subject' } });
+    expect(result?.user_id).toBeUndefined();
+  });
+
+  it('keeps explicit oauth verification flags from auth object', async () => {
+    const resolve = await getResolve();
+    const result = resolve({
+      auth: {
+        oauth_authenticated: true,
+        oauth_user_id: 'u-1',
+        oauth_client_id: 'chatgpt',
+      },
+    });
+
+    expect(result).toMatchObject({
+      oauth_authenticated: true,
+      oauth_user_id: 'u-1',
+      oauth_client_id: 'chatgpt',
+    });
+  });
+});
+
+describe('getIdentityScope', () => {
+  async function getScope() {
+    const mod = await import('../../src/types/auth.js');
+    return mod.getIdentityScope;
+  }
+
+  it('classifies oauth_ as oauth_portable', async () => {
+    const getIdentityScope = await getScope();
+    expect(getIdentityScope('oauth_abc123')).toBe('oauth_portable');
+  });
+
+  it('classifies thread_ and conv_ as workspace_scoped', async () => {
+    const getIdentityScope = await getScope();
+    expect(getIdentityScope('thread_abc123')).toBe('workspace_scoped');
+    expect(getIdentityScope('conv_abc123')).toBe('workspace_scoped');
   });
 });
 

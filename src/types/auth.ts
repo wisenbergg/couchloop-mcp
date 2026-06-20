@@ -15,6 +15,9 @@ export const AuthContextSchema = z.object({
   client_id: z.string().optional().describe('Client application identifier'),
   thread_id: z.string().optional().describe('Stable thread identifier used to scope conversation memory'),
   conversation_id: z.string().optional().describe('Stable conversation identifier for user binding'),
+  oauth_authenticated: z.boolean().optional().describe('True only when server validated OAuth token for this request'),
+  oauth_user_id: z.string().optional().describe('Server-verified internal user ID from validated OAuth token'),
+  oauth_client_id: z.string().optional().describe('Server-verified client ID from validated OAuth token'),
 });
 
 export type AuthContext = z.infer<typeof AuthContextSchema>;
@@ -52,8 +55,7 @@ export function resolveAuthContextFromArgs(
     explicitAuth?.user_id ??
     (typeof authObj?.user_id === 'string' ? authObj.user_id : undefined) ??
     (typeof args?.user_id === 'string' ? args.user_id : undefined) ??
-    (typeof meta?.user_id === 'string' ? meta.user_id : undefined) ??
-    (typeof meta?.sub === 'string' ? meta.sub : undefined);
+    (typeof meta?.user_id === 'string' ? meta.user_id : undefined);
 
   const client_id =
     explicitAuth?.client_id ??
@@ -73,12 +75,27 @@ export function resolveAuthContextFromArgs(
     (typeof args?.conversation_id === 'string' ? args.conversation_id : undefined) ??
     (typeof meta?.conversation_id === 'string' ? meta.conversation_id : undefined);
 
+  const oauth_authenticated =
+    explicitAuth?.oauth_authenticated ??
+    (typeof authObj?.oauth_authenticated === 'boolean' ? authObj.oauth_authenticated : undefined);
+
+  const oauth_user_id =
+    explicitAuth?.oauth_user_id ??
+    (typeof authObj?.oauth_user_id === 'string' ? authObj.oauth_user_id : undefined);
+
+  const oauth_client_id =
+    explicitAuth?.oauth_client_id ??
+    (typeof authObj?.oauth_client_id === 'string' ? authObj.oauth_client_id : undefined);
+
   const normalized: AuthContext = {
     ...(token ? { token } : {}),
     ...(user_id ? { user_id } : {}),
     ...(client_id ? { client_id } : {}),
     ...(thread_id ? { thread_id } : {}),
     ...(conversation_id ? { conversation_id } : {}),
+    ...(typeof oauth_authenticated === 'boolean' ? { oauth_authenticated } : {}),
+    ...(oauth_user_id ? { oauth_user_id } : {}),
+    ...(oauth_client_id ? { oauth_client_id } : {}),
   };
 
   return Object.keys(normalized).length > 0 ? normalized : undefined;
@@ -151,29 +168,27 @@ function getOrCreateLocalIdentity(): string {
 /**
  * Extract user ID from authentication context
  * Implements tiered identity:
- * - Priority 1: OAuth token validation (Pro tier - cross-device)
- * - Priority 2: External user ID + client ID (ChatGPT OAuth)
- * - Priority 3: Local file-based identity (Free tier - single machine)
- * - Priority 4: Conversation-based ID (single window only)
+ * - Priority 1: Server-verified OAuth identity (cross-workspace and cross-session)
+ * - Priority 2: Thread-based identity (workspace-scoped continuity)
+ * - Priority 3: Conversation-based ID (single window only)
+ * - Priority 4: Local file-based identity (Free tier - single machine)
  * - Fallback: Ephemeral IDs (no persistence)
  */
 export async function extractUserFromContext(authContext?: AuthContext): Promise<string> {
-  // Priority 1: OAuth token validation (Pro tier - future)
-  if (authContext?.token) {
-    const hash = createHash('sha256').update(authContext.token).digest('hex');
+  // Priority 1: Server-verified OAuth identity only.
+  // This guarantees cross-workspace portability is unlocked only by real auth.
+  if (
+    authContext?.oauth_authenticated &&
+    authContext?.oauth_user_id &&
+    authContext?.oauth_client_id
+  ) {
+    const hash = createHash('sha256')
+      .update(`${authContext.oauth_client_id}:${authContext.oauth_user_id}`)
+      .digest('hex');
     return 'oauth_' + hash.substring(0, 24);
   }
 
-  // Priority 2: Hash-based persistent ID from external user identifier
-  // For ChatGPT: this is the openai/subject that persists across all chat windows
-  if (authContext?.user_id && authContext?.client_id) {
-    const hash = createHash('sha256')
-      .update(authContext.client_id + ':' + authContext.user_id)
-      .digest('hex');
-    return authContext.client_id + '_' + hash.substring(0, 24);
-  }
-
-  // Priority 3: Thread-based identity for hosted MCP deployments.
+  // Priority 2: Thread-based identity for hosted MCP deployments.
   // This prevents multiple anonymous clients from collapsing into one shared
   // server-local identity when auth headers are not present.
   if (authContext?.thread_id) {
@@ -184,7 +199,7 @@ export async function extractUserFromContext(authContext?: AuthContext): Promise
     return 'thread_' + hash.substring(0, 24);
   }
 
-  // Priority 4: Conversation-based ID (single chat window only)
+  // Priority 3: Conversation-based ID (single chat window only)
   if (authContext?.client_id && authContext?.conversation_id) {
     const hash = createHash('sha256')
       .update(authContext.client_id + ':conv:' + authContext.conversation_id)
@@ -192,7 +207,7 @@ export async function extractUserFromContext(authContext?: AuthContext): Promise
     return 'conv_' + hash.substring(0, 28);
   }
 
-  // Priority 5: Local file-based identity (Free tier)
+  // Priority 4: Local file-based identity (Free tier)
   // Disabled in hosted runtimes because the server filesystem identity is shared
   // across all anonymous callers and breaks tenant isolation.
   if (isHostedRuntime()) {
@@ -204,7 +219,7 @@ export async function extractUserFromContext(authContext?: AuthContext): Promise
     }
   }
 
-  // Priority 6: Ephemeral IDs (no persistence)
+  // Priority 5: Ephemeral IDs (no persistence)
   // Provides single-machine persistence for VS Code, Cursor, Claude Desktop, etc.
   logger.warn('Creating ephemeral user - no stable identity provided', {
     client_id: authContext?.client_id,
@@ -215,6 +230,18 @@ export async function extractUserFromContext(authContext?: AuthContext): Promise
 
   const { nanoid } = await import('nanoid');
   return 'ephemeral_' + nanoid(12);
+}
+
+export type IdentityScope = 'oauth_portable' | 'workspace_scoped' | 'local_machine' | 'ephemeral';
+
+/**
+ * Translate resolved user IDs into continuity scope for product behavior.
+ */
+export function getIdentityScope(userId: string): IdentityScope {
+  if (userId.startsWith('oauth_')) return 'oauth_portable';
+  if (userId.startsWith('thread_') || userId.startsWith('conv_')) return 'workspace_scoped';
+  if (userId.startsWith('local_')) return 'local_machine';
+  return 'ephemeral';
 }
 
 /**

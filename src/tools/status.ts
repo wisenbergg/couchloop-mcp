@@ -16,7 +16,13 @@ import { ContextMetadata, ContextEntry } from '../types/context.js';
 import { checkContextStatus, retrieveContext } from './preserve-context.js';
 import { getProtectionStatus, listBackups } from './protect-files.js';
 import { getUserContext } from './insight.js';
-import { extractUserFromContext, resolveAuthContextFromArgs, type AuthContext } from '../types/auth.js';
+import {
+  extractUserFromContext,
+  getIdentityScope,
+  resolveAuthContextFromArgs,
+  type AuthContext,
+  type IdentityScope,
+} from '../types/auth.js';
 import { logger } from '../utils/logger.js';
 
 const StatusInputSchema = z.object({
@@ -106,10 +112,53 @@ async function resolveUserId(authContext?: AuthContext): Promise<string | null> 
   return user?.id ?? null;
 }
 
+function scopeToContinuity(scope: IdentityScope): string {
+  switch (scope) {
+    case 'oauth_portable':
+      return 'cross-workspace-and-session';
+    case 'workspace_scoped':
+      return 'workspace-scoped-only';
+    case 'local_machine':
+      return 'local-machine-only';
+    default:
+      return 'session-only';
+  }
+}
+
+async function buildIdentityStatus(authContext?: AuthContext): Promise<IdentityStatus> {
+  const externalId = await extractUserFromContext(authContext);
+  const scope = getIdentityScope(externalId);
+
+  const identity: IdentityStatus = {
+    scope,
+    continuity: scopeToContinuity(scope),
+    signals: {
+      has_oauth_auth: !!authContext?.oauth_authenticated,
+      has_thread_id: !!authContext?.thread_id,
+      has_conversation_id: !!authContext?.conversation_id,
+    },
+  };
+
+  if (scope !== 'oauth_portable') {
+    identity.upgrade = {
+      message: 'Your memory is not portable yet.',
+      benefits: [
+        'Sync memory across workspaces',
+        'Keep continuity across sessions',
+        'Reduce fragmented identity history',
+      ],
+      suggested_action: 'Connect OAuth to sync memory across workspaces and sessions.',
+    };
+  }
+
+  return identity;
+}
+
 export async function handleStatus(args: unknown) {
   try {
     const input = StatusInputSchema.parse(args);
     const authContext = resolveAuthContextFromArgs(args, input.auth as AuthContext | undefined);
+    const identity = await buildIdentityStatus(authContext);
 
     logger.info('Running status check', { check: input.check });
 
@@ -120,6 +169,7 @@ export async function handleStatus(args: unknown) {
       return {
         success: true,
         check: input.check,
+        identity,
         timestamp: new Date().toISOString(),
         summary: 'No user data found. Save a memory ("remember this") or run a code review to get started.',
         next_steps: ['Save your first insight: use memory tool with action "save"', 'Review code: use review tool with mode "code"'],
@@ -128,6 +178,7 @@ export async function handleStatus(args: unknown) {
 
     const result: StatusResult = {
       check: input.check,
+      identity,
       timestamp: new Date().toISOString(),
     };
 
@@ -163,6 +214,7 @@ export async function handleStatus(args: unknown) {
       return {
         success: true,
         check: 'all',
+        identity: result.identity,
         timestamp: result.timestamp,
         summary: result.summary,
         next_steps: result.next_steps,
@@ -609,6 +661,7 @@ function generateNextSteps(result: StatusResult): string[] {
 
 interface StatusResult {
   check: string;
+  identity: IdentityStatus;
   timestamp: string;
   session?: SessionStatus;
   history?: HistoryStatus;
@@ -617,4 +670,19 @@ interface StatusResult {
   preferences?: PreferencesStatus;
   summary?: string;
   next_steps?: string[];
+}
+
+interface IdentityStatus {
+  scope: IdentityScope;
+  continuity: string;
+  upgrade?: {
+    message: string;
+    benefits: string[];
+    suggested_action: string;
+  };
+  signals: {
+    has_oauth_auth: boolean;
+    has_thread_id: boolean;
+    has_conversation_id: boolean;
+  };
 }

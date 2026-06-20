@@ -45,7 +45,13 @@ import {
 import { runToolWithPolicy, type PolicyContext } from '../policy/index.js';
 import { logger } from '../utils/logger.js';
 import { getSupabaseClientAsync } from '../db/supabase-helpers.js';
-import { resolveAuthContextFromArgs, type AuthContext } from '../types/auth.js';
+import {
+  resolveAuthContextFromArgs,
+  extractUserFromContext,
+  getIdentityScope,
+  type AuthContext,
+  type IdentityScope,
+} from '../types/auth.js';
 
 // ============================================================
 // RETRY HELPER — transparent retry for transient DB failures
@@ -76,6 +82,21 @@ async function withRetry<T>(
     }
   }
   throw lastError;
+}
+
+function buildGrowthHint(identityScope: IdentityScope): Record<string, unknown> | undefined {
+  if (identityScope === 'oauth_portable') {
+    return {
+      identity_scope: 'oauth_portable',
+      continuity: 'cross-workspace-and-session',
+    };
+  }
+
+  return {
+    identity_scope: identityScope,
+    continuity: 'workspace-scoped-only',
+    upgrade_prompt: 'Connect OAuth to sync memory across workspaces and sessions.',
+  };
 }
 
 // ============================================================
@@ -153,6 +174,9 @@ export const memoryTool = {
       const parsed = MemoryInputSchema.parse(args);
       const action = parsed.action ?? 'save';
       const auth = resolveAuthContextFromArgs(args, parsed.auth as AuthContext | undefined);
+      const externalUserId = await extractUserFromContext(auth);
+      const identityScope = getIdentityScope(externalUserId);
+      const growthHint = buildGrowthHint(identityScope);
 
       // Auto-recall on first call of a new session
       const { sessionId: resolvedSessionId, isNew } = await getOrCreateSession(
@@ -164,13 +188,7 @@ export const memoryTool = {
       // Identity visibility: a recurring source of "where did my memory go?" bugs is
       // unstable identity across calls. Log the resolved external user id so we can
       // verify cross-call stability when debugging.
-      try {
-        const { extractUserFromContext } = await import('../types/auth.js');
-        const externalUserId = await extractUserFromContext(auth);
-        logger.info(`[memory] action=${action} user=${externalUserId} session=${sessionId} isNew=${isNew} explicitSession=${!!parsed.session_id}`);
-      } catch {
-        // Non-critical — logging only.
-      }
+      logger.info(`[memory] action=${action} user=${externalUserId} scope=${identityScope} session=${sessionId} isNew=${isNew} explicitSession=${!!parsed.session_id}`);
 
       // Build auto-recall context for new sessions (prepended to response)
       let sessionContext: {
@@ -276,7 +294,11 @@ export const memoryTool = {
             summary.count.insights = summary.recent_insights.length;
           }
 
-          return { ...summary, ...(sessionContext ? { session_context: sessionContext } : {}) };
+          return {
+            ...summary,
+            ...(sessionContext ? { session_context: sessionContext } : {}),
+            ...(growthHint ? { identity: growthHint } : {}),
+          };
         }
         case 'list': {
           // List is a browse-all operation across the user's full history,
@@ -316,6 +338,7 @@ export const memoryTool = {
               insights: insights.length,
               checkpoints: checkpoints.length,
             },
+            ...(growthHint ? { identity: growthHint } : {}),
           };
         }
         case 'save':
@@ -327,7 +350,11 @@ export const memoryTool = {
             session_id: sessionId,
             auth,
           });
-          return { ...saveResult as Record<string, unknown>, ...(sessionContext ? { session_context: sessionContext } : {}) };
+          return {
+            ...saveResult as Record<string, unknown>,
+            ...(sessionContext ? { session_context: sessionContext } : {}),
+            ...(growthHint ? { identity: growthHint } : {}),
+          };
         }
       }
     }); // withRetry

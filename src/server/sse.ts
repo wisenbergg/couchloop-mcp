@@ -53,6 +53,17 @@ function enrichToolCallIdentity(req: Request): void {
     sources.thread_id = 'req.threadId';
   }
 
+  // Never trust portable identity fields from client-provided arguments.
+  // Only server-validated OAuth state can unlock cross-workspace continuity.
+  delete auth.oauth_authenticated;
+  delete auth.oauth_user_id;
+  delete auth.oauth_client_id;
+
+  if (!req.user) {
+    delete auth.user_id;
+    delete auth.client_id;
+  }
+
   if (!auth.user_id && req.user?.userId) {
     auth.user_id = req.user.userId;
     sources.user_id = 'req.user(jwt)';
@@ -63,14 +74,12 @@ function enrichToolCallIdentity(req: Request): void {
     sources.client_id = 'req.user(jwt)';
   }
 
-  if (!auth.user_id && typeof meta['openai/subject'] === 'string') {
-    auth.user_id = meta['openai/subject'];
-    sources.user_id = 'meta.openai/subject';
-  }
-
-  if (!auth.client_id && typeof meta['openai/subject'] === 'string') {
-    auth.client_id = 'chatgpt';
-    sources.client_id = 'meta.openai/subject';
+  if (req.user) {
+    auth.oauth_authenticated = true;
+    auth.oauth_user_id = req.user.userId;
+    auth.oauth_client_id = req.user.clientId;
+    sources.user_id = sources.user_id ?? 'req.user(jwt)';
+    sources.client_id = sources.client_id ?? 'req.user(jwt)';
   }
 
   if (!auth.client_id && (req.threadId || transportSessionId)) {

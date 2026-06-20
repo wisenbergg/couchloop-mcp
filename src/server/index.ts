@@ -32,6 +32,10 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Railway/edge proxies terminate TLS before forwarding to this app.
+// Trust proxy headers so externally-visible URLs resolve to https.
+app.set("trust proxy", true);
+
 // Middleware
 app.use(
   helmet({
@@ -137,6 +141,28 @@ function buildOAuthMetadata(baseUrl: string) {
     scopes_supported: ["read", "write", "crisis", "memory"],
     token_endpoint_auth_methods_supported: ["client_secret_post"],
   };
+}
+
+function getExternalBaseUrl(req: Request): string {
+  const forwardedProtoRaw = req.headers["x-forwarded-proto"];
+  const forwardedHostRaw = req.headers["x-forwarded-host"];
+
+  const forwardedProto =
+    typeof forwardedProtoRaw === "string"
+      ? forwardedProtoRaw.split(",")[0]?.trim().toLowerCase()
+      : undefined;
+  const forwardedHost =
+    typeof forwardedHostRaw === "string"
+      ? forwardedHostRaw.split(",")[0]?.trim()
+      : undefined;
+
+  const protocol =
+    forwardedProto === "https" || forwardedProto === "http"
+      ? forwardedProto
+      : req.protocol;
+  const host = forwardedHost || req.get("host");
+
+  return `${protocol}://${host}`;
 }
 
 const OAUTH_IDENTITY_COOKIE = "couchloop_eq_identity";
@@ -606,9 +632,7 @@ app.post(
         return;
       }
 
-      const authorizeUrl = new URL(
-        `${req.protocol}://${req.get("host")}/oauth/authorize`,
-      );
+      const authorizeUrl = new URL(`${getExternalBaseUrl(req)}/oauth/authorize`);
       authorizeUrl.searchParams.set("client_id", client_id);
       authorizeUrl.searchParams.set("redirect_uri", redirect_uri);
       authorizeUrl.searchParams.set("response_type", "code");
@@ -644,7 +668,7 @@ app.get("/oauth/callback", (req: Request, res: Response) => {
   const returnTo =
     typeof req.query.return_to === "string" ? req.query.return_to : undefined;
 
-  const baseUrl = `${req.protocol}://${req.get("host")}`;
+  const baseUrl = getExternalBaseUrl(req);
   const returnUrl = returnTo
     ? buildCallbackReturnUrl({
         returnTo,
@@ -842,7 +866,7 @@ function showMCPInfo(req: Request, res: Response, next: NextFunction) {
           <p>This endpoint is designed for ChatGPT Developer Mode.</p>
           <h2>Configuration for ChatGPT:</h2>
           <ul>
-            <li><strong>MCP Server URL:</strong> <code>${req.protocol}://${req.get("host")}/mcp</code></li>
+            <li><strong>MCP Server URL:</strong> <code>${getExternalBaseUrl(req)}/mcp</code></li>
             <li><strong>Identity:</strong> Bearer token or <code>X-Thread-Id</code> recommended for persistent isolated memory</li>
           </ul>
           <p style="color: #666; margin-top: 40px;">
@@ -967,7 +991,7 @@ app.get("/health", (_req: Request, res: Response) => {
 app.get(
   "/.well-known/oauth-authorization-server",
   (req: Request, res: Response) => {
-    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    const baseUrl = getExternalBaseUrl(req);
     res.json(buildOAuthMetadata(baseUrl));
   },
 );
@@ -977,7 +1001,7 @@ app.get(
  * Compatibility alias for clients expecting OIDC discovery path.
  */
 app.get("/.well-known/openid-configuration", (req: Request, res: Response) => {
-  const baseUrl = `${req.protocol}://${req.get("host")}`;
+  const baseUrl = getExternalBaseUrl(req);
   res.json(buildOAuthMetadata(baseUrl));
 });
 
@@ -986,7 +1010,7 @@ app.get("/.well-known/openid-configuration", (req: Request, res: Response) => {
  * ChatGPT plugin manifest
  */
 app.get("/.well-known/ai-plugin.json", (req: Request, res: Response) => {
-  const baseUrl = `${req.protocol}://${req.get("host")}`;
+  const baseUrl = getExternalBaseUrl(req);
 
   res.json({
     schema_version: "v1",
@@ -1023,7 +1047,7 @@ app.get("/.well-known/ai-plugin.json", (req: Request, res: Response) => {
  * OpenAPI specification for ChatGPT
  */
 app.get("/openapi.yaml", (req: Request, res: Response) => {
-  const baseUrl = `${req.protocol}://${req.get("host")}`;
+  const baseUrl = getExternalBaseUrl(req);
 
   const openApiSpec = `
 openapi: 3.0.1
