@@ -140,7 +140,7 @@ export class SqlInjectionDetector {
           code: code,
           issue: `Dynamic table name in SQL: ${code}. Table name (${varName}) comes from user input, allowing table injection attacks.`,
           cwe: 'CWE-89: Improper Neutralization of Special Elements used in an SQL Command',
-          fix: `Use identifier escaping or whitelist allowed tables:\n  const allowedTables = ['users', 'orders', 'products'];\n  if (!allowedTables.includes(tableName)) throw new Error('Invalid table');\n  const query = \`SELECT * FROM \\\"\${tableName}\\\"\`; // Quoted identifier\n  Or use an ORM that handles this safely.`
+          fix: `Use identifier escaping or whitelist allowed tables:\n  const allowedTables = ['users', 'orders', 'products'];\n  if (!allowedTables.includes(tableName)) throw new Error('Invalid table');\n  const query = \`SELECT * FROM "\${tableName}"\`; // Quoted identifier\n  Or use an ORM that handles this safely.`
         });
       }
     }
@@ -181,7 +181,7 @@ export class SqlInjectionDetector {
           code: code,
           issue: `Dynamic column name in SQL: ${code}. Column name (${varName}) from user input could allow column-based injection attacks.`,
           cwe: 'CWE-89: Improper Neutralization of Special Elements used in an SQL Command',
-          fix: `Use identifier escaping or whitelist allowed columns:\n  const allowedColumns = ['id', 'name', 'email'];\n  if (!allowedColumns.includes(columnName)) throw new Error('Invalid column');\n  const query = \`SELECT \\\"\${columnName}\\\", * FROM users\`; // Quoted identifier\n  Or use an ORM's dynamic select methods.`
+          fix: `Use identifier escaping or whitelist allowed columns:\n  const allowedColumns = ['id', 'name', 'email'];\n  if (!allowedColumns.includes(columnName)) throw new Error('Invalid column');\n  const query = \`SELECT "\${columnName}", * FROM users\`; // Quoted identifier\n  Or use an ORM's dynamic select methods.`
         });
       }
     }

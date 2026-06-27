@@ -83,7 +83,7 @@ export class ReviewAssistant {
       // Check for commented out code patterns
       const commentedCodePatterns = [
         /^\/\/\s*(const|let|var|function|if|for|while|return|async|await|import|export)\b/,
-        /^\/\/\s*\w+\s*[\.\[\(\{]/,
+        /^\/\/\s*\w+\s*(?:\.|\[|\(|\{)/,
         /^\/\/\s*}\s*$/,
         /^\/\/\s*;/
       ];
@@ -105,7 +105,7 @@ export class ReviewAssistant {
 
       // Multi-line commented code
       if (trimmed.startsWith('/*') && !trimmed.startsWith('/**')) {
-        let commentContent = trimmed.slice(2);
+        const commentContent = trimmed.slice(2);
         if (commentContent.includes('{') || commentContent.includes(';') || /\w+\s*=/i.test(commentContent)) {
           issues.push({
             line: index + 1,
@@ -320,7 +320,7 @@ export class ReviewAssistant {
     const issues: CodeIssue[] = [];
 
     this.lines.forEach((line, index) => {
-      let currentDepth = this.getCurrentBraceDepth(index);
+      const currentDepth = this.getCurrentBraceDepth(index);
 
       if (currentDepth >= 4) {
         if (/^\s*(if|for|while|switch)\s*/.test(line)) {
@@ -350,7 +350,7 @@ export class ReviewAssistant {
       const line = this.lines[i];
       if (!line) continue;
       if (/\.catch\s*\(/.test(line)) return true;
-      if (/^\s*[}\);]/.test(line) && i > lineIndex) break;
+      if (/^\s*[});]/.test(line) && i > lineIndex) break;
     }
     return false;
   }

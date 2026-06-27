@@ -261,10 +261,13 @@ npm run dev:v2 2>&1 | grep TRACE
 
 ### 2. Deployment:
 ```bash
-# Railway/Vercel deployment with env vars
+# Deployment by service
+# CouchLoop EQ MCP (this repo): Railway
 railway up --environment production
-# or
-vercel --prod
+
+# Other apps (outside this repo):
+# - shrink-chat: Vercel
+# - froid: Vercel
 ```
 
 ### 3. Post-deployment:

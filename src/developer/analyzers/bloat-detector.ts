@@ -30,6 +30,11 @@ export interface BloatDetectionResult {
   refactoringPriority: string[];
 }
 
+interface CallableDeclaration {
+  index: number;
+  kind: 'function' | 'variable';
+}
+
 export class BloatDetector {
   private complexityCalculator: ComplexityCalculator;
   constructor(threshold: number = 50) {
@@ -85,7 +90,7 @@ export class BloatDetector {
   private detectExcessiveNesting(code: string, _language: string, issues: CodeSmellWarning[]): void {
     const lines = code.split('\n');
     let maxNesting = 0;
-    let nestingStack: { level: number; lineNumber: number }[] = [];
+    const nestingStack: { level: number; lineNumber: number }[] = [];
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
@@ -201,35 +206,75 @@ return isValidUser(user) ? true : false;`
    * Detect over-abstraction (single-use abstractions)
    */
   private detectOverAbstraction(code: string, _language: string, issues: CodeSmellWarning[]): void {
-    // Pattern: functions/classes used only once
-    const functionMatches = code.matchAll(/(?:function|const)\s+(\w+)\s*(?:\(|=)/g);
-    const functionNames = new Map<string, number>();
-
-    for (const match of functionMatches) {
-      const name = match[1];
-      if (!name) continue;
-      functionNames.set(name, (functionNames.get(name) || 0) + 1);
-    }
+    const declarations = this.collectCallableDeclarations(code);
 
     // Find functions that are defined but only called once (or not at all)
-    for (const [name, _count] of functionNames.entries()) {
-      const callPattern = new RegExp(`\\b${name}\\s*\\(`, 'g');
-      const calls = code.match(callPattern);
-      const callCount = calls ? calls.length - 1 : 0; // -1 for the definition
+    for (const [name, matches] of declarations.entries()) {
+      // Skip ambiguous duplicates; we cannot safely attribute calls.
+      if (matches.length !== 1) continue;
+      const declaration = matches[0];
+      if (!declaration) continue;
 
-      if (callCount === 1) {
-        const defIndex = code.indexOf(`${name}\s*(`);
-        const lineNumber = code.substring(0, defIndex).split('\n').length;
+      const escapedName = this.escapeRegExp(name);
+      const callPattern = new RegExp(`\\b${escapedName}\\s*\\(`, 'g');
+      const totalCallMatches = code.match(callPattern)?.length ?? 0;
+      const declarationCallMatches = declaration.kind === 'function' ? 1 : 0;
+      const callCount = Math.max(0, totalCallMatches - declarationCallMatches);
+
+      if (callCount <= 1) {
+        const lineNumber = code.substring(0, declaration.index).split('\n').length;
+        const usageText = callCount === 0 ? 'not used' : 'used only once';
 
         issues.push({
           type: 'over_abstraction',
           severity: 'low',
           line: lineNumber,
-          pattern: `Function "${name}" defined but used only once`,
-          suggestion: `Inline function "${name}" where it's called. Single-use abstractions add complexity without benefit.`
+          pattern: `Function "${name}" defined but ${usageText}`,
+          suggestion: callCount === 0
+            ? `Remove function "${name}" if unnecessary, or use it where intended.`
+            : `Inline function "${name}" where it's called. Single-use abstractions add complexity without benefit.`
         });
       }
     }
+  }
+
+  private collectCallableDeclarations(code: string): Map<string, CallableDeclaration[]> {
+    const declarations = new Map<string, CallableDeclaration[]>();
+    const addDeclaration = (name: string, index: number, kind: CallableDeclaration['kind']) => {
+      const existing = declarations.get(name) || [];
+      existing.push({ index, kind });
+      declarations.set(name, existing);
+    };
+
+    const declarationPatterns: Array<{ regex: RegExp; kind: CallableDeclaration['kind'] }> = [
+      {
+        regex: /\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g,
+        kind: 'function'
+      },
+      {
+        regex: /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>/g,
+        kind: 'variable'
+      },
+      {
+        regex: /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?function\b/g,
+        kind: 'variable'
+      }
+    ];
+
+    for (const { regex, kind } of declarationPatterns) {
+      for (const match of code.matchAll(regex)) {
+        const name = match[1];
+        const index = match.index;
+        if (!name || index === undefined) continue;
+        addDeclaration(name, index, kind);
+      }
+    }
+
+    return declarations;
+  }
+
+  private escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
   /**

@@ -144,7 +144,7 @@ jobs:
     - name: NPM Audit
       run: |
         echo "Running npm audit..."
-        # Only audit production dependencies (dev deps like vercel have known issues)
+        # Audit production dependencies first to prioritize deployable risk
         npm audit --omit=dev --audit-level=high || true
 
         # Generate audit report for production deps only

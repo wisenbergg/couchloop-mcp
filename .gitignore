@@ -180,6 +180,7 @@ docs/OAUTH_IMPLEMENTATION_PLAN.md
 
 # Runtime/Temporary Data
 src/db/context-store.json
+cookies.txt
 
 # Database Migrations (tracked for deployment)
 # src/db/migrations/

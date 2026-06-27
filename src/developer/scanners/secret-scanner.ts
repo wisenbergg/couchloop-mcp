@@ -48,11 +48,11 @@ export class SecretScanner {
     pgpPrivateKey: /-----BEGIN\s+PGP\s+PRIVATE\s+KEY-----/gi,
 
     // JWT
-    jwtToken: /eyJ[A-Za-z0-9_\-]+\.eyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+/g,
+    jwtToken: /eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g,
 
     // Basic Passwords
-    passwordAssignment: /(?:password|passwd|pwd|secret)\s*[:=]\s*['\"`]([^'\"`;]+)['\"`]/gi,
-    hardcodedAdmin: /(?:password|passwd)\s*=\s*['\"](?:admin|Admin123|password|123456|password123)['\"]|\b(?:admin|root|sa|user)\s*=\s*['\"](?:admin|password|123456)['\"]|\b(?:password|secret)\s*=\s*['\"][^'\"]*(?:test|temp|demo|pass|secret)[^'\"]*['\"]/gi,
+    passwordAssignment: /(?:password|passwd|pwd|secret)\s*[:=]\s*['"`]([^'"`;]+)['"`]/gi,
+    hardcodedAdmin: /(?:password|passwd)\s*=\s*['"](?:admin|Admin123|password|123456|password123)['"]|\b(?:admin|root|sa|user)\s*=\s*['"](?:admin|password|123456)['"]|\b(?:password|secret)\s*=\s*['"][^'"]*(?:test|temp|demo|pass|secret)[^'"]*['"]/gi,
   };
 
   /**

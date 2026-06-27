@@ -2,11 +2,9 @@ import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import {
   GovernancePipeline,
-  type InterventionAction,
   type SessionContext,
 } from "../governance/evaluationEngine.js";
 import { InterventionEngine } from "../governance/intervention.js";
-import { loadConfig } from "../governance/config.js";
 import {
   scanPackageList,
   CORPUS_STATS,
@@ -18,7 +16,6 @@ import {
 // ─────────────────────────────────────────────────────────────────────────────
 
 type GuardMode = "enforce" | "shadow" | "bypass";
-type DomainType = "dev" | "clinical" | "auto";
 type ActionType = "pass" | "modified" | "blocked";
 
 interface ConversationTurn {
@@ -229,7 +226,6 @@ export function registerGuardTool(server: McpServer): void {
             ? detectDomain(conversation, response)
             : domain;
 
-        const config = await loadConfig();
         let action: ActionType = "pass";
         let finalResponse = response;
         let intervention: GuardResult["intervention"] | undefined;

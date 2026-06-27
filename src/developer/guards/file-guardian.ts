@@ -353,12 +353,6 @@ export class FileGuardian {
   } {
     const recentViolations: ProtectionViolation[] = [];
 
-    // Extract violations from recent operations
-    for (const _op of this.operationLog.slice(-20)) {
-      // This would need to store violations in FileOperation
-      // For now, return empty
-    }
-
     return {
       codeFreezeEnabled: this.codeFreezeMode,
       totalOperationsLogged: this.operationLog.length,

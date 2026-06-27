@@ -330,8 +330,9 @@ export class PackageEvaluator {
       'cv2': 'opencv-python'
     };
 
-    if (corrections[packageName]) {
-      similar.unshift(corrections[packageName]);
+    const correction = corrections[packageName];
+    if (correction) {
+      similar.unshift(correction);
     }
 
     return [...new Set(similar)].slice(0, 3);

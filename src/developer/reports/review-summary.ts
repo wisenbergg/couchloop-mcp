@@ -103,8 +103,10 @@ export class ReviewSummaryGenerator {
         };
       }
 
-      groups[key].count++;
-      groups[key].issues.push(issue);
+      const group = groups[key];
+      if (!group) return;
+      group.count++;
+      group.issues.push(issue);
     });
 
     // Sort by severity (high > medium > low), then by count
