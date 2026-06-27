@@ -153,7 +153,7 @@ export async function handlePreReviewCode(input: unknown): Promise<object> {
 }
 
 function filterByStrictness(scanResult: ScanResult, strictness: 'low' | 'medium' | 'high') {
-  let filtered = { ...scanResult };
+  const filtered = { ...scanResult };
 
   if (strictness === 'low') {
     // Only keep critical issues

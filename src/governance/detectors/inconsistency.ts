@@ -357,7 +357,7 @@ export class InconsistencyChecker {
    */
   private extractAction(advice: string): string | null {
     // Remove common advice prefixes
-    let action = advice
+    const action = advice
       .replace(/you (should|must|need to|ought to) /i, '')
       .replace(/I (recommend|suggest|advise) /i, '')
       .replace(/(try|consider|think about) /i, '');
