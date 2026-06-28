@@ -25,6 +25,8 @@ import {
 } from "./middleware/localNetworkAccess.js";
 import { oauthServer } from "./oauth/authServer.js";
 import { cleanupSessions, handleSSE } from "./sse.js";
+import { ssoRouter } from "./oauth/ssoRoutes.js";
+import { sweepExpiredPending } from "./oauth/pendingAuth.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -71,6 +73,16 @@ app.use(cookieParser());
 // Use enhanced CORS with Local Network Access support
 app.use(enhancedCors);
 app.use(localNetworkAccessMiddleware);
+
+// SSO (Supabase Auth) — optional upgrade, flag-gated. Off → no SSO routes, no sweep, no behavior change.
+if (process.env.FF_SSO_SUPABASE === "true") {
+  app.use(ssoRouter());
+  const ssoSweep = setInterval(() => {
+    void sweepExpiredPending();
+  }, 5 * 60 * 1000);
+  ssoSweep.unref?.();
+  logger.info("[SSO] FF_SSO_SUPABASE enabled — SSO routes mounted, pending-auth sweep scheduled");
+}
 
 /**
  * Allowed CORS origins for MCP endpoints.
