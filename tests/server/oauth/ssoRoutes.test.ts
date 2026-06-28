@@ -3,7 +3,25 @@ import {
   handleResolved,
   renderConsentPage,
   renderConflictPage,
+  ssoRouter,
 } from '../../../src/server/oauth/ssoRoutes';
+
+interface RouteLayer {
+  route?: { path: string; methods: Record<string, boolean> };
+}
+
+describe('ssoRouter wiring (regression)', () => {
+  it('registers exactly the three SSO routes with the expected methods', () => {
+    const router = ssoRouter();
+    const layers = (router.stack as RouteLayer[]).filter((l) => l.route);
+    const routes = layers.map((l) => ({ path: l.route!.path, methods: Object.keys(l.route!.methods) }));
+
+    expect(routes).toContainEqual({ path: '/oauth/sso/start', methods: ['get'] });
+    expect(routes).toContainEqual({ path: '/auth/callback', methods: ['get'] });
+    expect(routes).toContainEqual({ path: '/auth/consent', methods: ['post'] });
+    expect(routes).toHaveLength(3);
+  });
+});
 
 describe('sso route helpers', () => {
   it('handleResolved mints a code and builds the client redirect with state', async () => {
