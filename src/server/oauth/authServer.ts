@@ -10,6 +10,7 @@ import jwt, { type SignOptions } from "jsonwebtoken";
 import { v4 as uuidv4 } from "uuid";
 import { getSupabaseClient, throwOnError } from "../../db/supabase-helpers.js";
 import { logger } from "../../utils/logger.js";
+import { isReservedClientId } from "./ssoIdentity.js";
 
 interface TokenPayload {
   sub: string; // User ID
@@ -142,6 +143,11 @@ export class OAuthServer {
         : "Dynamic MCP Client";
 
     const clientId = `mcp_${nodeCrypto.randomUUID()}`;
+    // Minted ids are always mcp_*, but assert defensively that they never collide
+    // with the reserved SSO sentinel client_id.
+    if (isReservedClientId(clientId)) {
+      throw new Error("Refusing to register reserved client_id");
+    }
     const rawClientSecret = nodeCrypto.randomBytes(32).toString("base64url");
     const hashedClientSecret = await bcrypt.hash(rawClientSecret, 12);
 

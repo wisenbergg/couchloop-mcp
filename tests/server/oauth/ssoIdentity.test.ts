@@ -5,6 +5,7 @@ import {
   subjectHashFor,
   anonHasData,
   resolveSupabaseIdentity,
+  isReservedClientId,
   type IdentityStore,
 } from '../../../src/server/oauth/ssoIdentity';
 
@@ -40,6 +41,13 @@ describe('anonHasData', () => {
   it('is false when the user owns nothing', async () => {
     const supabase = fakeSupabase({ sessions: 0, insights: 0 });
     expect(await anonHasData(supabase, 'u1')).toBe(false);
+  });
+});
+
+describe('reserved client id guard', () => {
+  it('flags the sentinel', () => {
+    expect(isReservedClientId('__sso__')).toBe(true);
+    expect(isReservedClientId('mcp_123')).toBe(false);
   });
 });
 

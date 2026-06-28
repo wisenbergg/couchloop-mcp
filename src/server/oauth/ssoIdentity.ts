@@ -4,6 +4,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 /** Reserved client_id for client-independent SSO links. Never minted as a real client. */
 export const SSO_SENTINEL_CLIENT_ID = "__sso__";
 
+/** True if a client_id collides with the reserved SSO sentinel. */
+export function isReservedClientId(clientId: string): boolean {
+  return clientId === SSO_SENTINEL_CLIENT_ID;
+}
+
 /**
  * User-scoped "work" tables (both keyed by user_id). checkpoints/context_entries are
  * session-/thread-scoped and have no user_id, so a user with any of those also has a
