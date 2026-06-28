@@ -1,5 +1,6 @@
 import express, { Router, type Request, type Response } from "express";
 import { logger } from "../../utils/logger.js";
+import { rateLimit } from "../middleware/auth.js";
 import { oauthServer } from "./authServer.js";
 import { getSupabaseClient } from "../../db/supabase-helpers.js";
 import {
@@ -49,6 +50,26 @@ function externalBaseUrl(req: Request): string {
   const host = forwardedHost || req.get("host");
   return `${protocol}://${host}`;
 }
+
+/**
+ * Trusted base URL for the SSO callback / magic-link redirect.
+ * Prefers the configured `OAUTH_PUBLIC_BASE_URL` so attacker-controlled forwarded
+ * Host headers can never redirect the callback or leak magic-link tokens to another
+ * origin (the request-derived host is a dev-only fallback). MUST be set in production.
+ */
+export function ssoCallbackBaseUrl(req: Request): string {
+  const configured = process.env.OAUTH_PUBLIC_BASE_URL?.trim().replace(/\/+$/, "");
+  if (configured) return configured;
+  logger.warn(
+    "[SSO] OAUTH_PUBLIC_BASE_URL is not set — falling back to request-derived host (unsafe behind untrusted proxies). Set it in production.",
+  );
+  return externalBaseUrl(req);
+}
+
+// Reused IP-keyed limiters. /oauth/sso/start is unauthenticated; the email branch
+// triggers an outbound email (spam / cost amplification) so it is throttled tighter.
+const startLimiter = rateLimit(10, 60_000); // 10/min/IP — matches /oauth/authorize
+const emailLimiter = rateLimit(5, 60 * 60_000); // 5/hour/IP for magic-link sends
 
 /** Mint the auth code for a resolved user and build the client redirect URL. */
 export async function handleResolved(
@@ -110,7 +131,7 @@ export function ssoRouter(): Router {
   const router = Router();
 
   // Initiation: /oauth/sso/start?provider=google&client_id=…&redirect_uri=…&state=…&scope=…&code_challenge=…
-  router.get("/oauth/sso/start", async (req: Request, res: Response) => {
+  router.get("/oauth/sso/start", startLimiter, async (req: Request, res: Response) => {
     try {
       const q = req.query;
       const provider = String(q.provider || "");
@@ -144,11 +165,18 @@ export function ssoRouter(): Router {
 
       const nonce = newNonce();
       await createPending(buildPendingRow(nonce, params, anonUserId, hasData, new Date()));
-      const redirectTo = `${externalBaseUrl(req)}/auth/callback?n=${nonce}`;
+      const redirectTo = `${ssoCallbackBaseUrl(req)}/auth/callback?n=${nonce}`;
 
       if (provider === "google" || provider === "github") {
         res.redirect(await providerSignInUrl(req, res, provider, redirectTo));
       } else if (provider === "email") {
+        // Tighter per-IP throttle on outbound email; rateLimit is synchronous —
+        // it calls next() when allowed, or sends 429 itself when exceeded.
+        let allowed = false;
+        emailLimiter(req, res, () => {
+          allowed = true;
+        });
+        if (!allowed) return; // 429 already sent
         await sendMagicLink(req, res, String(q.email), redirectTo);
         res.type("html").send("<p>Check your email for a sign-in link.</p>");
       } else {

@@ -48,7 +48,17 @@ Enable automatic account linking **only for verified emails**. Never enable link
 
 Consequence to expect: a GitHub user with a **private/unverified** email may resolve to a *separate* Supabase user (and therefore a separate internal `user_id`). This fails safe — no incorrect linking — and is acceptable for Phase 1.
 
-## 5. Flip the flag
+## 5. Set the trusted callback origin (required in prod)
+
+Set `OAUTH_PUBLIC_BASE_URL` to this server's canonical public origin in each deployed environment:
+
+```bash
+OAUTH_PUBLIC_BASE_URL=https://mcp.couchloop.com
+```
+
+The SSO callback / magic-link `redirectTo` is built from this value, **not** from the request's `Host`/`X-Forwarded-Host` headers. This prevents Host-header poisoning from redirecting the callback to an attacker domain or leaking magic-link token material. If unset, the code falls back to the request-derived host (acceptable for local dev only) and logs a warning. It must match an entry in the Supabase Redirect URLs allow-list (step 2).
+
+## 6. Flip the flag
 
 Once the above is in place per environment:
 

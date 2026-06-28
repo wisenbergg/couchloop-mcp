@@ -1,10 +1,40 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import type { Request } from 'express';
 import {
   handleResolved,
   renderConsentPage,
   renderConflictPage,
   ssoRouter,
+  ssoCallbackBaseUrl,
 } from '../../../src/server/oauth/ssoRoutes';
+
+describe('ssoCallbackBaseUrl (host-poisoning hardening)', () => {
+  const original = process.env.OAUTH_PUBLIC_BASE_URL;
+  afterEach(() => {
+    if (original === undefined) delete process.env.OAUTH_PUBLIC_BASE_URL;
+    else process.env.OAUTH_PUBLIC_BASE_URL = original;
+  });
+
+  it('prefers the configured origin and ignores a poisoned forwarded Host', () => {
+    process.env.OAUTH_PUBLIC_BASE_URL = 'https://mcp.couchloop.com/';
+    const req = {
+      headers: { 'x-forwarded-host': 'evil.example.com', 'x-forwarded-proto': 'https' },
+      get: () => 'evil.example.com',
+      protocol: 'https',
+    } as unknown as Request;
+    expect(ssoCallbackBaseUrl(req)).toBe('https://mcp.couchloop.com'); // trailing slash trimmed, attacker host ignored
+  });
+
+  it('falls back to the request host only when no origin is configured (dev)', () => {
+    delete process.env.OAUTH_PUBLIC_BASE_URL;
+    const req = {
+      headers: {},
+      get: () => 'localhost:3001',
+      protocol: 'http',
+    } as unknown as Request;
+    expect(ssoCallbackBaseUrl(req)).toBe('http://localhost:3001');
+  });
+});
 
 interface RouteLayer {
   route?: { path: string; methods: Record<string, boolean> };

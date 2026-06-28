@@ -78,7 +78,9 @@ app.use(localNetworkAccessMiddleware);
 if (process.env.FF_SSO_SUPABASE === "true") {
   app.use(ssoRouter());
   const ssoSweep = setInterval(() => {
-    void sweepExpiredPending();
+    sweepExpiredPending().catch((err) => {
+      logger.error("[SSO] pending-auth sweep failed:", err);
+    });
   }, 5 * 60 * 1000);
   ssoSweep.unref?.();
   logger.info("[SSO] FF_SSO_SUPABASE enabled — SSO routes mounted, pending-auth sweep scheduled");
