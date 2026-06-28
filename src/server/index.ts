@@ -130,6 +130,20 @@ function renderConsentFallback(params: {
       : "",
   ].join("");
 
+  // Flag-gated SSO sign-in options. These carry the same authorize params to /oauth/sso/start.
+  const ssoStart = (provider: string) =>
+    `/oauth/sso/start?provider=${provider}&client_id=${clientId}&redirect_uri=${redirectUri}&state=${state}&scope=${scope}${pkceParams}`;
+  const ssoBlock =
+    process.env.FF_SSO_SUPABASE === "true"
+      ? `<div class="sso">
+        <p class="muted">Sign in to keep your work across devices:</p>
+        <div class="actions">
+          <a class="btn btn-secondary" href="${ssoStart("google")}">Sign in with Google</a>
+          <a class="btn btn-secondary" href="${ssoStart("github")}">Sign in with GitHub</a>
+        </div>
+      </div>`
+      : "";
+
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -158,6 +172,7 @@ function renderConsentFallback(params: {
         <a class="btn btn-primary" href="/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&state=${state}&scope=${scope}&consent=approved${pkceParams}">Authorize</a>
         <a class="btn btn-secondary" href="${escapeHtml(params.redirectUri)}?error=access_denied&state=${state}">Cancel</a>
       </div>
+      ${ssoBlock}
     </main>
   </body>
 </html>`;
@@ -589,7 +604,23 @@ app.get(
 
       // If consent is not approved, show consent screen
       if (consent !== "approved") {
-        // Serve the consent page, fall back to an inline template if the built asset is missing.
+        const consentParams = {
+          clientId: String(client_id),
+          redirectUri: String(redirect_uri),
+          state: String(state || ""),
+          scope: String(scope || "read write"),
+          codeChallenge: typeof code_challenge === "string" ? code_challenge : undefined,
+          codeChallengeMethod: normalizedChallengeMethod,
+        };
+
+        // When SSO is enabled, serve the dynamic, flag-aware consent page so the
+        // "Sign in with…" buttons render (the static template can't read the flag).
+        if (process.env.FF_SSO_SUPABASE === "true") {
+          res.status(200).type("html").send(renderConsentFallback(consentParams));
+          return;
+        }
+
+        // Default: serve the static consent page, fall back to inline if the asset is missing.
         const consentPath = path.join(__dirname, "views", "consent.html");
         res.sendFile(consentPath, (err) => {
           if (!err || res.headersSent) {
@@ -601,19 +632,7 @@ app.get(
             error: err.message,
           });
 
-          res
-            .status(200)
-            .type("html")
-            .send(
-              renderConsentFallback({
-                clientId: String(client_id),
-                redirectUri: String(redirect_uri),
-                state: String(state || ""),
-                scope: String(scope || "read write"),
-                codeChallenge: typeof code_challenge === "string" ? code_challenge : undefined,
-                codeChallengeMethod: normalizedChallengeMethod,
-              }),
-            );
+          res.status(200).type("html").send(renderConsentFallback(consentParams));
         });
         return;
       }
