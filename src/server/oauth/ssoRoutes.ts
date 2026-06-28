@@ -1,5 +1,6 @@
 import express, { Router, type Request, type Response } from "express";
 import { logger } from "../../utils/logger.js";
+import { escapeHtml } from "../../utils/inputSanitize.js";
 import { rateLimit } from "../middleware/auth.js";
 import { oauthServer } from "./authServer.js";
 import { getSupabaseClient } from "../../db/supabase-helpers.js";
@@ -66,10 +67,33 @@ export function ssoCallbackBaseUrl(req: Request): string {
   return externalBaseUrl(req);
 }
 
-// Reused IP-keyed limiters. /oauth/sso/start is unauthenticated; the email branch
-// triggers an outbound email (spam / cost amplification) so it is throttled tighter.
-const startLimiter = rateLimit(10, 60_000); // 10/min/IP — matches /oauth/authorize
-const emailLimiter = rateLimit(5, 60 * 60_000); // 5/hour/IP for magic-link sends
+// Endpoint limiter: /oauth/sso/start is unauthenticated. Uses the shared app limiter
+// (IP-keyed), matching /oauth/authorize's 10/min.
+const startLimiter = rateLimit(10, 60_000);
+
+// Dedicated, namespaced limiter for outbound magic-link emails. The shared rateLimit
+// map is keyed only by IP, so a second rateLimit() instance would collide with
+// startLimiter (corrupting the 1-hour window and double-counting). This keeps its own
+// state so the email throttle is actually enforced.
+const emailRateState = new Map<string, { count: number; resetAt: number }>();
+const EMAIL_MAX = 5;
+const EMAIL_WINDOW_MS = 60 * 60_000; // 1 hour
+
+export function emailSendLimited(
+  ip: string,
+  now: number = Date.now(),
+): { limited: boolean; retryAfter: number } {
+  const entry = emailRateState.get(ip);
+  if (!entry || now > entry.resetAt) {
+    emailRateState.set(ip, { count: 1, resetAt: now + EMAIL_WINDOW_MS });
+    return { limited: false, retryAfter: 0 };
+  }
+  if (entry.count >= EMAIL_MAX) {
+    return { limited: true, retryAfter: Math.ceil((entry.resetAt - now) / 1000) };
+  }
+  entry.count++;
+  return { limited: false, retryAfter: 0 };
+}
 
 /** Mint the auth code for a resolved user and build the client redirect URL. */
 export async function handleResolved(
@@ -88,7 +112,7 @@ export function renderConsentPage(nonce: string): string {
   return `<!doctype html><html lang="en"><body>
     <h1>We found work saved in this browser — is it yours?</h1>
     <form method="POST" action="/auth/consent">
-      <input type="hidden" name="n" value="${nonce}"/>
+      <input type="hidden" name="n" value="${escapeHtml(nonce)}"/>
       <button name="choice" value="adopt">Yes, add it to my account</button>
       <button name="choice" value="decline">No, keep it separate</button>
     </form></body></html>`;
@@ -99,7 +123,7 @@ export function renderConflictPage(nonce: string): string {
     <h1>You have separate work on this device</h1>
     <p>It stays separate until account merge ships. Continuing as your existing account.</p>
     <form method="POST" action="/auth/consent">
-      <input type="hidden" name="n" value="${nonce}"/>
+      <input type="hidden" name="n" value="${escapeHtml(nonce)}"/>
       <button name="choice" value="continue">Continue</button>
     </form></body></html>`;
 }
@@ -170,14 +194,22 @@ export function ssoRouter(): Router {
       if (provider === "google" || provider === "github") {
         res.redirect(await providerSignInUrl(req, res, provider, redirectTo));
       } else if (provider === "email") {
-        // Tighter per-IP throttle on outbound email; rateLimit is synchronous —
-        // it calls next() when allowed, or sends 429 itself when exceeded.
-        let allowed = false;
-        emailLimiter(req, res, () => {
-          allowed = true;
-        });
-        if (!allowed) return; // 429 already sent
-        await sendMagicLink(req, res, String(q.email), redirectTo);
+        const email = String(q.email || "").trim();
+        if (!email || !email.includes("@")) {
+          res.status(400).json({ error: "invalid_request", error_description: "A valid email is required" });
+          return;
+        }
+        // Dedicated per-IP throttle on outbound email (spam / cost amplification).
+        const limit = emailSendLimited(req.ip ?? "unknown");
+        if (limit.limited) {
+          res.status(429).json({
+            error: "rate_limit_exceeded",
+            message: "Too many sign-in emails, please try again later",
+            retryAfter: limit.retryAfter,
+          });
+          return;
+        }
+        await sendMagicLink(req, res, email, redirectTo);
         res.type("html").send("<p>Check your email for a sign-in link.</p>");
       } else {
         res.status(400).json({ error: "invalid_request", error_description: "Unknown provider" });

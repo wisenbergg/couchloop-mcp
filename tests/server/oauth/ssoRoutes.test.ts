@@ -6,7 +6,29 @@ import {
   renderConflictPage,
   ssoRouter,
   ssoCallbackBaseUrl,
+  emailSendLimited,
 } from '../../../src/server/oauth/ssoRoutes';
+
+describe('emailSendLimited (magic-link throttle)', () => {
+  it('allows 5 sends per IP then limits, with its own 1-hour window', () => {
+    const ip = `1.2.3.${Math.floor(Math.random() * 1000)}`; // unique IP per run
+    const t0 = 1_000_000;
+    for (let i = 0; i < 5; i++) {
+      expect(emailSendLimited(ip, t0 + i).limited).toBe(false);
+    }
+    const sixth = emailSendLimited(ip, t0 + 5);
+    expect(sixth.limited).toBe(true);
+    expect(sixth.retryAfter).toBeGreaterThan(3000); // ~1h remaining, not the 60s start window
+  });
+
+  it('resets after the window elapses', () => {
+    const ip = `9.9.9.${Math.floor(Math.random() * 1000)}`;
+    const t0 = 5_000_000;
+    expect(emailSendLimited(ip, t0).limited).toBe(false);
+    // jump past the 1-hour window
+    expect(emailSendLimited(ip, t0 + 60 * 60_000 + 1).limited).toBe(false);
+  });
+});
 
 describe('ssoCallbackBaseUrl (host-poisoning hardening)', () => {
   const original = process.env.OAUTH_PUBLIC_BASE_URL;
