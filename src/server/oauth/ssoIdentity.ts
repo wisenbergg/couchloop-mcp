@@ -45,3 +45,67 @@ export function subjectHashFor(supabaseUserId: string): string {
     .update(`supabase:${supabaseUserId}`)
     .digest("hex");
 }
+
+export interface IdentityStore {
+  /** Returns the user_id for an existing SSO link, or null. */
+  findSsoLink(subjectHash: string): Promise<string | null>;
+  /** Idempotent get-or-create of a user keyed by external_id. */
+  getOrCreateUser(externalId: string): Promise<string>;
+  /** INSERT … ON CONFLICT (client_id,issuer,subject_hash) DO NOTHING, then SELECT the winner. */
+  insertSsoLinkIfAbsent(subjectHash: string, userId: string): Promise<string>;
+  /** INSERT … ON CONFLICT (anon_user_id,sso_user_id) DO NOTHING. */
+  insertOrphanIfAbsent(anonUserId: string, ssoUserId: string, clientId: string): Promise<void>;
+}
+
+export type ResolveResult =
+  | { status: "resolved"; userId: string }
+  | { status: "needs_merge_confirmation" }
+  | { status: "conflict"; anonUserId: string; ssoUserId: string };
+
+/**
+ * Map a verified Supabase subject (already hashed) to a durable internal user_id.
+ * Governing rule: adopt only on a MISS; never sweep anonymous data without consent;
+ * an existing SSO identity always wins; a conflicting anon is persisted, never destroyed.
+ */
+export async function resolveSupabaseIdentity(
+  store: IdentityStore,
+  subjectHash: string,
+  candidateAnonUserId: string | null,
+  clientId: string,
+  opts: { anonHasData: boolean; consent?: "adopt" | "decline" },
+): Promise<ResolveResult> {
+  const hasAnon = candidateAnonUserId != null;
+  const existing = await store.findSsoLink(subjectHash);
+
+  if (existing) {
+    // HIT: identity seen before (other device/client).
+    if (hasAnon && candidateAnonUserId !== existing && opts.anonHasData) {
+      await store.insertOrphanIfAbsent(candidateAnonUserId, existing, clientId);
+      return { status: "conflict", anonUserId: candidateAnonUserId, ssoUserId: existing };
+    }
+    return { status: "resolved", userId: existing };
+  }
+
+  // MISS: first time this SSO identity is seen.
+  if (hasAnon && opts.anonHasData && opts.consent === undefined) {
+    return { status: "needs_merge_confirmation" };
+  }
+
+  let target: string;
+  if (hasAnon && opts.anonHasData && opts.consent === "adopt") {
+    target = candidateAnonUserId;
+  } else if (hasAnon && !opts.anonHasData) {
+    target = candidateAnonUserId;
+  } else {
+    // No anon, or consent === 'decline' → the deterministic canonical SSO user.
+    target = await store.getOrCreateUser(`sso:${subjectHash}`);
+  }
+
+  // Atomic claim: a concurrent HIT created between findSsoLink and here collapses to the
+  // existing row; if our consented adopt lost that race, record the orphan.
+  const winner = await store.insertSsoLinkIfAbsent(subjectHash, target);
+  if (winner !== target && hasAnon && opts.anonHasData) {
+    await store.insertOrphanIfAbsent(candidateAnonUserId, winner, clientId);
+  }
+  return { status: "resolved", userId: winner };
+}
