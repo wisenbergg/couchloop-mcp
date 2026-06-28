@@ -180,15 +180,15 @@ import { anonHasData } from "../../../src/server/oauth/ssoIdentity.js";
 
 describe("anonHasData", () => {
   it("is true when a session row exists", async () => {
-    const supabase = fakeSupabase({ sessions: 1, context_entries: 0 });
+    const supabase = fakeSupabase({ sessions: 1, insights: 0 });
     expect(await anonHasData(supabase as never, "u1")).toBe(true);
   });
-  it("is true when a context_entries row exists", async () => {
-    const supabase = fakeSupabase({ sessions: 0, context_entries: 1 });
+  it("is true when a insights row exists", async () => {
+    const supabase = fakeSupabase({ sessions: 0, insights: 1 });
     expect(await anonHasData(supabase as never, "u1")).toBe(true);
   });
   it("is false when the user owns nothing", async () => {
-    const supabase = fakeSupabase({ sessions: 0, context_entries: 0 });
+    const supabase = fakeSupabase({ sessions: 0, insights: 0 });
     expect(await anonHasData(supabase as never, "u1")).toBe(false);
   });
 });
@@ -219,7 +219,7 @@ Expected: FAIL — `anonHasData` is not exported.
 ```ts
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-const DATA_TABLES = ["sessions", "context_entries"] as const;
+const DATA_TABLES = ["sessions", "insights"] as const;
 
 /** True if the user owns ANY anonymous artifact. Short-circuits on the first hit. */
 export async function anonHasData(supabase: SupabaseClient, userId: string): Promise<boolean> {
@@ -241,7 +241,7 @@ Expected: PASS.
 
 ```bash
 git add src/server/oauth/ssoIdentity.ts tests/server/oauth/ssoIdentity.test.ts
-git commit -m "feat(oauth): add anonHasData existence check over sessions + context_entries"
+git commit -m "feat(oauth): add anonHasData existence check over sessions + insights"
 ```
 
 ---

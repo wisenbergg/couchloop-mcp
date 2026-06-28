@@ -71,7 +71,7 @@ This is the *defined* scheme, not a fallback — it introduces **no new env var*
 
 **No schema change to `oauth_subject_links`.** SSO rows reuse the existing table and its full unique index `(client_id, issuer, subject_hash)` via the sentinel `client_id`. `client_id` stays `NOT NULL`. RLS from `0007` already restricts the table to the service role and continues to apply. With `FF_SSO_SUPABASE` off, no SSO rows are ever written, so identity rollback is trivial.
 
-**One new table — `pending_authorizations`** (migration `0008`). The resume context between authorize-initiation and `/auth/callback` must survive across server instances (this service can run multi-instance on Railway/Vercel), so it cannot live in process memory:
+**One new table — `pending_authorizations`** (migration `0010`). The resume context between authorize-initiation and `/auth/callback` must survive across server instances (this service can run multi-instance on Railway/Vercel), so it cannot live in process memory:
 
 ```sql
 CREATE TABLE IF NOT EXISTS public.pending_authorizations (
@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS public.pending_authorizations (
 
 `expires_at` is **set by the application on insert** (`now + 10 min`); Postgres cannot default one column from another, so there is no column DEFAULT (rev 3 review). The record is **kept alive through the consent/conflict round-trip and deleted only when the auth code is successfully minted** (rev 4 review #1) — *not* deleted at first callback. `verified_subject_hash` is written after the Supabase code/OTP exchange so the consent-page POST can resume by `nonce` without re-verifying or ever handling the raw Supabase id. TTL-swept by the existing periodic cleanup job (same one that prunes expired `authorization_codes`/`oauth_tokens`). RLS: service-role only, no anon access (mirror `0007`). `redirect_uri` lives here server-side, never on the wire, so it cannot be tampered between hops.
 
-**One more table — `orphaned_identity_links`** (same migration `0008`). Persists the conflict case so the Phase 2 merge tool can actually find and consolidate orphaned anonymous work — without it, "queued for Phase 2 / recoverable" is unbacked (review #2):
+**One more table — `orphaned_identity_links`** (same migration `0010`). Persists the conflict case so the Phase 2 merge tool can actually find and consolidate orphaned anonymous work — without it, "queued for Phase 2 / recoverable" is unbacked (review #2):
 
 ```sql
 CREATE TABLE IF NOT EXISTS public.orphaned_identity_links (
@@ -158,7 +158,7 @@ The consent-page entrypoints simply **re-enter this same function** with the per
 - Confirm → `resolveSupabaseIdentity(verified_subject_hash, anon_user_id, client_id, { anonHasData: true, consent: 'adopt' })`.
 - Decline → `…, { anonHasData: true, consent: 'decline' }` → resolves to the canonical SSO user; the anonymous user is left untouched.
 
-**`anonHasData` is a single existence query** (review #1/#4) — one `SELECT EXISTS(...)` over a `UNION ALL` of "any row for this `user_id`" in `sessions` and the memory/context table (where checkpoints, memories, and decisions are stored), short-circuiting on the first hit. The earlier attempt to exempt "just tried it, now signing in" via a session-timestamp boundary was unsound: normal use creates sessions *before* the authorize click, so that boundary classified almost everyone as "returning" (or, if loosened, missed same-visit shared-browser data). Because we cannot tell from timestamps whether the data belongs to the person now signing in, we **ask** whenever any data exists. The friction is one click, once, and only for users who actually have anonymous work — precisely the population where shared-browser contamination is a risk, which for a mental-health product is the right place to spend a click. A genuinely empty browser (no sessions/artifacts) has nothing to leak → silent adopt, zero friction.
+**`anonHasData` is a single existence query** (review #1/#4) — one `SELECT EXISTS(...)` over a `UNION ALL` of "any row for this `user_id`" in `sessions` and `insights` (the user_id-keyed work tables; `context_entries`/`checkpoints` are thread-/session-scoped with no user_id), short-circuiting on the first hit. The earlier attempt to exempt "just tried it, now signing in" via a session-timestamp boundary was unsound: normal use creates sessions *before* the authorize click, so that boundary classified almost everyone as "returning" (or, if loosened, missed same-visit shared-browser data). Because we cannot tell from timestamps whether the data belongs to the person now signing in, we **ask** whenever any data exists. The friction is one click, once, and only for users who actually have anonymous work — precisely the population where shared-browser contamination is a risk, which for a mental-health product is the right place to spend a click. A genuinely empty browser (no sessions/artifacts) has nothing to leak → silent adopt, zero friction.
 
 ## Authorize & Callback Flow (`src/server/index.ts`)
 
@@ -225,7 +225,7 @@ Because adoption keeps the anonymous `user_id`, shrink-chat needs **zero awarene
 ## Rollout
 
 - `FF_SSO_SUPABASE=true` enables SSO buttons + the callback. Off → today's cookie-only behavior, byte-for-byte (no SSO rows, no pending records written).
-- The `0008` `pending_authorizations` table is additive and inert while the flag is off, so it can ship ahead of enablement. `oauth_subject_links` is unchanged, so identity data needs no rollback.
+- The `0010` `pending_authorizations` table is additive and inert while the flag is off, so it can ship ahead of enablement. `oauth_subject_links` is unchanged, so identity data needs no rollback.
 - Phases: staging verification → production canary → full rollout.
 
 ## Observability
