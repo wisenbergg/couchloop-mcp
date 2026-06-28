@@ -26,6 +26,7 @@ import {
   deletePending,
   type AuthorizeParams,
 } from "./pendingAuth.js";
+import { resolveGrantedScope } from "./scopePolicy.js";
 
 const OAUTH_IDENTITY_COOKIE = "couchloop_eq_identity";
 
@@ -159,6 +160,8 @@ export function ssoRouter(): Router {
     try {
       const q = req.query;
       const provider = String(q.provider || "");
+      const consentNonce = String(q.n || "");
+      const agreed = String(q.agreed || "");
       const params: AuthorizeParams = {
         client_id: String(q.client_id),
         redirect_uri: String(q.redirect_uri),
@@ -171,12 +174,52 @@ export function ssoRouter(): Router {
             : undefined,
       };
 
+      if (!consentNonce) {
+        res.status(400).json({ error: "invalid_request", error_description: "Missing consent nonce" });
+        return;
+      }
+      if (agreed !== "yes") {
+        res.status(400).json({ error: "invalid_request", error_description: "Terms acknowledgement is required" });
+        return;
+      }
+
+      const consentPending = await loadPending(consentNonce);
+      if (!consentPending) {
+        res.status(400).json({ error: "invalid_request", error_description: "Authorization request expired" });
+        return;
+      }
+
+      const expected = consentPending.authorize_params;
+      if (
+        expected.client_id !== params.client_id ||
+        expected.redirect_uri !== params.redirect_uri ||
+        (expected.state || "") !== (params.state || "")
+      ) {
+        res.status(400).json({ error: "invalid_request", error_description: "Consent request mismatch" });
+        return;
+      }
+
+      params.scope = expected.scope || params.scope;
+      params.code_challenge = expected.code_challenge;
+      params.code_challenge_method = expected.code_challenge_method;
+
       // Re-validate client + redirect_uri (same checks as /oauth/authorize).
       const client = await oauthServer.validateClient(params.client_id);
       if (!client || !client.redirectUris.includes(params.redirect_uri)) {
         res.status(400).json({ error: "invalid_request", error_description: "Invalid client or redirect_uri" });
         return;
       }
+
+      const scopeResolution = resolveGrantedScope(params.scope, client.scopes);
+      if (
+        scopeResolution.hasMalformedRequested ||
+        scopeResolution.invalidRequested.length > 0 ||
+        scopeResolution.granted.length === 0
+      ) {
+        res.status(400).json({ error: "invalid_scope", error_description: "Requested scope is not allowed for this client" });
+        return;
+      }
+      params.scope = scopeResolution.grantedScope;
 
       // Capture the current browser's anonymous identity + data flag.
       const cookie = req.cookies?.[OAUTH_IDENTITY_COOKIE] as string | undefined;
@@ -189,6 +232,7 @@ export function ssoRouter(): Router {
 
       const nonce = newNonce();
       await createPending(buildPendingRow(nonce, params, anonUserId, hasData, new Date()));
+      await deletePending(consentNonce);
       const redirectTo = `${ssoCallbackBaseUrl(req)}/auth/callback?n=${nonce}`;
 
       if (provider === "google" || provider === "github") {

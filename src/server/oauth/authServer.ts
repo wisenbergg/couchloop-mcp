@@ -74,7 +74,7 @@ export class OAuthServer {
   async validateClient(
     clientId: string,
     clientSecret?: string,
-  ): Promise<{ clientId: string; redirectUris: string[] } | null> {
+  ): Promise<{ clientId: string; redirectUris: string[]; scopes: string[]; grantTypes: string[] } | null> {
     const supabase = getSupabaseClient();
 
     try {
@@ -106,6 +106,8 @@ export class OAuthServer {
       return {
         clientId: client.client_id,
         redirectUris: client.redirect_uris,
+        scopes: Array.isArray(client.scopes) ? client.scopes : [],
+        grantTypes: Array.isArray(client.grant_types) ? client.grant_types : [],
       };
     } catch (error) {
       logger.error("Error validating client:", error);

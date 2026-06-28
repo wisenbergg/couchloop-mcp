@@ -62,6 +62,13 @@ interface RouteLayer {
   route?: { path: string; methods: Record<string, boolean> };
 }
 
+interface RouteHandlerLayer {
+  route?: {
+    path: string;
+    stack: Array<{ handle: (req: unknown, res: unknown) => unknown }>;
+  };
+}
+
 describe('ssoRouter wiring (regression)', () => {
   it('registers exactly the three SSO routes with the expected methods', () => {
     const router = ssoRouter();
@@ -72,6 +79,74 @@ describe('ssoRouter wiring (regression)', () => {
     expect(routes).toContainEqual({ path: '/auth/callback', methods: ['get'] });
     expect(routes).toContainEqual({ path: '/auth/consent', methods: ['post'] });
     expect(routes).toHaveLength(3);
+  });
+});
+
+describe('sso start consent guards', () => {
+  function makeRes() {
+    return {
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn().mockReturnThis(),
+      redirect: vi.fn().mockReturnThis(),
+      type: vi.fn().mockReturnThis(),
+      send: vi.fn().mockReturnThis(),
+      cookies: {},
+    };
+  }
+
+  function getStartHandler() {
+    const router = ssoRouter();
+    const layer = (router.stack as RouteHandlerLayer[]).find(
+      (item) => item.route?.path === '/oauth/sso/start',
+    );
+    expect(layer?.route).toBeDefined();
+    const routeStack = layer!.route!.stack;
+    return routeStack[routeStack.length - 1]!.handle;
+  }
+
+  it('rejects start requests without a consent nonce', async () => {
+    const handler = getStartHandler();
+    const req = {
+      query: {
+        provider: 'google',
+        client_id: 'couchloop_chatgpt',
+        redirect_uri: 'https://example.com/cb',
+      },
+      cookies: {},
+      ip: '127.0.0.1',
+    };
+    const res = makeRes();
+
+    await handler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      error: 'invalid_request',
+      error_description: 'Missing consent nonce',
+    });
+  });
+
+  it('rejects start requests without terms acknowledgement', async () => {
+    const handler = getStartHandler();
+    const req = {
+      query: {
+        provider: 'google',
+        n: 'nonce123',
+        client_id: 'couchloop_chatgpt',
+        redirect_uri: 'https://example.com/cb',
+      },
+      cookies: {},
+      ip: '127.0.0.1',
+    };
+    const res = makeRes();
+
+    await handler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      error: 'invalid_request',
+      error_description: 'Terms acknowledgement is required',
+    });
   });
 });
 

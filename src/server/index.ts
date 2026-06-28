@@ -26,7 +26,15 @@ import {
 import { oauthServer } from "./oauth/authServer.js";
 import { cleanupSessions, handleSSE } from "./sse.js";
 import { ssoRouter } from "./oauth/ssoRoutes.js";
-import { sweepExpiredPending } from "./oauth/pendingAuth.js";
+import {
+  buildPendingRow,
+  createPending,
+  deletePending,
+  loadPending,
+  newNonce,
+  sweepExpiredPending,
+} from "./oauth/pendingAuth.js";
+import { resolveGrantedScope } from "./oauth/scopePolicy.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -112,6 +120,7 @@ function escapeHtml(value: string): string {
 }
 
 function renderConsentFallback(params: {
+  nonce: string;
   clientId: string;
   redirectUri: string;
   state: string;
@@ -119,6 +128,7 @@ function renderConsentFallback(params: {
   codeChallenge?: string;
   codeChallengeMethod?: string;
 }): string {
+  const nonce = encodeURIComponent(params.nonce);
   const clientId = escapeHtml(params.clientId);
   const redirectUri = encodeURIComponent(params.redirectUri);
   const state = encodeURIComponent(params.state);
@@ -134,14 +144,15 @@ function renderConsentFallback(params: {
 
   // Flag-gated SSO sign-in options. These carry the same authorize params to /oauth/sso/start.
   const ssoStart = (provider: string) =>
-    `/oauth/sso/start?provider=${provider}&client_id=${clientId}&redirect_uri=${redirectUri}&state=${state}&scope=${scope}${pkceParams}`;
+    `/oauth/sso/start?provider=${provider}&n=${nonce}&client_id=${clientId}&redirect_uri=${redirectUri}&state=${state}&scope=${scope}${pkceParams}`;
   const ssoBlock =
     process.env.FF_SSO_SUPABASE === "true"
       ? `<div class="sso">
         <p class="muted">Sign in to keep your work across devices:</p>
+        <p class="muted">Signing in with a provider shares profile data according to that provider's policy.</p>
         <div class="actions">
-          <a class="btn btn-secondary" href="${ssoStart("google")}">Sign in with Google</a>
-          <a class="btn btn-secondary" href="${ssoStart("github")}">Sign in with GitHub</a>
+          <a class="btn btn-secondary sso-link" href="${ssoStart("google")}">Sign in with Google</a>
+          <a class="btn btn-secondary sso-link" href="${ssoStart("github")}">Sign in with GitHub</a>
         </div>
       </div>`
       : "";
@@ -158,6 +169,7 @@ function renderConsentFallback(params: {
       h1 { margin: 0 0 8px; font-size: 22px; }
       p { margin: 0 0 12px; line-height: 1.5; }
       code { background: #f1f5f9; padding: 2px 6px; border-radius: 6px; }
+      .ack { margin-top: 16px; }
       .actions { margin-top: 20px; display: flex; gap: 12px; }
       .btn { appearance: none; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px 14px; font-size: 14px; cursor: pointer; text-decoration: none; }
       .btn-primary { background: #0f172a; color: #fff; border-color: #0f172a; }
@@ -170,12 +182,60 @@ function renderConsentFallback(params: {
       <h1>Authorize CouchLoop Access</h1>
       <p>The client <code>${clientId}</code> is requesting access with scope <code>${escapeHtml(params.scope)}</code>.</p>
       <p class="muted">This fallback consent page is shown because the template asset was unavailable at runtime.</p>
-      <div class="actions">
-        <a class="btn btn-primary" href="/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&state=${state}&scope=${scope}&consent=approved${pkceParams}">Authorize</a>
-        <a class="btn btn-secondary" href="${escapeHtml(params.redirectUri)}?error=access_denied&state=${state}">Cancel</a>
-      </div>
+      <form id="consent-form" method="POST" action="/oauth/authorize/consent">
+        <input type="hidden" name="n" value="${escapeHtml(params.nonce)}" />
+        <div class="ack">
+          <label>
+            <input id="agree-terms" type="checkbox" name="agreed" value="yes" />
+            I agree to the Terms and Privacy Policy.
+          </label>
+        </div>
+        <div class="actions">
+          <button class="btn btn-secondary" type="submit" name="decision" value="deny">Cancel</button>
+          <button class="btn btn-primary" id="approve-btn" type="submit" name="decision" value="approve" disabled>Authorize</button>
+        </div>
+      </form>
       ${ssoBlock}
     </main>
+    <script>
+      (function () {
+        var checkbox = document.getElementById("agree-terms");
+        var approveBtn = document.getElementById("approve-btn");
+        var form = document.getElementById("consent-form");
+        var ssoLinks = document.querySelectorAll(".sso-link");
+
+        if (checkbox && approveBtn) {
+          checkbox.addEventListener("change", function () {
+            approveBtn.disabled = !checkbox.checked;
+          });
+        }
+
+        if (form && checkbox) {
+          form.addEventListener("submit", function (event) {
+            var submitter = event.submitter;
+            if (submitter && submitter.value === "approve" && !checkbox.checked) {
+              event.preventDefault();
+              window.alert("Please acknowledge the terms and privacy policy to continue.");
+            }
+          });
+        }
+
+        if (ssoLinks && checkbox) {
+          ssoLinks.forEach(function (link) {
+            link.addEventListener("click", function (event) {
+              if (!checkbox.checked) {
+                event.preventDefault();
+                window.alert("Please acknowledge the terms and privacy policy to continue.");
+                return;
+              }
+              var url = new URL(link.getAttribute("href"), window.location.origin);
+              url.searchParams.set("agreed", "yes");
+              link.setAttribute("href", url.pathname + url.search + url.hash);
+            });
+          });
+        }
+      })();
+    </script>
   </body>
 </html>`;
 }
@@ -538,7 +598,6 @@ app.get(
         response_type,
         scope,
         state,
-        consent,
         code_challenge,
         code_challenge_method,
       } =
@@ -561,7 +620,7 @@ app.get(
         return;
       }
 
-      const normalizedChallengeMethod =
+      const normalizedChallengeMethod: "S256" | "plain" | undefined =
         code_challenge_method === "S256" || code_challenge_method === "plain"
           ? code_challenge_method
           : undefined;
@@ -604,25 +663,95 @@ app.get(
         return;
       }
 
-      // If consent is not approved, show consent screen
-      if (consent !== "approved") {
+      const requestedScope =
+        typeof scope === "string" ? scope : undefined;
+      const scopeResolution = resolveGrantedScope(requestedScope, client.scopes);
+      if (
+        scopeResolution.hasMalformedRequested ||
+        scopeResolution.invalidRequested.length > 0 ||
+        scopeResolution.granted.length === 0
+      ) {
+        res.status(400).json({
+          error: "invalid_scope",
+          error_description: "Requested scope is not allowed for this client",
+        });
+        return;
+      }
+
+      const pendingNonce = newNonce();
+      const authorizeParams = {
+        client_id: String(client_id),
+        redirect_uri: String(redirect_uri),
+        state: typeof state === "string" ? state : undefined,
+        scope: scopeResolution.grantedScope,
+        code_challenge:
+          typeof code_challenge === "string" ? code_challenge : undefined,
+        code_challenge_method: normalizedChallengeMethod,
+      };
+
+      await createPending(
+        buildPendingRow(
+          pendingNonce,
+          authorizeParams,
+          null,
+          false,
+          new Date(),
+        ),
+      );
+
+      const consentUrl = new URL(`${getExternalBaseUrl(req)}/oauth/authorize/consent`);
+      consentUrl.searchParams.set("n", pendingNonce);
+      consentUrl.searchParams.set("client_id", String(client_id));
+      res.redirect(consentUrl.toString());
+      return;
+    } catch (error) {
+        logger.error("Authorization error:", error);
+        res.status(500).json({
+          error: "server_error",
+          error_description: "Internal server error",
+        });
+    }
+  },
+);
+
+  /**
+   * GET /oauth/authorize/consent
+   * Renders the consent page from a server-issued pending authorization nonce.
+   */
+  app.get(
+    "/oauth/authorize/consent",
+    rateLimit(20, 60000),
+    async (req: Request, res: Response) => {
+      try {
+        const nonce = typeof req.query.n === "string" ? req.query.n : "";
+        if (!nonce) {
+          res.status(400).send("Missing consent nonce.");
+          return;
+        }
+
+        const pending = await loadPending(nonce);
+        if (!pending) {
+          res.status(400).send("Authorization request expired, please try again.");
+          return;
+        }
+
         const consentParams = {
-          clientId: String(client_id),
-          redirectUri: String(redirect_uri),
-          state: String(state || ""),
-          scope: String(scope || "read write"),
-          codeChallenge: typeof code_challenge === "string" ? code_challenge : undefined,
-          codeChallengeMethod: normalizedChallengeMethod,
+          nonce,
+          clientId: pending.authorize_params.client_id,
+          redirectUri: pending.authorize_params.redirect_uri,
+          state: pending.authorize_params.state || "",
+          scope: pending.authorize_params.scope || "read write",
+          codeChallenge: pending.authorize_params.code_challenge,
+          codeChallengeMethod: pending.authorize_params.code_challenge_method,
         };
 
-        // When SSO is enabled, serve the dynamic, flag-aware consent page so the
-        // "Sign in with…" buttons render (the static template can't read the flag).
+        // When SSO is enabled, serve a dynamic, flag-aware page with social sign-in options.
         if (process.env.FF_SSO_SUPABASE === "true") {
           res.status(200).type("html").send(renderConsentFallback(consentParams));
           return;
         }
 
-        // Default: serve the static consent page, fall back to inline if the asset is missing.
+        // Default: serve the static consent page, fall back to inline HTML if the asset is missing.
         const consentPath = path.join(__dirname, "views", "consent.html");
         res.sendFile(consentPath, (err) => {
           if (!err || res.headersSent) {
@@ -637,136 +766,138 @@ app.get(
           res.status(200).type("html").send(renderConsentFallback(consentParams));
         });
         return;
+      } catch (error) {
+        logger.error("Consent page render error:", error);
+        res.status(500).send("Failed to load consent page.");
       }
+    },
+  );
 
-      // Resolve a stable pseudonymous subject per browser to preserve continuity.
-      const subject = getOrCreateBrowserSubject(req, res);
-      const userId = await oauthServer.resolveOrCreateUserForSubject(
-        String(client_id),
-        "browser-local",
-        subject,
-      );
-      const code = await oauthServer.generateAuthCode(
-        client_id as string,
-        userId,
-        redirect_uri as string,
-        (scope as string) || "read write",
-        typeof code_challenge === "string" ? code_challenge : undefined,
-        normalizedChallengeMethod,
-      );
+  /**
+   * POST /oauth/authorize/consent
+   * Handles approve/deny decisions from consent page with server-side validation.
+   */
+  app.post(
+    "/oauth/authorize/consent",
+    rateLimit(20, 60000),
+    async (req: Request, res: Response) => {
+      try {
+        const {
+          n,
+          decision,
+          agreed,
+        } =
+          req.body as Record<string, string | undefined>;
 
-      // Redirect back to client with authorization code
-      const redirectUrl = new URL(redirect_uri as string);
-      redirectUrl.searchParams.set("code", code);
-      if (state) {
-        redirectUrl.searchParams.set("state", state as string);
-      }
+        if (!n) {
+          res.status(400).json({
+            error: "invalid_request",
+            error_description: "Missing consent nonce",
+          });
+          return;
+        }
 
-      res.redirect(redirectUrl.toString());
-    } catch (error) {
-      logger.error("Authorization error:", error);
-      res.status(500).json({
-        error: "server_error",
-        error_description: "Internal server error",
-      });
-    }
-  },
-);
+        if (decision !== "approve" && decision !== "deny") {
+          res.status(400).json({
+            error: "invalid_request",
+            error_description: "Invalid consent decision",
+          });
+          return;
+        }
 
-/**
- * POST /oauth/authorize/consent
- * Handles approve/deny decisions from consent page with server-side validation.
- */
-app.post(
-  "/oauth/authorize/consent",
-  rateLimit(20, 60000),
-  async (req: Request, res: Response) => {
-    try {
-      const {
-        client_id,
-        redirect_uri,
-        response_type,
-        scope,
-        state,
-        decision,
-        code_challenge,
-        code_challenge_method,
-      } =
-        req.body as Record<string, string | undefined>;
+        const pending = await loadPending(n);
+        if (!pending) {
+          res.status(400).json({
+            error: "invalid_request",
+            error_description: "Authorization request expired",
+          });
+          return;
+        }
 
-      if (!client_id || !redirect_uri) {
-        res.status(400).json({
-          error: "invalid_request",
-          error_description: "Missing required parameters",
-        });
-        return;
-      }
+        const authorizeParams = pending.authorize_params;
+        const client = await oauthServer.validateClient(authorizeParams.client_id);
+        if (!client) {
+          await deletePending(n);
+          res.status(400).json({
+            error: "invalid_client",
+            error_description: "Unknown client",
+          });
+          return;
+        }
 
-      if (response_type && response_type !== "code") {
-        res.status(400).json({
-          error: "unsupported_response_type",
-          error_description: "Only authorization code flow is supported",
-        });
-        return;
-      }
+        if (!client.redirectUris.includes(authorizeParams.redirect_uri)) {
+          await deletePending(n);
+          logger.warn(
+            `Invalid redirect_uri attempted in consent POST: ${authorizeParams.redirect_uri} for client: ${authorizeParams.client_id}`,
+          );
+          res.status(400).json({
+            error: "invalid_request",
+            error_description: "Invalid redirect_uri",
+          });
+          return;
+        }
 
-      const client = await oauthServer.validateClient(client_id);
-      if (!client) {
-        res.status(400).json({
-          error: "invalid_client",
-          error_description: "Unknown client",
-        });
-        return;
-      }
+        const scopeResolution = resolveGrantedScope(authorizeParams.scope, client.scopes);
+        if (
+          scopeResolution.hasMalformedRequested ||
+          scopeResolution.invalidRequested.length > 0 ||
+          scopeResolution.granted.length === 0
+        ) {
+          await deletePending(n);
+          res.status(400).json({
+            error: "invalid_scope",
+            error_description: "Requested scope is not allowed for this client",
+          });
+          return;
+        }
 
-      if (!client.redirectUris.includes(redirect_uri)) {
-        logger.warn(
-          `Invalid redirect_uri attempted in consent POST: ${redirect_uri} for client: ${client_id}`,
+        if (decision === "deny") {
+          await deletePending(n);
+          res.redirect(
+            buildRedirectErrorUrl({
+              redirectUri: authorizeParams.redirect_uri,
+              state: authorizeParams.state,
+              error: "access_denied",
+              errorDescription: "User denied access",
+            }),
+          );
+          return;
+        }
+
+        if (agreed !== "yes") {
+          res.status(400).json({
+            error: "invalid_request",
+            error_description: "Terms acknowledgement is required",
+          });
+          return;
+        }
+
+        // Resolve a stable pseudonymous subject per browser to preserve continuity.
+        const subject = getOrCreateBrowserSubject(req, res);
+        const userId = await oauthServer.resolveOrCreateUserForSubject(
+          authorizeParams.client_id,
+          "browser-local",
+          subject,
         );
-        res.status(400).json({
-          error: "invalid_request",
-          error_description: "Invalid redirect_uri",
-        });
-        return;
-      }
-
-      if (decision !== "approve" && decision !== "deny") {
-        res.status(400).json({
-          error: "invalid_request",
-          error_description: "Invalid consent decision",
-        });
-        return;
-      }
-
-      if (decision === "deny") {
-        res.redirect(
-          buildRedirectErrorUrl({
-            redirectUri: redirect_uri,
-            state,
-            error: "access_denied",
-            errorDescription: "User denied access",
-          }),
+        const code = await oauthServer.generateAuthCode(
+          authorizeParams.client_id,
+          userId,
+          authorizeParams.redirect_uri,
+          scopeResolution.grantedScope,
+          authorizeParams.code_challenge,
+          authorizeParams.code_challenge_method,
         );
+
+        await deletePending(n);
+
+        const redirectUrl = new URL(authorizeParams.redirect_uri);
+        redirectUrl.searchParams.set("code", code);
+        if (authorizeParams.state) {
+          redirectUrl.searchParams.set("state", authorizeParams.state);
+        }
+
+        res.redirect(redirectUrl.toString());
         return;
-      }
-
-      const authorizeUrl = new URL(`${getExternalBaseUrl(req)}/oauth/authorize`);
-      authorizeUrl.searchParams.set("client_id", client_id);
-      authorizeUrl.searchParams.set("redirect_uri", redirect_uri);
-      authorizeUrl.searchParams.set("response_type", "code");
-      authorizeUrl.searchParams.set("scope", scope || "read write");
-      authorizeUrl.searchParams.set("consent", "approved");
-      if (code_challenge) {
-        authorizeUrl.searchParams.set("code_challenge", code_challenge);
-      }
-      if (code_challenge_method) {
-        authorizeUrl.searchParams.set("code_challenge_method", code_challenge_method);
-      }
-      if (state) {
-        authorizeUrl.searchParams.set("state", state);
-      }
-
-      res.redirect(authorizeUrl.toString());
     } catch (error) {
       logger.error("Consent submission error:", error);
       res.status(500).json({
