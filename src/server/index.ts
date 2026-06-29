@@ -667,8 +667,10 @@ app.get(
         typeof scope === "string" ? scope : undefined;
       const scopeResolution = resolveGrantedScope(requestedScope, client.scopes);
       if (
-        scopeResolution.hasMalformedRequested ||
-        scopeResolution.invalidRequested.length > 0 ||
+        // Clamp to the client's allowed scopes (RFC 6749 §3.3) instead of rejecting
+        // noisy/excess requests — MCP clients send varied scope strings. granted is
+        // always ⊆ allowed, so this still prevents scope inflation. Only fail if
+        // nothing at all is grantable.
         scopeResolution.granted.length === 0
       ) {
         res.status(400).json({
@@ -839,8 +841,7 @@ app.get(
 
         const scopeResolution = resolveGrantedScope(authorizeParams.scope, client.scopes);
         if (
-          scopeResolution.hasMalformedRequested ||
-          scopeResolution.invalidRequested.length > 0 ||
+          // Clamp to allowed scopes (RFC 6749 §3.3); fail only if nothing is grantable.
           scopeResolution.granted.length === 0
         ) {
           await deletePending(n);
