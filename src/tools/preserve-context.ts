@@ -1,6 +1,7 @@
 import { PreserveContextSchema, PreserveContextResponse, type ContextCategoryType } from '../types/context.js';
 import { getContextManager } from '../developer/managers/context-manager.js';
 import { getSupabaseClient, throwOnError } from '../db/supabase-helpers.js';
+import { resolveOwnedSession } from './session-manager.js';
 import type { AuthContext } from '../types/auth.js';
 import { logger } from '../utils/logger.js';
 import { v4 as uuidv4 } from 'uuid';
@@ -18,15 +19,9 @@ async function resolveThreadScope(auth?: AuthContext, sessionId?: string): Promi
     return null;
   }
 
-  const supabase = getSupabaseClient();
-  const session = throwOnError(
-    await supabase
-      .from('sessions')
-      .select('id, thread_id')
-      .eq('id', sessionId)
-      .maybeSingle()
-  );
-
+  // Ownership-enforced: only derive a thread from a session the caller owns, so a
+  // client-supplied session_id can never expose another user's thread/context.
+  const session = await resolveOwnedSession(sessionId, auth);
   if (!session) {
     return null;
   }
@@ -35,12 +30,13 @@ async function resolveThreadScope(auth?: AuthContext, sessionId?: string): Promi
     return session.thread_id;
   }
 
+  const supabase = getSupabaseClient();
   const generatedThreadId = uuidv4();
   throwOnError(
     await supabase
       .from('sessions')
       .update({ thread_id: generatedThreadId })
-      .eq('id', sessionId)
+      .eq('id', session.id)
   );
 
   return generatedThreadId;

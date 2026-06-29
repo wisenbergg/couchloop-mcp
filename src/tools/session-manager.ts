@@ -14,6 +14,36 @@ import { logger } from '../utils/logger.js';
 const activeSessionCache = new Map<string, string>();
 
 /**
+ * Resolve a session by id ONLY if it belongs to the authenticated caller.
+ *
+ * The app connects to Supabase with the service-role key, which bypasses RLS, so
+ * per-user isolation MUST be enforced in application code. This returns null when the
+ * session does not exist OR is not owned by the caller — it never returns another
+ * user's session. All session-by-id lookups must go through this helper.
+ */
+export async function resolveOwnedSession(
+  sessionId: string,
+  authContext?: { user_id?: string; client_id?: string; token?: string },
+): Promise<Session | null> {
+  const supabase = await getSupabaseClientAsync();
+  const externalUserId = await extractUserFromContext(authContext);
+
+  const user = throwOnError(
+    await supabase.from('users').select('id').eq('external_id', externalUserId).maybeSingle(),
+  ) as { id: string } | null;
+  if (!user) return null;
+
+  return throwOnError(
+    await supabase
+      .from('sessions')
+      .select('*')
+      .eq('id', sessionId)
+      .eq('user_id', user.id)
+      .maybeSingle(),
+  ) as Session | null;
+}
+
+/**
  * Get existing active session or create one implicitly
  *
  * Returns the full session object to avoid redundant re-fetches by callers.
@@ -31,15 +61,10 @@ export async function getOrCreateSession(
   const supabase = await getSupabaseClientAsync();
   const now = new Date().toISOString();
 
-  // If explicit session ID provided, verify it exists and is active
+  // If explicit session ID provided, resume it ONLY if it belongs to this caller.
+  // Never return another user's session (service-role bypasses RLS — enforced here).
   if (sessionId) {
-    const session = throwOnError(
-      await supabase
-        .from('sessions')
-        .select('*')
-        .eq('id', sessionId)
-        .maybeSingle()
-    ) as Session | null;
+    const session = await resolveOwnedSession(sessionId, authContext);
 
     if (session) {
       // Update last active timestamp (fire-and-forget, non-blocking)
@@ -53,8 +78,9 @@ export async function getOrCreateSession(
 
       return { sessionId: session.id, session, isNew: false };
     }
-    // Session ID provided but doesn't exist - fall through to create new
-    logger.warn(`Session ${sessionId} not found, creating new session`);
+    // Session ID not found or not owned by this caller — fall through to the
+    // caller's own session (resume/create) rather than leaking someone else's.
+    logger.warn(`Session ${sessionId} not found or not owned by caller; resolving caller's own session`);
   }
 
   // Get or create user

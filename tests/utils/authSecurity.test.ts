@@ -39,8 +39,10 @@ describe('extractUserFromContext — SHA-256 anonymization', () => {
       token: 'ignored-by-hash',
     });
 
+    // Cross-client: the identity is keyed off the OAuth user id ONLY (not client_id),
+    // so the same human is one identity across MCP clients.
     const expectedHash = createHash('sha256')
-      .update('chatgpt:internal-user-123')
+      .update('internal-user-123')
       .digest('hex')
       .substring(0, 24);
     expect(result).toBe('oauth_' + expectedHash);

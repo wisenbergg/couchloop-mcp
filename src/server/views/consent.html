@@ -442,7 +442,7 @@
         <!-- Agreement Checkbox -->
         <div class="agreement-section">
             <div class="checkbox-container">
-                <input type="checkbox" id="agreeTerms" class="checkbox-input">
+                <input type="checkbox" id="agreeTerms" class="checkbox-input" name="agreed" value="yes">
                 <label for="agreeTerms" class="checkbox-label">
                     I understand CouchLoop EQ includes both developer tooling and optional wellness features.
                     I acknowledge this is not medical advice, and I agree to the
@@ -454,13 +454,7 @@
 
         <!-- Action Buttons -->
         <form id="consentForm" method="POST" action="/oauth/authorize/consent">
-            <input type="hidden" name="client_id" id="clientId" value="">
-            <input type="hidden" name="redirect_uri" id="redirectUri" value="">
-            <input type="hidden" name="response_type" id="responseType" value="code">
-            <input type="hidden" name="scope" id="scope" value="">
-            <input type="hidden" name="state" id="state" value="">
-            <input type="hidden" name="code_challenge" id="codeChallenge" value="">
-            <input type="hidden" name="code_challenge_method" id="codeChallengeMethod" value="">
+            <input type="hidden" name="n" id="nonce" value="">
 
             <div class="action-buttons">
                 <button type="submit" class="btn btn-deny" id="denyBtn" name="decision" value="deny">
@@ -487,13 +481,7 @@
     <script>
         // Parse OAuth parameters
         const urlParams = new URLSearchParams(window.location.search);
-        document.getElementById('clientId').value = urlParams.get('client_id') || '';
-        document.getElementById('redirectUri').value = urlParams.get('redirect_uri') || '';
-        document.getElementById('responseType').value = urlParams.get('response_type') || 'code';
-        document.getElementById('scope').value = urlParams.get('scope') || '';
-        document.getElementById('state').value = urlParams.get('state') || '';
-        document.getElementById('codeChallenge').value = urlParams.get('code_challenge') || '';
-        document.getElementById('codeChallengeMethod').value = urlParams.get('code_challenge_method') || '';
+        document.getElementById('nonce').value = urlParams.get('n') || '';
 
         // Customize based on client
         const clientConfigs = {
@@ -522,6 +510,12 @@
         document.getElementById('consentForm').addEventListener('submit', function(e) {
             const submitter = e.submitter;
             const decision = submitter && submitter.value ? submitter.value : 'approve';
+            const nonce = document.getElementById('nonce').value;
+            if (!nonce) {
+                e.preventDefault();
+                alert('Authorization request expired. Please restart sign in.');
+                return;
+            }
             if (decision === 'approve' && !checkbox.checked) {
                 e.preventDefault();
                 alert('Please acknowledge the scope notice and agree to the terms to continue.');

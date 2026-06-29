@@ -2,6 +2,7 @@ import { getSupabaseClient, throwOnError } from '../db/supabase-helpers.js';
 import type { Session, Journey, User, Checkpoint } from '../db/schema.js';
 import { CreateSessionSchema, ResumeSessionSchema } from '../types/session.js';
 import { extractUserFromContext } from '../types/auth.js';
+import { resolveOwnedSession } from './session-manager.js';
 import { handleError, NotFoundError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 
@@ -90,15 +91,9 @@ export async function resumeSession(args: unknown) {
     let session: Session | null = null;
 
     if (input.session_id) {
-      // Direct session lookup - skip user validation
-      // This allows resuming sessions when MCP clients don't maintain consistent user context
-      session = throwOnError(
-        await supabase
-          .from('sessions')
-          .select('*')
-          .eq('id', input.session_id)
-          .maybeSingle(),
-      ) as Session | null;
+      // Ownership-enforced lookup — never return another user's session.
+      // Service-role bypasses RLS, so isolation is enforced in code here.
+      session = await resolveOwnedSession(input.session_id, input.auth);
 
       if (!session) {
         throw new NotFoundError('Session with ID', input.session_id);

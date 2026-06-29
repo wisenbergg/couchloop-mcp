@@ -182,8 +182,13 @@ export async function extractUserFromContext(authContext?: AuthContext): Promise
     authContext?.oauth_user_id &&
     authContext?.oauth_client_id
   ) {
+    // Cross-client unification: key the data identity off the server-verified user id
+    // ONLY — never the client_id. The OAuth user id (token `sub`) is already unified
+    // across MCP clients by the oauth_subject_links sentinel design, so hashing it
+    // alone makes the same human one identity on ChatGPT, Claude, etc. (Hashing in
+    // client_id, as before, re-split the data per client and defeated cross-client.)
     const hash = createHash('sha256')
-      .update(`${authContext.oauth_client_id}:${authContext.oauth_user_id}`)
+      .update(authContext.oauth_user_id)
       .digest('hex');
     return 'oauth_' + hash.substring(0, 24);
   }
