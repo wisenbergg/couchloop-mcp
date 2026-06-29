@@ -212,8 +212,7 @@ export function ssoRouter(): Router {
 
       const scopeResolution = resolveGrantedScope(params.scope, client.scopes);
       if (
-        scopeResolution.hasMalformedRequested ||
-        scopeResolution.invalidRequested.length > 0 ||
+        // Clamp to allowed scopes (RFC 6749 §3.3); fail only if nothing is grantable.
         scopeResolution.granted.length === 0
       ) {
         res.status(400).json({ error: "invalid_scope", error_description: "Requested scope is not allowed for this client" });
