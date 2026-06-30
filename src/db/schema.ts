@@ -19,14 +19,28 @@ export interface User {
   } | null;
 }
 
+export type JourneyDataSource =
+  | 'git_commits'
+  | 'git_status'
+  | 'git_diff_stat'
+  | 'changed_files'
+  | 'recent_reverts'
+  | 'open_prs'
+  | 'pr_review_state'
+  | 'ci_status'
+  | 'failing_tests'
+  | 'todo_comments';
+
 export interface JourneyStep {
   id: string;
   order: number;
-  type: 'prompt' | 'checkpoint' | 'summary';
+  type: 'prompt' | 'checkpoint' | 'summary' | 'data';
   content: {
     prompt?: string;
     checkpoint_key?: string;
     instructions?: string;
+    source?: JourneyDataSource;
+    params?: Record<string, unknown>;
   };
   optional: boolean;
 }
@@ -38,6 +52,7 @@ export interface Journey {
   description: string;
   steps: JourneyStep[];
   estimated_minutes: number;
+  execution_mode: 'local' | 'backend';
   tags: string[];
   created_at: string;
   updated_at: string;
