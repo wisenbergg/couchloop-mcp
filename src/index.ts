@@ -16,6 +16,7 @@ import { setupTools } from "./tools/index.js";
 import { logger } from "./utils/logger.js";
 import { initializeV2Orchestration, shutdownV2Orchestration } from "./core/init.js";
 import { startStaleSessionSweep } from "./tools/session-manager.js";
+import { SERVER_INFO } from "./server-identity.js";
 
 // Load environment variables
 dotenv.config({ path: ".env.local" });
@@ -40,10 +41,7 @@ async function main() {
 
     // Create MCP server instance
     const server = new Server(
-      {
-        name: "couchloop-mcp",
-        version: "2.1.0",
-      },
+      SERVER_INFO,
       {
         capabilities: {
           tools: {},

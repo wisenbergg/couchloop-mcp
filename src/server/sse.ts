@@ -21,6 +21,7 @@ import type { IncomingMessage, ServerResponse } from "http";
 import { setupResources } from "../resources/index.js";
 import { setupTools } from "../tools/index.js";
 import { logger } from "../utils/logger.js";
+import { SERVER_INFO } from "../server-identity.js";
 
 function resolveOAuthConnectConfig(req: Request): {
   clientId: string | null;
@@ -271,10 +272,7 @@ async function createMCPServer(req: Request): Promise<Server> {
 
   // Create MCP server instance (lightweight — just wires handlers to shared data)
   const server = new Server(
-    {
-      name: "couchloop-mcp",
-      version: "2.0.3",
-    },
+    SERVER_INFO,
     {
       capabilities: {
         tools: {},

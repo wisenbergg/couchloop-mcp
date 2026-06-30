@@ -439,8 +439,21 @@ export class ShrinkChatClient {
               return;
             }
             try {
-              const parsed = JSON.parse(data);
+              const parsed = JSON.parse(data) as ShrinkResponse & { done?: boolean; type?: string };
               yield parsed;
+              // The backend marks the final event with done:true (type
+              // 'completion' / 'done' / 'error') and only THEN closes the
+              // socket — often after slow post-processing. Stop on that signal
+              // instead of blocking until the close, which previously hit the
+              // stream timeout and forced the slow non-streaming fallback.
+              if (
+                parsed?.done === true ||
+                parsed?.type === 'completion' ||
+                parsed?.type === 'done' ||
+                parsed?.type === 'error'
+              ) {
+                return;
+              }
             } catch (e) {
               // Skip invalid JSON
             }

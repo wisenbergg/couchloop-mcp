@@ -1,20 +1,21 @@
 import { Journey } from '../../types/journey.js';
 
 export const weeklyReview: Journey = {
-  slug: 'sprint-retro',
-  name: 'Sprint Retrospective',
-  description: 'Reflect on what worked, what did not, and capture decisions for next sprint.',
-  estimatedMinutes: 8,
-  tags: ['developer', 'weekly', 'medium'],
+  slug: 'weekly-review',
+  name: 'Weekly Review',
+  description: 'Look back on your week and set intentions for the next one.',
+  estimatedMinutes: 10,
+  tags: ['reflection', 'weekly', 'medium'],
+  executionMode: 'backend',
   steps: [
     {
       id: 'step_1',
       order: 1,
       type: 'prompt',
       content: {
-        prompt: 'What went well this sprint? What are you proud of?',
-        checkpoint_key: 'went_well',
-        instructions: 'Shipped features, solved tricky bugs, good team dynamics, learned something new. Anything positive.'
+        prompt: 'How would you describe this past week in a few words?',
+        checkpoint_key: 'week_summary',
+        instructions: 'Get a quick temperature read. Could be emotional tone, pace, theme. No right answer.'
       },
       optional: false
     },
@@ -23,9 +24,9 @@ export const weeklyReview: Journey = {
       order: 2,
       type: 'prompt',
       content: {
-        prompt: 'What did not go well? What slowed you down?',
-        checkpoint_key: 'went_poorly',
-        instructions: 'Flaky tests, unclear requirements, scope creep, burnout, bad estimates. Be honest, no judgment.'
+        prompt: 'What\'s one thing you accomplished that you want to acknowledge?',
+        checkpoint_key: 'accomplishment',
+        instructions: 'Help them find something - doesn\'t have to be big. Finishing something, showing up, making progress.'
       },
       optional: false
     },
@@ -34,9 +35,9 @@ export const weeklyReview: Journey = {
       order: 3,
       type: 'prompt',
       content: {
-        prompt: 'Did you make any architectural or design decisions this sprint? What were the tradeoffs?',
-        checkpoint_key: 'decisions',
-        instructions: 'DB schema choices, library picks, API design, refactor strategies. Offer to save these as decisions in memory so they persist.'
+        prompt: 'What challenged you this week? How did you respond?',
+        checkpoint_key: 'challenge',
+        instructions: 'Not looking for silver linings. Just noticing what was hard and how they navigated it.'
       },
       optional: false
     },
@@ -45,9 +46,9 @@ export const weeklyReview: Journey = {
       order: 4,
       type: 'prompt',
       content: {
-        prompt: 'Any recurring mistakes or patterns you want to stop repeating?',
-        checkpoint_key: 'anti_patterns',
-        instructions: 'Forgetting to add tests, skipping error handling, over-engineering. Offer to save these as constraints (tagged "ai-mistake" if AI-related).'
+        prompt: 'Is there anything left unfinished that\'s weighing on you?',
+        checkpoint_key: 'unfinished',
+        instructions: 'Open loops, incomplete tasks, things they\'re avoiding. Optional to answer but worth asking.'
       },
       optional: true
     },
@@ -56,9 +57,9 @@ export const weeklyReview: Journey = {
       order: 5,
       type: 'prompt',
       content: {
-        prompt: 'What is one thing you want to do differently next sprint?',
-        checkpoint_key: 'action_item',
-        instructions: 'A concrete, actionable change. Not a vague aspiration. Save as a decision if the user is committed.'
+        prompt: 'What\'s one intention you want to carry into next week?',
+        checkpoint_key: 'intention',
+        instructions: 'Not a goal or task. An intention - how they want to show up, what they want to prioritize, a quality to embody.'
       },
       optional: false
     },
@@ -67,7 +68,7 @@ export const weeklyReview: Journey = {
       order: 6,
       type: 'summary',
       content: {
-        instructions: 'Summarize wins, pain points, key decisions, and the action item. Offer to save decisions and anti-patterns to memory for cross-session recall. Keep it structured and developer-friendly.'
+        instructions: 'Summarize the arc: how the week felt, what they accomplished, what challenged them, and their intention going forward. Keep it grounded.'
       },
       optional: false
     }

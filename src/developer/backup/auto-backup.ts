@@ -11,6 +11,21 @@ const readdir = promisify(fs.readdir);
 const unlink = promisify(fs.unlink);
 
 /**
+ * Hosted containers (e.g. Railway) mount the app directory read-only, so local
+ * file backups cannot work there — and have no meaning on a hosted MCP server.
+ * Detect that case so we can disable backups cleanly instead of erroring on
+ * every boot. Set BACKUP_DISABLED=1 to force-disable anywhere.
+ */
+function isReadOnlyRuntime(): boolean {
+  return Boolean(
+    process.env.BACKUP_DISABLED ||
+    process.env.RAILWAY_ENVIRONMENT ||
+    process.env.RAILWAY_PROJECT_ID ||
+    process.env.VERCEL,
+  );
+}
+
+/**
  * Auto-Backup System - Creates automatic backups before file modifications
  * Enables rollback capability and disaster recovery
  */
@@ -39,9 +54,17 @@ export class AutoBackup {
   private maxBackupAge: number = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
   private maxBackupSize: number = 500 * 1024 * 1024; // 500MB
   private cleanupInterval: NodeJS.Timeout | null = null;
+  // False when the filesystem is read-only (hosted runtime). All write paths
+  // no-op gracefully so a hosted MCP server never errors trying to back up.
+  private enabled: boolean = true;
 
-  constructor(backupDir: string = './.backup') {
+  constructor(backupDir: string = process.env.BACKUP_DIR || './.backup') {
     this.backupDir = backupDir;
+    if (isReadOnlyRuntime()) {
+      this.enabled = false;
+      logger.info('AutoBackup disabled: hosted/read-only filesystem detected');
+      return;
+    }
     this.initializeBackupDirectory();
     this.startCleanupSchedule();
   }
@@ -66,7 +89,10 @@ export class AutoBackup {
         }
       }
     } catch (error) {
-      logger.error('Failed to initialize backup directory:', error);
+      // Read-only or permission-denied filesystem: disable rather than spam
+      // an error on every boot.
+      this.enabled = false;
+      logger.warn('AutoBackup disabled: cannot initialize backup directory (read-only filesystem?):', error);
     }
   }
 
@@ -83,6 +109,9 @@ export class AutoBackup {
     backupId?: string;
     error?: string;
   }> {
+    if (!this.enabled) {
+      return { success: false, error: 'Backups are disabled in this runtime (read-only filesystem)' };
+    }
     try {
       const fullPath = path.resolve(filePath);
 
@@ -158,6 +187,15 @@ export class AutoBackup {
    * Restore a file from backup (rollback capability)
    */
   async rollback(backupId: string): Promise<RollbackResult> {
+    if (!this.enabled) {
+      return {
+        success: false,
+        restoredPath: '',
+        backupPath: '',
+        message: 'Backups are disabled in this runtime (read-only filesystem)',
+        timestamp: new Date(),
+      };
+    }
     try {
       const metadata = this.backupMetadata.get(backupId);
 
@@ -226,6 +264,9 @@ export class AutoBackup {
    */
   async listBackups(): Promise<BackupMetadata[]> {
     const backups: BackupMetadata[] = [];
+    if (!this.enabled) {
+      return backups;
+    }
 
     try {
       const snapshotsDir = path.join(this.backupDir, 'snapshots');

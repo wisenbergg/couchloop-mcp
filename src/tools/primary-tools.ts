@@ -363,10 +363,12 @@ export const memoryTool = {
 
 // ── 2. CONVERSATION ──────────────────────────────────────────────────────────
 
-const conversationTool = {
+// Exported for unit testing only — not part of the public tool surface
+// (the public surface is `setupTools()`).
+export const conversationTool = {
   definition: {
     name: 'conversation',
-    description: 'Guided self-reflection, burnout check-ins, and developer wellness conversations with crisis detection. Routes to therapeutic AI backend. Includes developer journeys: "daily-standup" (3 min: shipped/blocked/next), "sprint-retro" (8 min: wins/pains/decisions/action items), "debug-postmortem" (5 min: symptom/cause/lesson). Triggers: "I\'m burned out", "need a break", "feeling stuck", "let\'s do a retro on my week", "check in with me", "I keep going in circles", "rubber duck my frustration", "decompress", "vent session", "standup with myself", "postmortem on that bug". Use when the user sounds frustrated, stuck, or wants a non-code conversation about how work is going. NOTE: if the user is angry at AI output specifically (cursing at the AI, "you broke it"), prefer the review tool with verify mode first to address the problem, only use conversation if frustration persists without a code context or the user explicitly wants to talk it out.',
+    description: 'Guided self-reflection, burnout check-ins, and wellness conversations with crisis detection (routed to the therapeutic AI backend). SEPARATELY, it hosts data-driven DEVELOPER journeys that run LOCALLY from your real codebase (git/CI/PRs) and never touch the therapeutic backend: "daily-standup" (3 min: what actually shipped + in-flight + CI/review state → today\'s focus), "sprint-retro" (8 min: velocity, hot spots, reverts, CI health → wins/pains/decisions/action item), "debug-postmortem" (5 min: failing test + fix diff → root cause + guardrail). For developer journeys the agent gathers the facts and leads with them — it does not ask the user to recall what is already in the repo. Triggers: "I\'m burned out", "need a break", "feeling stuck", "let\'s do a retro on my week", "check in with me", "I keep going in circles", "rubber duck my frustration", "decompress", "vent session", "standup with myself", "postmortem on that bug". Use when the user sounds frustrated, stuck, or wants a non-code conversation about how work is going. NOTE: if the user is angry at AI output specifically (cursing at the AI, "you broke it"), prefer the review tool with verify mode first to address the problem, only use conversation if frustration persists without a code context or the user explicitly wants to talk it out.',
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -407,7 +409,11 @@ const conversationTool = {
     if (action === 'send' && !parsed.message) {
       return { success: false, error: 'message is required for send action' };
     }
-    const auth = parsed.auth;
+    // Resolve identity from explicit auth + hidden MCP transport metadata,
+    // consistent with the memory tool. Pass it to EVERY action — including
+    // send — so hosted callers keep a stable identity instead of falling back
+    // to a throwaway ephemeral user.
+    const auth = resolveAuthContextFromArgs(args, parsed.auth as AuthContext | undefined);
 
     switch (action) {
       case 'start':
@@ -430,6 +436,7 @@ const conversationTool = {
         return sendMessage({
           message: parsed.message,
           session_id: parsed.session_id,
+          auth,
           save_checkpoint: true,
           include_memory: true,
         });

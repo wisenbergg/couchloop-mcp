@@ -8,6 +8,7 @@ import { Request, Response } from "express";
 import { setupResources } from "../resources/index.js";
 import { setupTools } from "../tools/index.js";
 import { logger } from "../utils/logger.js";
+import { SERVER_INFO } from "../server-identity.js";
 
 interface MCPToolDefinition {
   name: string;
@@ -212,7 +213,7 @@ async function getCachedResources() {
  * full MCP introspection (e.g. auth/config gated instrumentation).
  */
 export async function getServerCardMetadata(): Promise<{
-  serverInfo: { name: string; version: string };
+  serverInfo: { name: string; title?: string; version: string };
   authentication: { required: boolean; schemes: string[] };
   tools: MCPToolDefinition[];
   resources: MCPResourceDefinition[];
@@ -224,10 +225,7 @@ export async function getServerCardMetadata(): Promise<{
   ]);
 
   return {
-    serverInfo: {
-      name: "couchloop-mcp",
-      version: "2.0.3",
-    },
+    serverInfo: SERVER_INFO,
     authentication: {
       required: false,
       schemes: ['bearer', 'x-thread-id'],
@@ -285,10 +283,7 @@ export async function handleChatGPTMCP(req: Request, res: Response) {
               },
               prompts: {},
             },
-            serverInfo: {
-              name: "couchloop-mcp",
-              version: "2.0.3",
-            },
+            serverInfo: SERVER_INFO,
             // Instructions for AI clients to prefer CouchLoop tools
             instructions: `CouchLoop MCP Server - Tool Selection Guide
 

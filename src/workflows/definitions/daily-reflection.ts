@@ -1,20 +1,21 @@
 import { Journey } from '../../types/journey.js';
 
 export const dailyReflection: Journey = {
-  slug: 'daily-standup',
-  name: 'Developer Daily Standup',
-  description: 'Quick self-check: what you shipped, what is blocking you, and what is next.',
-  estimatedMinutes: 3,
-  tags: ['developer', 'daily', 'short'],
+  slug: 'daily-reflection',
+  name: 'Daily Reflection',
+  description: 'A brief check-in to process your day and capture key moments.',
+  estimatedMinutes: 5,
+  tags: ['reflection', 'daily', 'short'],
+  executionMode: 'backend',
   steps: [
     {
       id: 'step_1',
       order: 1,
       type: 'prompt',
       content: {
-        prompt: 'What did you ship or make progress on since last check-in?',
-        checkpoint_key: 'shipped',
-        instructions: 'Accept anything: a PR, a fix, a design decision, even research. If they did not ship, that is fine too.'
+        prompt: 'How are you feeling right now? Take a moment to notice.',
+        checkpoint_key: 'initial_mood',
+        instructions: 'Gently invite the user to check in with their current state. Accept any response - single words, emotions, physical sensations.'
       },
       optional: false
     },
@@ -23,9 +24,9 @@ export const dailyReflection: Journey = {
       order: 2,
       type: 'prompt',
       content: {
-        prompt: 'Is anything blocking you right now?',
-        checkpoint_key: 'blockers',
-        instructions: 'Could be technical (failing CI, unclear API), human (waiting on review), or personal (energy, context switching). Offer to save blockers as constraints.'
+        prompt: 'What\'s one thing that happened today that you want to remember?',
+        checkpoint_key: 'memorable_moment',
+        instructions: 'Help the user identify something meaningful - positive or negative. The goal is noticing, not evaluating.'
       },
       optional: false
     },
@@ -34,18 +35,18 @@ export const dailyReflection: Journey = {
       order: 3,
       type: 'prompt',
       content: {
-        prompt: 'What is the one thing you want to finish today?',
-        checkpoint_key: 'today_goal',
-        instructions: 'Encourage a single, concrete deliverable. Save it as a checkpoint so they can recall it later.'
+        prompt: 'Is there anything you\'d like to let go of before tomorrow?',
+        checkpoint_key: 'release',
+        instructions: 'This is optional and can be skipped. No pressure to identify something.'
       },
-      optional: false
+      optional: true
     },
     {
       id: 'step_4',
       order: 4,
       type: 'summary',
       content: {
-        instructions: 'Recap shipped work, blockers, and today\'s goal. If blockers were mentioned, suggest saving them to memory. Keep it brief and actionable.'
+        instructions: 'Briefly summarize what was shared. Acknowledge their reflection without excessive praise. Offer to save any insights that emerged.'
       },
       optional: false
     }

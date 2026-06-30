@@ -30,6 +30,7 @@ async function seedDatabase() {
               description: journey.description,
               steps: journey.steps,
               estimated_minutes: journey.estimatedMinutes,
+              execution_mode: journey.executionMode ?? 'backend',
               tags: journey.tags,
               updated_at: new Date().toISOString(),
             },

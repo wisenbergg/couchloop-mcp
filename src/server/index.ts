@@ -18,6 +18,7 @@ import { sendMessage } from "../tools/sendMessage.js";
 import { createSession } from "../tools/session.js";
 import { logger } from "../utils/logger.js";
 import { getServerCardMetadata } from "./http-mcp.js";
+import { SERVER_VERSION } from "../server-identity.js";
 import { optionalAuth, rateLimit, requireScope, validateToken } from "./middleware/auth.js";
 import {
     enhancedCors,
@@ -1484,7 +1485,7 @@ openapi: 3.0.1
 info:
   title: CouchLoop EQ API
   description: Developer safety tools and guided self-reflection journeys via Model Context Protocol
-  version: 2.0.3
+  version: ${SERVER_VERSION}
 servers:
   - url: ${baseUrl}
 paths:

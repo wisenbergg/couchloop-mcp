@@ -6,6 +6,7 @@ import { sanitizeResponse } from '../utils/sanitize.js';
 import { v4 as uuidv4 } from 'uuid';
 import { sanitizeText } from '../utils/inputSanitize.js';
 import { getOrCreateSession } from './session-manager.js';
+import { resolveAuthContextFromArgs, type AuthContext } from '../types/auth.js';
 import type { ShrinkResponse } from '../clients/shrinkChatClient.js';
 import { EvaluationEngine, type SessionContext } from '../governance/evaluationEngine.js';
 
@@ -63,7 +64,59 @@ const SendMessageSchema = z.object({
   checkpoint_key: z.string().optional(),
   advance_step: z.boolean().optional(),
   journey_id: z.string().uuid().optional(),
+  // Identity context. Without this, hosted calls resolve to a throwaway
+  // ephemeral user and sessions appear "not owned by caller".
+  auth: z.record(z.unknown()).optional(),
 });
+
+/** Minimal shape of a journey row needed to decide routing. */
+interface RoutableJourney {
+  slug?: string;
+  execution_mode?: 'local' | 'backend' | string;
+  steps?: unknown[];
+}
+
+export interface LocalJourneyDirective {
+  success: true;
+  local_execution: true;
+  session_id: string;
+  journey_slug?: string;
+  current_step: number;
+  step: unknown | null;
+  directive: string;
+}
+
+/**
+ * Decide whether a journey must be driven locally by the client agent instead
+ * of routed through the therapeutic shrink-chat backend. Returns the directive
+ * payload for `local` journeys, or `null` for backend journeys / no journey.
+ *
+ * Pure and exported so the routing rule can be unit-tested without standing up
+ * Supabase or the shrink-chat client.
+ */
+export function buildLocalJourneyDirective(
+  journey: RoutableJourney | null | undefined,
+  sessionId: string,
+  currentStep: number,
+): LocalJourneyDirective | null {
+  if (!journey || journey.execution_mode !== 'local') {
+    return null;
+  }
+  const steps = Array.isArray(journey.steps) ? journey.steps : [];
+  const step = currentStep >= 0 && currentStep < steps.length ? steps[currentStep] : null;
+  return {
+    success: true,
+    local_execution: true,
+    session_id: sessionId,
+    journey_slug: journey.slug,
+    current_step: currentStep,
+    step,
+    directive:
+      'This is a local, data-driven developer journey. Do NOT send it to the conversation backend. ' +
+      'Gather the current step\'s declared data source from the codebase (git/CI/PRs), present the facts, ' +
+      'save the result with the memory tool using the step\'s checkpoint_key, then advance to the next step.',
+  };
+}
 
 /**
  * sendMessage - wrapped with overall timeout to prevent Smithery proxy aborts.
@@ -81,11 +134,16 @@ async function sendMessageInternal(args: unknown) {
     const message = sanitizeText(input.message);
     const supabase = getSupabaseClient();
 
+    // Resolve identity from explicit auth + hidden MCP transport metadata
+    // (_auth / _meta / headers). Passing this to getOrCreateSession is what
+    // keeps the caller's stable identity instead of minting an ephemeral user.
+    const auth = resolveAuthContextFromArgs(args, input.auth as AuthContext | undefined);
+
     // Get or create session implicitly if not provided
     // FIX 1: Session object returned directly — no redundant re-fetch
     const { sessionId, session, isNew } = await getOrCreateSession(
       input.session_id,
-      undefined,
+      auth,
       'Message session'
     );
 
@@ -114,6 +172,17 @@ async function sendMessageInternal(args: unknown) {
       threadIdPromise,
       journeyPromise,
     ]);
+
+    // Developer journeys run entirely on the client against the real codebase.
+    // Never route engineering status through the therapeutic shrink-chat
+    // pipeline — crisis detection, tone governance, and distress self-correction
+    // would misfire on factual standup/retro/postmortem input. Hand control back
+    // to the local agent with the current step's data directive.
+    const localDirective = buildLocalJourneyDirective(journey, session.id, session.current_step);
+    if (localDirective) {
+      logger.info(`[sendMessage] Local journey ${journey.slug} — skipping shrink-chat backend`);
+      return localDirective;
+    }
 
     const memoryContext = JSON.stringify({
       userId: session.user_id || 'anonymous',
@@ -412,9 +481,10 @@ async function handleCrisisDetection(
  */
 async function handleLocalFallback(args: unknown): Promise<unknown> {
   const input = SendMessageSchema.parse(args);
+  const auth = resolveAuthContextFromArgs(args, input.auth as AuthContext | undefined);
 
   // FIX 1: Use session object directly from getOrCreateSession
-  const { session } = await getOrCreateSession(input.session_id);
+  const { session } = await getOrCreateSession(input.session_id, auth);
 
   const fallbackContent = "I understand you're trying to communicate. The service is temporarily unavailable, but your message has been noted. Please try again shortly.";
 
