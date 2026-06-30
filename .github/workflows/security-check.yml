@@ -37,24 +37,24 @@ jobs:
     - name: Check for Sensitive Files
       run: |
         echo "Checking for files that should not be tracked..."
-        
+
         BLOCKED_FILES=""
-        
+
         # Session data files
         if git ls-files | grep -E "session-analysis.*\.(json|md)$|session-.*\.json$"; then
           BLOCKED_FILES="$BLOCKED_FILES\n- Session analysis/data files"
         fi
-        
+
         # Environment variable extraction files
         if git ls-files | grep -iE "env-vars|production-.*extracted"; then
           BLOCKED_FILES="$BLOCKED_FILES\n- Environment variable files"
         fi
-        
+
         # Actual .env files with secrets
         if git ls-files | grep -E "^\.env$|^\.env\.local$|^\.env\.production$|^\.env\.staging$"; then
           BLOCKED_FILES="$BLOCKED_FILES\n- .env files with secrets"
         fi
-        
+
         if [ -n "$BLOCKED_FILES" ]; then
           echo "❌ Found sensitive files that should not be tracked:"
           echo -e "$BLOCKED_FILES"
@@ -62,7 +62,7 @@ jobs:
           echo "Run: git rm --cached <file> to remove from tracking"
           exit 1
         fi
-        
+
         echo "✅ No sensitive files found in repo"
 
     # Check for sensitive patterns in source code

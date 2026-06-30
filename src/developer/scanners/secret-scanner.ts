@@ -107,8 +107,8 @@ export class SecretScanner {
     }
 
     // Skip placeholder and example values
-    if (trimmed.includes('YOUR_') || trimmed.includes('your_') || trimmed.includes('YOUR-') || 
-        trimmed.includes('xxxx') || trimmed.includes('changeme') || trimmed.includes('placeholder')) {
+    if (trimmed.includes('YOUR_') || trimmed.includes('your_') || trimmed.includes('YOUR-') ||
+      trimmed.includes('xxxx') || trimmed.includes('changeme') || trimmed.includes('placeholder')) {
       return true;
     }
 
@@ -252,7 +252,7 @@ export class SecretScanner {
    */
   private checkPrivateKeys(line: string, lineNum: number): void {
     if (line.includes('BEGIN PRIVATE KEY') || line.includes('BEGIN RSA PRIVATE KEY') ||
-        line.includes('BEGIN OPENSSH PRIVATE KEY') || line.includes('BEGIN PGP PRIVATE KEY')) {
+      line.includes('BEGIN OPENSSH PRIVATE KEY') || line.includes('BEGIN PGP PRIVATE KEY')) {
 
       const column = line.indexOf('BEGIN') + 1;
 
