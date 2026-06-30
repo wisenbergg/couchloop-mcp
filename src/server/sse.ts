@@ -651,6 +651,23 @@ export async function handleSSE(req: Request, res: Response) {
     // Check if this is an existing session
     let session = sessionId ? activeSessions.get(sessionId) : undefined;
 
+    // If the client presents a session id we no longer hold (e.g. the in-memory
+    // session map was wiped by a redeploy) and this is NOT an initialize, tell it
+    // to start over per the MCP Streamable HTTP spec (404). Otherwise we'd spin up
+    // a fresh, un-initialized transport that silently rejects every tools/call —
+    // which breaks every connected client after each deploy until they manually
+    // reconnect, with no error logged.
+    const isInitialize = req.body?.method === "initialize";
+    if (!session && sessionId && !isInitialize) {
+      logger.info(`Unknown MCP session ${sessionId}; asking client to reinitialize`);
+      res.status(404).json({
+        jsonrpc: "2.0",
+        error: { code: -32001, message: "Session not found; reinitialize" },
+        id: req.body?.id ?? null,
+      });
+      return;
+    }
+
     if (!session) {
       // Create new session with timeout guard
       const newSessionId = `session_${crypto.randomBytes(16).toString("hex")}`;
@@ -744,6 +761,23 @@ export async function handleMCPLenient(req: Request, res: Response) {
 
     // Check if this is an existing session
     let session = sessionId ? activeSessions.get(sessionId) : undefined;
+
+    // If the client presents a session id we no longer hold (e.g. the in-memory
+    // session map was wiped by a redeploy) and this is NOT an initialize, tell it
+    // to start over per the MCP Streamable HTTP spec (404). Otherwise we'd spin up
+    // a fresh, un-initialized transport that silently rejects every tools/call —
+    // which breaks every connected client after each deploy until they manually
+    // reconnect, with no error logged.
+    const isInitialize = req.body?.method === "initialize";
+    if (!session && sessionId && !isInitialize) {
+      logger.info(`Unknown MCP session ${sessionId}; asking client to reinitialize`);
+      res.status(404).json({
+        jsonrpc: "2.0",
+        error: { code: -32001, message: "Session not found; reinitialize" },
+        id: req.body?.id ?? null,
+      });
+      return;
+    }
 
     if (!session) {
       // Create new session with timeout guard
