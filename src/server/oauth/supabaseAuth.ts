@@ -12,8 +12,16 @@ function client(req: Request, res: Response) {
     cookies: {
       getAll: () =>
         Object.entries(req.cookies ?? {}).map(([name, value]) => ({ name, value: String(value) })),
-      setAll: (cookies) =>
-        cookies.forEach(({ name, value, options }) => res.cookie(name, value, options)),
+      setAll: (cookies) => {
+        // @supabase/ssr may flush these cookies on a deferred microtask, after
+        // the route has already redirected/responded. Writing a cookie then
+        // throws ERR_HTTP_HEADERS_SENT from a promise, which escapes the route
+        // try/catch and crashes the process (502 + restart). The one-shot code
+        // exchange already returns the user id, so skipping a late cookie write
+        // is safe.
+        if (res.headersSent) return;
+        cookies.forEach(({ name, value, options }) => res.cookie(name, value, options));
+      },
     },
   });
 }
